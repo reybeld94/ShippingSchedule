@@ -1,6 +1,18 @@
-﻿# core/config.py - Configuraciones centralizadas
-SERVER_URL = "http://localhost:8000"
-WS_URL = "ws://localhost:8000/ws"
+# core/config.py - Configuraciones centralizadas
+from .settings_manager import SettingsManager
+
+DEFAULT_SERVER_URL = "http://localhost:8000"
+DEFAULT_WS_URL = "ws://localhost:8000/ws"
+
+
+def get_server_url() -> str:
+    """Return server URL from settings or default."""
+    return SettingsManager().get_server_url()
+
+
+def get_ws_url() -> str:
+    """Return WebSocket URL from settings or default."""
+    return SettingsManager().get_ws_url()
 
 # Configuraciones de UI
 WINDOW_WIDTH = 1600

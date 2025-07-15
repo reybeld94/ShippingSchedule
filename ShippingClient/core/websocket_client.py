@@ -1,16 +1,17 @@
 ﻿# core/websocket_client.py - Cliente WebSocket separado
 import websocket
 from PyQt6.QtCore import QThread, pyqtSignal
-from .config import WS_URL
+from .config import get_ws_url
 
 class WebSocketClient(QThread):
     message_received = pyqtSignal(str)
     connection_status = pyqtSignal(bool)
     
-    def __init__(self):
+    def __init__(self, url: str | None = None):
         super().__init__()
         self.ws = None
         self.running = False
+        self.url = url or get_ws_url()
     
     def run(self):
         def on_message(ws, message):
@@ -29,7 +30,7 @@ class WebSocketClient(QThread):
             self.connection_status.emit(True)
         
         self.ws = websocket.WebSocketApp(
-            WS_URL,
+            self.url,
             on_open=on_open,
             on_message=on_message,
             on_error=on_error,

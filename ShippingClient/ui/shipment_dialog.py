@@ -19,7 +19,7 @@ from PyQt6.QtCore import Qt
 
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox, ProfessionalCard, StatusBadge
 from core.config import (
-    SERVER_URL,
+    get_server_url,
     DIALOG_WIDTH,
     DIALOG_HEIGHT,
     REQUEST_TIMEOUT,
@@ -453,18 +453,19 @@ class ModernShipmentDialog(QDialog):
             self.save_btn.setEnabled(False)
             
             headers = {"Authorization": f"Bearer {self.token}"}
-            
+            server_url = get_server_url()
+
             if self.shipment_data:  # Editar
                 response = requests.put(
-                    f"{SERVER_URL}/shipments/{self.shipment_data['id']}", 
-                    json=data, 
+                    f"{server_url}/shipments/{self.shipment_data['id']}",
+                    json=data,
                     headers=headers,
                     timeout=REQUEST_TIMEOUT
                 )
             else:  # Crear nuevo
                 response = requests.post(
-                    f"{SERVER_URL}/shipments", 
-                    json=data, 
+                    f"{server_url}/shipments",
+                    json=data,
                     headers=headers,
                     timeout=REQUEST_TIMEOUT
                 )

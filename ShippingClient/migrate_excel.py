@@ -8,7 +8,9 @@ import os
 # Configuración
 EXCEL_PATH = r"\\10.0.0.7\Production\Shipping Schedule.xlsx"
 SHEET_NAME = "Shipping Schedule"
-SERVER_URL = "http://localhost:8000"
+from core.config import get_server_url
+
+SERVER_URL = get_server_url()
 
 # Credenciales para autenticación
 USERNAME = "admin"
