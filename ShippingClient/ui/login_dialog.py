@@ -94,19 +94,19 @@ class ModernLoginDialog(QDialog):
     
         # Título principal
         title_label = QLabel("Shipping Schedule")
-        title_label.setFont(QFont("Segoe UI", 16, QFont.Weight.DemiBold))
+        title_label.setFont(QFont("Roboto", 16, QFont.Weight.DemiBold))
         title_label.setStyleSheet("color: #1F2937; border: none; background: transparent;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
         # Subtítulo
         subtitle_label = QLabel("Management System")
-        subtitle_label.setFont(QFont("Segoe UI", 11))
+        subtitle_label.setFont(QFont("Roboto", 11))
         subtitle_label.setStyleSheet("color: #6B7280; border: none; background: transparent;")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
         # Texto de instrucción
         instruction_label = QLabel("Please sign in to continue")
-        instruction_label.setFont(QFont("Segoe UI", 9))
+        instruction_label.setFont(QFont("Roboto", 9))
         instruction_label.setStyleSheet("color: #9CA3AF; border: none; background: transparent;")
         instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
@@ -127,7 +127,7 @@ class ModernLoginDialog(QDialog):
         username_layout.setSpacing(6)
         
         username_label = QLabel("Username")
-        username_label.setFont(QFont("Segoe UI", 11, QFont.Weight.Medium))
+        username_label.setFont(QFont("Roboto", 11, QFont.Weight.Medium))
         username_label.setStyleSheet("color: #374151;")
         
         self.username_edit = ModernLineEdit("Enter your username")
@@ -141,7 +141,7 @@ class ModernLoginDialog(QDialog):
         password_layout.setSpacing(6)
         
         password_label = QLabel("Password")
-        password_label.setFont(QFont("Segoe UI", 11, QFont.Weight.Medium))
+        password_label.setFont(QFont("Roboto", 11, QFont.Weight.Medium))
         password_label.setStyleSheet("color: #374151;")
         
         self.password_edit = ModernLineEdit("Enter your password")
@@ -191,7 +191,7 @@ class ModernLoginDialog(QDialog):
         
         # Texto informativo
         info_label = QLabel("Secure access to shipment management")
-        info_label.setFont(QFont("Segoe UI", 9))
+        info_label.setFont(QFont("Roboto", 9))
         info_label.setStyleSheet("color: #9CA3AF; text-align: center;")
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
@@ -205,7 +205,7 @@ class ModernLoginDialog(QDialog):
         connection_indicator.setStyleSheet("color: #10B981;")
         
         connection_text = QLabel("Server connection active")
-        connection_text.setFont(QFont("Segoe UI", 9))
+        connection_text.setFont(QFont("Roboto", 9))
         connection_text.setStyleSheet("color: #6B7280;")
         
         connection_layout.addWidget(connection_indicator)
@@ -275,7 +275,7 @@ class ModernLoginDialog(QDialog):
         msg.setStyleSheet("""
             QMessageBox {
                 background: #FFFFFF;
-                font-family: 'Segoe UI';
+                font-family: 'Roboto';
             }
             QMessageBox QLabel {
                 color: #374151;

@@ -154,11 +154,11 @@ class ModernShippingMainWindow(QMainWindow):
         title_layout.setSpacing(2)
         
         title_label = QLabel("Shipping Schedule")
-        title_label.setFont(QFont("Segoe UI", 18, QFont.Weight.DemiBold))
+        title_label.setFont(QFont("Roboto", 18, QFont.Weight.DemiBold))
         title_label.setStyleSheet("color: #1F2937; letter-spacing: -0.5px;")
         
         subtitle_label = QLabel("Dashboard")
-        subtitle_label.setFont(QFont("Segoe UI", 11))
+        subtitle_label.setFont(QFont("Roboto", 11))
         subtitle_label.setStyleSheet("color: #6B7280;")
         
         title_layout.addWidget(title_label)
@@ -172,12 +172,12 @@ class ModernShippingMainWindow(QMainWindow):
         user_info_layout.setSpacing(3)
         
         user_name_label = QLabel(f"{self.user_info['username']}")
-        user_name_label.setFont(QFont("Segoe UI", 12, QFont.Weight.Medium))
+        user_name_label.setFont(QFont("Roboto", 12, QFont.Weight.Medium))
         user_name_label.setStyleSheet("color: #1F2937;")
         user_name_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         
         user_role_label = QLabel("System Administrator")
-        user_role_label.setFont(QFont("Segoe UI", 9))
+        user_role_label.setFont(QFont("Roboto", 9))
         user_role_label.setStyleSheet("color: #6B7280;")
         user_role_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         
@@ -190,7 +190,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.connection_indicator.setStyleSheet("color: #10B981;")
         
         connection_text = QLabel("Connected")
-        connection_text.setFont(QFont("Segoe UI", 9))
+        connection_text.setFont(QFont("Roboto", 9))
         connection_text.setStyleSheet("color: #6B7280;")
         
         connection_layout.addStretch()
@@ -246,7 +246,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_layout.setSpacing(8)
         
         search_label = QLabel("Search:")
-        search_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+        search_label.setFont(QFont("Roboto", 10, QFont.Weight.Medium))
         search_label.setStyleSheet("color: #374151;")
         
         self.search_edit = ModernLineEdit("Search shipments...")
@@ -266,7 +266,7 @@ class ModernShippingMainWindow(QMainWindow):
         filter_layout.setSpacing(8)
         
         filter_label = QLabel("Status:")
-        filter_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+        filter_label.setFont(QFont("Roboto", 10, QFont.Weight.Medium))
         filter_label.setStyleSheet("color: #374151;")
         
         self.status_filter = ModernComboBox()
@@ -390,7 +390,7 @@ class ModernShippingMainWindow(QMainWindow):
                 background: #FFFFFF;
                 border: none;
                 gridline-color: #F3F4F6;
-                font-family: 'Segoe UI';
+                font-family: 'Roboto';
                 font-size: 12px;
                 selection-background-color: #EFF6FF;
                 selection-color: #1F2937;
@@ -482,7 +482,7 @@ class ModernShippingMainWindow(QMainWindow):
                 background: #F3F4F6;
             }
             QWidget {
-                font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+                font-family: 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
             }
         """)
 
@@ -667,7 +667,7 @@ class ModernShippingMainWindow(QMainWindow):
             if col == 3:  # Columna status
                 self.style_professional_status_item(item, shipment.get("status", ""))
             elif not is_active and col == 9 and item_text:  # Shipped en history
-                item.setFont(QFont("Segoe UI", 11, QFont.Weight.Medium))
+                item.setFont(QFont("Roboto", 11, QFont.Weight.Medium))
                 item.setForeground(QColor("#059669"))
             
             # Alineación
@@ -680,7 +680,7 @@ class ModernShippingMainWindow(QMainWindow):
     
     def style_professional_status_item(self, item, status):
         """Aplicar estilo profesional a item de status"""
-        item.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+        item.setFont(QFont("Roboto", 10, QFont.Weight.Medium))
         
         status_map = {
             "final_release": ("Final Release", "#DCFCE7", "#166534"),
@@ -841,7 +841,7 @@ class ModernShippingMainWindow(QMainWindow):
             msg.setStyleSheet("""
                 QMessageBox {
                     background: #FFFFFF;
-                    font-family: 'Segoe UI';
+                    font-family: 'Roboto';
                 }
                 QMessageBox QPushButton {
                     background: #3B82F6;
@@ -893,7 +893,7 @@ class ModernShippingMainWindow(QMainWindow):
         msg.setStyleSheet("""
             QMessageBox {
                 background: #FFFFFF;
-                font-family: 'Segoe UI';
+                font-family: 'Roboto';
             }
             QMessageBox QPushButton {
                 background: #EF4444;

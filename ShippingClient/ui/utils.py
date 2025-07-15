@@ -12,7 +12,7 @@ def show_popup_notification(parent, message, duration=3000):
             padding: 12px 22px;
             border-radius: 10px;
             font-size: 14px;
-            font-family: 'Segoe UI';
+            font-family: 'Roboto';
         }
     """)
     popup.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.ToolTip)

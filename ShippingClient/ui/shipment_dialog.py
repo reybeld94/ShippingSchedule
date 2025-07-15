@@ -94,12 +94,12 @@ class ModernShipmentDialog(QDialog):
         
         title_text = "Create New Shipment" if not self.shipment_data else "Edit Shipment"
         title_label = QLabel(title_text)
-        title_label.setFont(QFont("Segoe UI", 18, QFont.Weight.DemiBold))
+        title_label.setFont(QFont("Roboto", 18, QFont.Weight.DemiBold))
         title_label.setStyleSheet("color: #1F2937;")
         
         subtitle_text = "Enter shipment details below" if not self.shipment_data else f"Modifying Job #{self.shipment_data.get('job_number', '')}"
         subtitle_label = QLabel(subtitle_text)
-        subtitle_label.setFont(QFont("Segoe UI", 11))
+        subtitle_label.setFont(QFont("Roboto", 11))
         subtitle_label.setStyleSheet("color: #6B7280;")
         
         title_layout.addWidget(title_label)
@@ -267,7 +267,7 @@ class ModernShipmentDialog(QDialog):
     def create_field_label(self, text, required=False):
         """Crear label profesional para campo"""
         label = QLabel(text + (" *" if required else ""))
-        label.setFont(QFont("Segoe UI", 11, QFont.Weight.Medium))
+        label.setFont(QFont("Roboto", 11, QFont.Weight.Medium))
         
         if required:
             label.setStyleSheet("""
@@ -290,7 +290,7 @@ class ModernShipmentDialog(QDialog):
                 border: 1px solid #D1D5DB;
                 border-radius: 6px;
                 padding: 10px;
-                font-family: 'Segoe UI';
+                font-family: 'Roboto';
                 font-size: 13px;
                 color: #1F2937;
                 selection-background-color: #DBEAFE;
@@ -344,7 +344,7 @@ class ModernShipmentDialog(QDialog):
         self.setStyleSheet("""
             QDialog {
                 background: #F3F4F6;
-                font-family: 'Segoe UI', sans-serif;
+                font-family: 'Roboto', sans-serif;
             }
             QLabel {
                 color: #374151;
@@ -474,7 +474,7 @@ class ModernShipmentDialog(QDialog):
         msg.setStyleSheet("""
             QMessageBox {
                 background: #FFFFFF;
-                font-family: 'Segoe UI';
+                font-family: 'Roboto';
             }
             QMessageBox QLabel {
                 color: #374151;
