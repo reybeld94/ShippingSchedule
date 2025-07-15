@@ -1,19 +1,20 @@
 ﻿# ui/utils.py
 from PyQt6.QtWidgets import QLabel
 from PyQt6.QtCore import QTimer, Qt, QPoint
+from core.config import MODERN_FONT
 
 def show_popup_notification(parent, message, duration=3000):
     popup = QLabel(parent)
     popup.setText(f"  ●  {message}")
-    popup.setStyleSheet("""
-        QLabel {
+    popup.setStyleSheet(f"""
+        QLabel {{
             background-color: #3B82F6;
             color: white;
             padding: 12px 22px;
             border-radius: 10px;
             font-size: 14px;
-            font-family: 'Segoe UI';
-        }
+            font-family: '{MODERN_FONT}';
+        }}
     """)
     popup.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.ToolTip)
     popup.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)

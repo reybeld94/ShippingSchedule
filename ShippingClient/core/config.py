@@ -15,5 +15,7 @@ REQUEST_TIMEOUT = 10
 CONNECTION_RETRY_INTERVAL = 5000  # 5 segundos
 
 # Estilos
-MODERN_FONT = "Segoe UI"
+# Fuente principal para la interfaz. Se puede cambiar para ajustar el estilo
+# de toda la aplicación.
+MODERN_FONT = "Helvetica Neue"
 FONT_SIZE = 10
