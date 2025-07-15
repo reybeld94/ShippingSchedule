@@ -419,16 +419,16 @@ class ModernShippingMainWindow(QMainWindow):
                 selection-background-color: #EFF6FF;
                 selection-color: #1F2937;
             }}
-            QTableWidget::item {
+            QTableWidget::item {{
                 padding: 12px 8px;
                 border-bottom: 1px solid #F3F4F6;
                 border-right: 1px solid #F9FAFB;
-            }
-            QTableWidget::item:selected {
+            }}
+            QTableWidget::item:selected {{
                 background: #EFF6FF;
                 color: #1F2937;
-            }
-            QHeaderView::section {
+            }}
+            QHeaderView::section {{
                 background-color: #F9FAFB;
                 color: #374151;
                 padding: 12px 8px;
@@ -439,16 +439,16 @@ class ModernShippingMainWindow(QMainWindow):
                 font-size: 11px;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
-            }
-            QHeaderView::section:first {
+            }}
+            QHeaderView::section:first {{
                 border-left: none;
-            }
-            QHeaderView::section:last {
+            }}
+            QHeaderView::section:last {{
                 border-right: none;
-            }
-            QTableWidget::item:hover {
+            }}
+            QTableWidget::item:hover {{
                 background: #F9FAFB;
-            }
+            }}
         """)
         
         # Configuración
@@ -877,7 +877,7 @@ class ModernShippingMainWindow(QMainWindow):
                     background: #FFFFFF;
                     font-family: '{MODERN_FONT}';
                 }}
-                QMessageBox QPushButton {
+                QMessageBox QPushButton {{
                     background: #3B82F6;
                     color: white;
                     border: none;
@@ -886,16 +886,16 @@ class ModernShippingMainWindow(QMainWindow):
                     font-weight: 500;
                     min-width: 80px;
 
-                }
-                QMessageBox QPushButton:hover {
+                }}
+                QMessageBox QPushButton:hover {{
                     background: #2563EB;
-                }
-                QMessageBox QPushButton[text="No"] {
+                }}
+                QMessageBox QPushButton[text="No"] {{
                     background: #6B7280;
-                }
-                QMessageBox QPushButton[text="No"]:hover {
+                }}
+                QMessageBox QPushButton[text="No"]:hover {{
                     background: #4B5563;
-                }
+                }}
             """)
             
             if msg.exec() == QMessageBox.StandardButton.Yes:
@@ -929,7 +929,7 @@ class ModernShippingMainWindow(QMainWindow):
                 background: #FFFFFF;
                 font-family: '{MODERN_FONT}';
             }}
-            QMessageBox QPushButton {
+            QMessageBox QPushButton {{
                 background: #EF4444;
                 color: white;
                 border: none;
@@ -937,10 +937,10 @@ class ModernShippingMainWindow(QMainWindow):
                 border-radius: 4px;
                 font-weight: 500;
                 min-width: 80px;
-            }
-            QMessageBox QPushButton:hover {
+            }}
+            QMessageBox QPushButton:hover {{
                 background: #DC2626;
-            }
+            }}
         """)
         msg.exec()
 
