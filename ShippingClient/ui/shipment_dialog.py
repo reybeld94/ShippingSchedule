@@ -315,13 +315,13 @@ class ModernShipmentDialog(QDialog):
                 color: #1F2937;
                 selection-background-color: #DBEAFE;
             }}
-            QTextEdit:focus {
+            QTextEdit:focus {{
                 border-color: #3B82F6;
                 outline: none;
-            }
-            QTextEdit:hover {
+            }}
+            QTextEdit:hover {{
                 border-color: #9CA3AF;
-            }
+            }}
         """)
         return text_edit
     
