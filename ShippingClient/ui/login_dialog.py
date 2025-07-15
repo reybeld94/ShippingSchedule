@@ -275,12 +275,12 @@ class ModernLoginDialog(QDialog):
                 background: #FFFFFF;
                 font-family: '{MODERN_FONT}';
             }}
-            QMessageBox QLabel {
+            QMessageBox QLabel {{
                 color: #374151;
                 font-size: 13px;
                 padding: 10px;
-            }
-            QMessageBox QPushButton {
+            }}
+            QMessageBox QPushButton {{
                 background: #3B82F6;
                 color: white;
                 border: none;
@@ -289,13 +289,13 @@ class ModernLoginDialog(QDialog):
                 font-weight: 500;
                 font-size: 12px;
                 min-width: 80px;
-            }
-            QMessageBox QPushButton:hover {
+            }}
+            QMessageBox QPushButton:hover {{
                 background: #2563EB;
-            }
-            QMessageBox QPushButton:pressed {
+            }}
+            QMessageBox QPushButton:pressed {{
                 background: #1D4ED8;
-            }
+            }}
         """)
         
         msg.exec()
