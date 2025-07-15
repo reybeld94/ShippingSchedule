@@ -377,7 +377,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Configurar tabla con estilo profesional"""
         columns = [
             "Job Number", "Job Name", "Description",
-            "Status", "QC Release", "Created", "Ship Plan", "Shipped",
+            "Status", "QC Release", "Crated", "Ship Plan", "Shipped",
             "Invoice Number", "Notes"
         ]
         
@@ -442,7 +442,7 @@ class ModernShippingMainWindow(QMainWindow):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Job Number
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Job Name
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Shipping List
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Status
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Status
         
         # Eventos
         table.selectionModel().selectionChanged.connect(self.on_selection_changed)
@@ -664,14 +664,14 @@ class ModernShippingMainWindow(QMainWindow):
             item = QTableWidgetItem(str(item_text))
             
             # Aplicar estilos profesionales
-            if col == 5:  # Columna status
+            if col == 3:  # Columna status
                 self.style_professional_status_item(item, shipment.get("status", ""))
             elif not is_active and col == 9 and item_text:  # Shipped en history
                 item.setFont(QFont("Segoe UI", 11, QFont.Weight.Medium))
                 item.setForeground(QColor("#059669"))
             
             # Alineación
-            if col in [0, 10]:  # Job # e Invoice #
+            if col in [0, 8]:  # Job # e Invoice #
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             
             table.setItem(row, col, item)
