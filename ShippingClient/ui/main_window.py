@@ -49,6 +49,9 @@ class ModernShippingMainWindow(QMainWindow):
         self.token = token
         self.user_info = user_info
         self.shipments = []
+
+        self.is_admin = self.user_info.get("role") == "admin"
+        self.read_only = self.user_info.get("role") == "read"
         
 
         
@@ -182,7 +185,13 @@ class ModernShippingMainWindow(QMainWindow):
         user_name_label.setStyleSheet("color: #1F2937;")
         user_name_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         
-        user_role_label = QLabel("System Administrator")
+        role_map = {
+            "admin": "System Administrator",
+            "write": "Write Access",
+            "read": "Read Only"
+        }
+        role_text = role_map.get(self.user_info.get("role"), "Read Only")
+        user_role_label = QLabel(role_text)
         user_role_label.setFont(QFont(MODERN_FONT, 9))
         user_role_label.setStyleSheet("color: #6B7280;")
         user_role_label.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -240,6 +249,11 @@ class ModernShippingMainWindow(QMainWindow):
         self.delete_btn = ModernButton("Delete", "danger")
         self.delete_btn.clicked.connect(self.delete_shipment)
         self.delete_btn.setEnabled(False)
+
+        if self.read_only:
+            self.add_btn.setEnabled(False)
+            self.edit_btn.setEnabled(False)
+            self.delete_btn.setEnabled(False)
         
         # Separador
         separator = QFrame()
@@ -300,6 +314,10 @@ class ModernShippingMainWindow(QMainWindow):
         toolbar_layout.addLayout(search_layout)
         toolbar_layout.addLayout(filter_layout)
         toolbar_layout.addStretch()
+        if self.is_admin:
+            self.user_btn = ModernButton("Users", "secondary")
+            self.user_btn.clicked.connect(self.open_user_management)
+            toolbar_layout.addWidget(self.user_btn)
         toolbar_layout.addWidget(self.refresh_btn)
         
         layout.addWidget(toolbar_frame)
@@ -571,8 +589,12 @@ class ModernShippingMainWindow(QMainWindow):
         """Manejar cambio de selección en tabla"""
         current_table = self.get_current_table()
         has_selection = len(current_table.selectionModel().selectedRows()) > 0
-        self.edit_btn.setEnabled(has_selection)
-        self.delete_btn.setEnabled(has_selection)
+        if self.read_only:
+            self.edit_btn.setEnabled(False)
+            self.delete_btn.setEnabled(False)
+        else:
+            self.edit_btn.setEnabled(has_selection)
+            self.delete_btn.setEnabled(has_selection)
     
     def get_current_table(self):
         """Obtener la tabla actualmente activa"""
@@ -773,6 +795,8 @@ class ModernShippingMainWindow(QMainWindow):
     
     def add_shipment(self):
         """Agregar nuevo shipment"""
+        if self.read_only:
+            return
         try:
             from .shipment_dialog import ModernShipmentDialog
             
@@ -785,6 +809,8 @@ class ModernShippingMainWindow(QMainWindow):
     
     def edit_shipment(self):
         """Editar shipment seleccionado"""
+        if self.read_only:
+            return
         try:
             current_table = self.get_current_table()
             selected_rows = current_table.selectionModel().selectedRows()
@@ -815,6 +841,8 @@ class ModernShippingMainWindow(QMainWindow):
     
     def delete_shipment(self):
         """Eliminar shipment seleccionado"""
+        if self.read_only:
+            return
         try:
             current_table = self.get_current_table()
             selected_rows = current_table.selectionModel().selectedRows()
@@ -915,6 +943,12 @@ class ModernShippingMainWindow(QMainWindow):
             }
         """)
         msg.exec()
+
+    def open_user_management(self):
+        """Abrir diálogo de gestión de usuarios"""
+        from .user_dialog import UserManagementDialog
+        dialog = UserManagementDialog(token=self.token)
+        dialog.exec()
     
     def closeEvent(self, event):
         """Manejar cierre de ventana"""
