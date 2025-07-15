@@ -184,7 +184,6 @@ def migrate_excel_data():
                 
                 # Campos que no están en tu Excel actual pero son requeridos
                 shipping_list = job_name  # Usar job_name como shipping_list
-                week = ""  # Campo vacío por ahora
                 
                 # Limpiar job_number
                 job_number = job_number.replace('.0', '').strip()
@@ -220,7 +219,6 @@ def migrate_excel_data():
                     "job_number": job_number,
                     "shipping_list": shipping_list,
                     "job_name": job_name,
-                    "week": week,
                     "description": description,
                     "status": status,
                     "qc_release": qc_release,

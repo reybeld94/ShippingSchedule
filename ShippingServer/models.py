@@ -26,7 +26,6 @@ class Shipment(Base):
     job_number = Column(String(20), unique=True, index=True, nullable=False)
     shipping_list = Column(String(200), nullable=False)
     job_name = Column(String(200), nullable=False)
-    week = Column(String(20))
     description = Column(Text)
     
     # Estados: final_release, partial_release, rejected, prod_updated
