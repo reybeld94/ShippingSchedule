@@ -375,10 +375,14 @@ class ModernShipmentDialog(QDialog):
     def populate_form(self, data):
         """Poblar formulario con datos existentes"""
         try:
-            self.job_number_edit.setText(str(data.get("job_number", "")))
+            # Convertir valores None a cadena vacía antes de asignar al widget
+            def safe_str(value):
+                return "" if value is None else str(value)
+
+            self.job_number_edit.setText(safe_str(data.get("job_number")))
             self.job_number_edit.setEnabled(False)  # No editable en modo edición
-            self.job_name_edit.setText(data.get("job_name", ""))
-            self.description_edit.setPlainText(data.get("description", ""))
+            self.job_name_edit.setText(safe_str(data.get("job_name")))
+            self.description_edit.setPlainText(safe_str(data.get("description")))
             
             # Mapear status del servidor al combo
             status = data.get("status", "partial_release")
@@ -393,12 +397,12 @@ class ModernShipmentDialog(QDialog):
             if index >= 0:
                 self.status_combo.setCurrentIndex(index)
             
-            self.qc_release_edit.setText(data.get("qc_release", ""))
-            self.created_edit.setText(data.get("created", ""))
-            self.ship_plan_edit.setText(data.get("ship_plan", ""))
-            self.shipped_edit.setText(data.get("shipped", ""))
-            self.invoice_edit.setText(data.get("invoice_number", ""))
-            self.notes_edit.setPlainText(data.get("shipping_notes", ""))
+            self.qc_release_edit.setText(safe_str(data.get("qc_release")))
+            self.created_edit.setText(safe_str(data.get("created")))
+            self.ship_plan_edit.setText(safe_str(data.get("ship_plan")))
+            self.shipped_edit.setText(safe_str(data.get("shipped")))
+            self.invoice_edit.setText(safe_str(data.get("invoice_number")))
+            self.notes_edit.setPlainText(safe_str(data.get("shipping_notes")))
             
             print("Formulario poblado con datos existentes")
         except Exception as e:
