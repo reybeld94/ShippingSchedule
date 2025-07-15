@@ -461,12 +461,10 @@ class ModernShippingMainWindow(QMainWindow):
         table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         
-        # Auto-resize columnas
+        # Configurar columnas como ajustables por el usuario
         header = table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Job Number
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Job Name
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Shipping List
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Status
+        for i in range(len(columns)):
+            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
         
         # Eventos
         table.selectionModel().selectionChanged.connect(self.on_selection_changed)
