@@ -222,12 +222,12 @@ class ModernShipmentDialog(QDialog):
         dates_grid.setSpacing(15)
         dates_grid.setContentsMargins(0, 10, 0, 0)
         
-        # Fila 1: QC Release y Created
+        # Fila 1: QC Release y Crated
         dates_grid.addWidget(self.create_field_label("QC Release"), 0, 0)
         self.qc_release_edit = ModernLineEdit("MM/DD/YY")
         dates_grid.addWidget(self.qc_release_edit, 0, 1)
-        
-        dates_grid.addWidget(self.create_field_label("Created"), 0, 2)
+
+        dates_grid.addWidget(self.create_field_label("Crated"), 0, 2)
         self.created_edit = ModernLineEdit("MM/DD/YY")
         dates_grid.addWidget(self.created_edit, 0, 3)
         
