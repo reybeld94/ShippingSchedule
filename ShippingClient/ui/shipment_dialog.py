@@ -79,14 +79,9 @@ class ModernShipmentDialog(QDialog):
         header_frame.setFixedHeight(70)
         header_frame.setStyleSheet("""
             QFrame {
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 0,
-                    stop: 0 #3B82F6,
-                    stop: 1 #1D4ED8
-                );
+                background-color: #FFFFFF;
                 border: none;
-                border-bottom: 2px solid #E5E7EB;
-            }}
+            }
         """)
         
         header_layout = QHBoxLayout(header_frame)
@@ -115,12 +110,12 @@ class ModernShipmentDialog(QDialog):
         title_text = "Create New Shipment" if not self.shipment_data else "Edit Shipment"
         title_label = QLabel(title_text)
         title_label.setFont(QFont(MODERN_FONT, 18, QFont.Weight.DemiBold))
-        title_label.setStyleSheet("color: white;")
+        title_label.setStyleSheet("color: #1F2937;")
         
         subtitle_text = "Enter shipment details below" if not self.shipment_data else f"Modifying Job #{self.shipment_data.get('job_number', '')}"
         subtitle_label = QLabel(subtitle_text)
         subtitle_label.setFont(QFont(MODERN_FONT, 11))
-        subtitle_label.setStyleSheet("color: #E5E7EB;")
+        subtitle_label.setStyleSheet("color: #6B7280;")
         
         title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label)
