@@ -3,9 +3,9 @@ import requests
 import os
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QMessageBox, QLineEdit
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtGui import QFont
 
-from .widgets import ModernButton, ModernLineEdit, ProfessionalCard
+from .widgets import ModernButton, ModernLineEdit
 from core.config import SERVER_URL, LOGIN_WIDTH, LOGIN_HEIGHT, REQUEST_TIMEOUT, MODERN_FONT
 
 class ModernLoginDialog(QDialog):
@@ -82,27 +82,12 @@ class ModernLoginDialog(QDialog):
         header_layout.setSpacing(10)
         header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
-        # Logo (eliminar duplicación)
-        logo_container = QHBoxLayout()
-        logo_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    
-        logo_label = QLabel()
-        logo_label.setText("🚢")
-        logo_label.setStyleSheet("font-size: 32px; color: #3B82F6; border: none; background: transparent;")
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_container.addWidget(logo_label)
-    
         # Título principal
         title_label = QLabel("Shipping Schedule")
         title_label.setFont(QFont(MODERN_FONT, 16, QFont.Weight.DemiBold))
         title_label.setStyleSheet("color: #1F2937; border: none; background: transparent;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    
-        # Subtítulo
-        subtitle_label = QLabel("Management System")
-        subtitle_label.setFont(QFont(MODERN_FONT, 11))
-        subtitle_label.setStyleSheet("color: #6B7280; border: none; background: transparent;")
-        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
     
         # Texto de instrucción
         instruction_label = QLabel("Please sign in to continue")
@@ -110,9 +95,7 @@ class ModernLoginDialog(QDialog):
         instruction_label.setStyleSheet("color: #9CA3AF; border: none; background: transparent;")
         instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
-        header_layout.addLayout(logo_container)
         header_layout.addWidget(title_label)
-        header_layout.addWidget(subtitle_label)
         header_layout.addWidget(instruction_label)
     
         layout.addLayout(header_layout)
@@ -187,12 +170,6 @@ class ModernLoginDialog(QDialog):
         separator.setStyleSheet("background-color: #E5E7EB; border: none; height: 1px;")
         separator.setFixedHeight(1)
         
-        # Texto informativo
-        info_label = QLabel("Secure access to shipment management")
-        info_label.setFont(QFont(MODERN_FONT, 9))
-        info_label.setStyleSheet("color: #9CA3AF; text-align: center;")
-        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
         # Status de conexión
         connection_layout = QHBoxLayout()
         connection_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -210,7 +187,6 @@ class ModernLoginDialog(QDialog):
         connection_layout.addWidget(connection_text)
         
         footer_layout.addWidget(separator)
-        footer_layout.addWidget(info_label)
         footer_layout.addLayout(connection_layout)
         
         layout.addLayout(footer_layout)
