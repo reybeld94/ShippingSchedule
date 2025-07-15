@@ -1,5 +1,12 @@
 ﻿# ui/widgets.py - Widgets profesionales
-from PyQt6.QtWidgets import QPushButton, QLineEdit, QComboBox, QFrame, QLabel, QVBoxLayout, QHBoxLayout
+from PyQt6.QtWidgets import (
+    QPushButton,
+    QLineEdit,
+    QComboBox,
+    QFrame,
+    QLabel,
+    QVBoxLayout,
+)
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
@@ -228,6 +235,7 @@ class ProfessionalCard(QFrame):
         self.setStyleSheet("""
             QFrame {
                 background: #FFFFFF;
+                border: 1px solid #E5E7EB;
                 border-radius: 8px;
             }
         """)
