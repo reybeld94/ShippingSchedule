@@ -131,7 +131,6 @@ class ModernLoginDialog(QDialog):
         username_label.setStyleSheet("color: #374151;")
         
         self.username_edit = ModernLineEdit("Enter your username")
-        self.username_edit.setText("admin")  # Valor por defecto para desarrollo
         
         username_layout.addWidget(username_label)
         username_layout.addWidget(self.username_edit)
@@ -146,7 +145,6 @@ class ModernLoginDialog(QDialog):
         
         self.password_edit = ModernLineEdit("Enter your password")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_edit.setText("admin123")  # Valor por defecto para desarrollo
         
         password_layout.addWidget(password_label)
         password_layout.addWidget(self.password_edit)
