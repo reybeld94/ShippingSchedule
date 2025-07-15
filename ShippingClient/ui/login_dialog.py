@@ -11,7 +11,7 @@ from core.config import get_server_url, LOGIN_WIDTH, LOGIN_HEIGHT, REQUEST_TIMEO
 class ModernLoginDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Shipping Schedule Management System")
+        self.setWindowTitle("Shipping Schedule")
         self.setMinimumSize(600, 600)
         self.setModal(True)
         
