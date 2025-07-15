@@ -242,6 +242,27 @@ async def get_shipments(db: Session = Depends(get_db), current_user: User = Depe
 
 from models import AuditLog  # asegúrate de importar AuditLog arriba
 
+# Utilidad para generar un job_number único con sufijo incremental
+def generate_unique_job_number(base_job_number: str, db: Session) -> str:
+    """Devuelve un job number único agregando sufijos numéricos si es necesario."""
+    # Obtener todos los job_numbers que comiencen con el job ingresado
+    pattern = f"{base_job_number}%"
+    existing_numbers = [r[0] for r in db.query(Shipment.job_number).filter(Shipment.job_number.like(pattern)).all()]
+
+    # Si no existe exactamente, usar el número ingresado
+    if base_job_number not in existing_numbers:
+        return base_job_number
+
+    suffixes = [0]
+    for number in existing_numbers:
+        if number.startswith(f"{base_job_number}."):
+            suffix = number[len(base_job_number) + 1 :]
+            if suffix.isdigit():
+                suffixes.append(int(suffix))
+
+    next_suffix = max(suffixes) + 1
+    return f"{base_job_number}.{next_suffix}"
+
 @app.post("/shipments", response_model=ShipmentResponse)
 async def create_shipment(
     shipment: ShipmentCreate,
@@ -250,13 +271,14 @@ async def create_shipment(
 ):
     if current_user.role not in ["write", "admin"]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-    # Verificar que job_number sea único
-    existing = db.query(Shipment).filter(Shipment.job_number == shipment.job_number).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Job number already exists")
-    
+    # Generar job_number único (agregar sufijo si es necesario)
+    unique_job_number = generate_unique_job_number(shipment.job_number, db)
+
+    shipment_data = shipment.dict()
+    shipment_data["job_number"] = unique_job_number
+
     new_shipment = Shipment(
-        **shipment.dict(),
+        **shipment_data,
         created_by=current_user.id
     )
     
@@ -270,7 +292,7 @@ async def create_shipment(
         action="create",
         table_name="shipments",
         record_id=new_shipment.id,
-        changes=json.dumps(shipment.dict())
+        changes=json.dumps(shipment_data)
     )
     db.add(log)
     db.commit()
@@ -303,6 +325,9 @@ async def update_shipment(
     
     # Actualizar solo campos que no son None
     update_data = shipment_update.dict(exclude_unset=True)
+    if "job_number" in update_data:
+        update_data["job_number"] = generate_unique_job_number(update_data["job_number"], db)
+
     for field, value in update_data.items():
         setattr(shipment, field, value)
     
