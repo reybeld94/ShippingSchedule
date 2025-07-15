@@ -367,9 +367,9 @@ class ModernShipmentDialog(QDialog):
                 background: #F3F4F6;
                 font-family: '{MODERN_FONT}', sans-serif;
             }}
-            QLabel {
+            QLabel {{
                 color: #374151;
-            }
+            }}
         """)
     
     def populate_form(self, data):
