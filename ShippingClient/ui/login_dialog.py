@@ -1,12 +1,29 @@
 ﻿# ui/login_dialog.py - Diálogo de autenticación profesional
 import requests
 import os
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QMessageBox, QLineEdit
+from PyQt6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QFrame,
+    QMessageBox,
+    QLineEdit,
+    QStyle,
+)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 from .widgets import ModernButton, ModernLineEdit
-from core.config import get_server_url, LOGIN_WIDTH, LOGIN_HEIGHT, REQUEST_TIMEOUT, MODERN_FONT
+from .settings_dialog import SettingsDialog
+from core.settings_manager import SettingsManager
+from core.config import (
+    get_server_url,
+    LOGIN_WIDTH,
+    LOGIN_HEIGHT,
+    REQUEST_TIMEOUT,
+    MODERN_FONT,
+)
 
 class ModernLoginDialog(QDialog):
     def __init__(self):
@@ -14,6 +31,9 @@ class ModernLoginDialog(QDialog):
         self.setWindowTitle("Shipping Schedule Management System")
         self.setMinimumSize(600, 600)
         self.setModal(True)
+
+        # Persistent settings manager
+        self.settings_mgr = SettingsManager()
         
         # Configurar ventana sin frame personalizado
         #self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
@@ -178,14 +198,23 @@ class ModernLoginDialog(QDialog):
         connection_indicator = QLabel("●")
         connection_indicator.setFont(QFont("Arial", 10))
         connection_indicator.setStyleSheet("color: #10B981;")
-        
+
         connection_text = QLabel("Server connection active")
         connection_text.setFont(QFont(MODERN_FONT, 9))
         connection_text.setStyleSheet("color: #6B7280;")
-        
+
+        # Botón para abrir la configuración de servidor
+        self.settings_btn = ModernButton("", "secondary")
+        self.settings_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
+        )
+        self.settings_btn.setFixedSize(24, 24)
+        self.settings_btn.clicked.connect(self.open_settings_dialog)
+
         connection_layout.addWidget(connection_indicator)
         connection_layout.addWidget(connection_text)
-        
+        connection_layout.addWidget(self.settings_btn)
+
         footer_layout.addWidget(separator)
         footer_layout.addLayout(connection_layout)
         
@@ -276,7 +305,12 @@ class ModernLoginDialog(QDialog):
         """)
         
         msg.exec()
-    
+
+    def open_settings_dialog(self):
+        """Open settings dialog for server configuration"""
+        dlg = SettingsDialog(self.settings_mgr)
+        dlg.exec()
+
     def keyPressEvent(self, event):
         """Manejar eventos de teclado"""
         # Permitir ESC para cerrar
