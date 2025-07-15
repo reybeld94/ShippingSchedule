@@ -41,7 +41,8 @@ def create_admin_user():
             admin_user = User(
                 username="admin",
                 email="admin@shipping.com",
-                hashed_password=hashed_password
+                hashed_password=hashed_password,
+                role="admin"
             )
             db.add(admin_user)
             db.commit()

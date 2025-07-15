@@ -10,7 +10,7 @@ import asyncio
 # Imports locales
 from database import get_db, create_tables, create_admin_user
 from models import User, Shipment, AuditLog
-from auth import authenticate_user, create_access_token, get_current_user, Token, UserLogin, UserCreate
+from auth import authenticate_user, create_access_token, get_current_user, get_current_admin_user, Token, UserLogin, UserCreate
 from pydantic import BaseModel
 
 # Crear app FastAPI
@@ -113,12 +113,17 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
         "user_info": {
             "id": user.id,
             "username": user.username,
-            "email": user.email
+            "email": user.email,
+            "role": user.role
         }
     }
 
 @app.post("/register")
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(
+    user_data: UserCreate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
     # Verificar si usuario ya existe
     existing_user = db.query(User).filter(User.username == user_data.username).first()
     if existing_user:
@@ -130,13 +135,37 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     new_user = User(
         username=user_data.username,
         email=user_data.email,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        role=user_data.role
     )
     
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
+
+    return {"message": "User created successfully", "user_id": new_user.id}
+
+@app.post("/users")
+async def create_user(
+    user_data: UserCreate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    existing_user = db.query(User).filter(User.username == user_data.username).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+
+    from auth import get_password_hash
+    hashed_password = get_password_hash(user_data.password)
+    new_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hashed_password,
+        role=user_data.role
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
     return {"message": "User created successfully", "user_id": new_user.id}
 
 # ============ ENDPOINTS DE SHIPMENTS ============
@@ -154,6 +183,8 @@ async def create_shipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     # Verificar que job_number sea único
     existing = db.query(Shipment).filter(Shipment.job_number == shipment.job_number).first()
     if existing:
@@ -199,6 +230,8 @@ async def update_shipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
@@ -242,6 +275,8 @@ async def delete_shipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
     shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
