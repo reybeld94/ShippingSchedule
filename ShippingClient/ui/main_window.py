@@ -3,7 +3,8 @@ import json
 import requests
 from datetime import datetime
 import os
-from .utils import show_popup_notification  
+from .utils import show_popup_notification
+from core.settings_manager import SettingsManager
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QTableWidget, QTableWidgetItem, QLabel, QMessageBox,
                              QHeaderView, QFrame, QStatusBar, QDialog, QTabWidget)
@@ -52,9 +53,10 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.is_admin = self.user_info.get("role") == "admin"
         self.read_only = self.user_info.get("role") == "read"
-        
 
-        
+        # Manage persistent UI settings
+        self.settings_mgr = SettingsManager()
+
         # Cache para optimización
         self._active_shipments = []
         self._history_shipments = []
@@ -375,7 +377,7 @@ class ModernShippingMainWindow(QMainWindow):
         active_layout.setContentsMargins(8, 8, 8, 8)
         
         self.active_table = QTableWidget()
-        self.setup_professional_table(self.active_table)
+        self.setup_professional_table(self.active_table, "active")
         active_layout.addWidget(self.active_table)
         
         self.tab_widget.addTab(self.active_widget, "Active Shipments")
@@ -386,7 +388,7 @@ class ModernShippingMainWindow(QMainWindow):
         history_layout.setContentsMargins(8, 8, 8, 8)
         
         self.history_table = QTableWidget()
-        self.setup_professional_table(self.history_table)
+        self.setup_professional_table(self.history_table, "history")
         history_layout.addWidget(self.history_table)
         
         self.tab_widget.addTab(self.history_widget, "Shipment History")
@@ -397,8 +399,8 @@ class ModernShippingMainWindow(QMainWindow):
         tabs_layout.addWidget(self.tab_widget)
         layout.addWidget(tabs_container)
     
-    def setup_professional_table(self, table):
-        """Configurar tabla con estilo profesional"""
+    def setup_professional_table(self, table, name):
+        """Configurar tabla con estilo profesional y restaurar ancho de columnas"""
         columns = [
             "Job Number", "Job Name", "Description",
             "Status", "QC Release", "Crated", "Ship Plan", "Shipped",
@@ -465,10 +467,28 @@ class ModernShippingMainWindow(QMainWindow):
         header = table.horizontalHeader()
         for i in range(len(columns)):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
-        
+
+        # Restaurar anchos guardados si existen
+        self.restore_column_widths(table, name)
+
+        # Guardar anchos cada vez que se ajusta alguna columna
+        header.sectionResized.connect(lambda *args, tbl=table, nm=name: self.save_table_column_widths(tbl, nm))
+
         # Eventos
         table.selectionModel().selectionChanged.connect(self.on_selection_changed)
         table.doubleClicked.connect(self.edit_shipment)
+
+    def save_table_column_widths(self, table, name):
+        """Guardar anchos actuales de la tabla."""
+        widths = [table.columnWidth(i) for i in range(table.columnCount())]
+        self.settings_mgr.save_column_widths(name, widths)
+
+    def restore_column_widths(self, table, name):
+        """Aplicar anchos previamente guardados si existen."""
+        widths = self.settings_mgr.load_column_widths(name, table.columnCount())
+        for i, width in enumerate(widths):
+            if width is not None:
+                table.setColumnWidth(i, width)
     
     def create_professional_status_bar(self):
         """Crear status bar profesional"""
@@ -951,6 +971,10 @@ class ModernShippingMainWindow(QMainWindow):
     def closeEvent(self, event):
         """Manejar cierre de ventana"""
         try:
+            # Guardar anchos de columnas antes de cerrar
+            self.save_table_column_widths(self.active_table, "active")
+            self.save_table_column_widths(self.history_table, "history")
+
             if hasattr(self, 'ws_client'):
                 self.ws_client.stop()
             if hasattr(self, 'shipment_loader') and self.shipment_loader.isRunning():
