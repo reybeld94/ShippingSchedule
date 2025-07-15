@@ -14,7 +14,7 @@ from PyQt6.QtCore import Qt
 import requests
 
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox, ProfessionalCard
-from core.config import SERVER_URL, REQUEST_TIMEOUT
+from core.config import get_server_url, REQUEST_TIMEOUT
 
 
 class UserFormDialog(QDialog):
@@ -82,9 +82,10 @@ class UserFormDialog(QDialog):
             return
         headers = {"Authorization": f"Bearer {self.token}"}
         try:
+            server_url = get_server_url()
             if self.user:
                 resp = requests.put(
-                    f"{SERVER_URL}/users/{self.user['id']}",
+                    f"{server_url}/users/{self.user['id']}",
                     json=data,
                     headers=headers,
                     timeout=REQUEST_TIMEOUT,
@@ -92,7 +93,7 @@ class UserFormDialog(QDialog):
             else:
                 data["password"] = password
                 resp = requests.post(
-                    f"{SERVER_URL}/users",
+                    f"{server_url}/users",
                     json=data,
                     headers=headers,
                     timeout=REQUEST_TIMEOUT,
@@ -146,7 +147,8 @@ class UserManagementDialog(QDialog):
     def load_users(self):
         headers = {"Authorization": f"Bearer {self.token}"}
         try:
-            resp = requests.get(f"{SERVER_URL}/users", headers=headers, timeout=REQUEST_TIMEOUT)
+            server_url = get_server_url()
+            resp = requests.get(f"{server_url}/users", headers=headers, timeout=REQUEST_TIMEOUT)
             if resp.status_code == 200:
                 users = resp.json()
                 self.table.setRowCount(len(users))
@@ -198,8 +200,9 @@ class UserManagementDialog(QDialog):
         if msg == QMessageBox.StandardButton.Yes:
             headers = {"Authorization": f"Bearer {self.token}"}
             try:
+                server_url = get_server_url()
                 resp = requests.delete(
-                    f"{SERVER_URL}/users/{user['id']}",
+                    f"{server_url}/users/{user['id']}",
                     headers=headers,
                     timeout=REQUEST_TIMEOUT,
                 )

@@ -5,17 +5,31 @@ from datetime import datetime
 import os
 from .utils import show_popup_notification
 from core.settings_manager import SettingsManager
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QTableWidget, QTableWidgetItem, QLabel, QMessageBox,
-                             QHeaderView, QFrame, QStatusBar, QDialog, QTabWidget)
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QLabel,
+    QMessageBox,
+    QHeaderView,
+    QFrame,
+    QStatusBar,
+    QDialog,
+    QTabWidget,
+    QStyle,
+)
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
+from .settings_dialog import SettingsDialog
 from core.websocket_client import WebSocketClient
 from core.config import (
-    SERVER_URL,
+    get_server_url,
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
     REQUEST_TIMEOUT,
@@ -34,7 +48,8 @@ class ShipmentLoader(QThread):
     def run(self):
         try:
             headers = {"Authorization": f"Bearer {self.token}"}
-            response = requests.get(f"{SERVER_URL}/shipments", headers=headers, timeout=REQUEST_TIMEOUT)
+            server_url = get_server_url()
+            response = requests.get(f"{server_url}/shipments", headers=headers, timeout=REQUEST_TIMEOUT)
             
             if response.status_code == 200:
                 shipments = response.json()
@@ -209,10 +224,19 @@ class ModernShippingMainWindow(QMainWindow):
         connection_text = QLabel("Connected")
         connection_text.setFont(QFont(MODERN_FONT, 9))
         connection_text.setStyleSheet("color: #6B7280;")
-        
+
+        # Settings button
+        self.settings_btn = ModernButton("", "secondary")
+        self.settings_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
+        )
+        self.settings_btn.setFixedSize(30, 30)
+        self.settings_btn.clicked.connect(self.open_settings_dialog)
+
         connection_layout.addStretch()
         connection_layout.addWidget(self.connection_indicator)
         connection_layout.addWidget(connection_text)
+        connection_layout.addWidget(self.settings_btn)
         
         user_info_layout.addWidget(user_name_label)
         user_info_layout.addWidget(user_role_label)
@@ -918,8 +942,9 @@ class ModernShippingMainWindow(QMainWindow):
             
             if msg.exec() == QMessageBox.StandardButton.Yes:
                 headers = {"Authorization": f"Bearer {self.token}"}
+                server_url = get_server_url()
                 response = requests.delete(
-                    f"{SERVER_URL}/shipments/{shipment['id']}", 
+                    f"{server_url}/shipments/{shipment['id']}",
                     headers=headers,
                     timeout=REQUEST_TIMEOUT
                 )
@@ -967,6 +992,15 @@ class ModernShippingMainWindow(QMainWindow):
         from .user_dialog import UserManagementDialog
         dialog = UserManagementDialog(token=self.token)
         dialog.exec()
+
+    def open_settings_dialog(self):
+        """Open settings dialog to configure server URLs"""
+        dlg = SettingsDialog(self.settings_mgr)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            if hasattr(self, "ws_client"):
+                self.ws_client.stop()
+            self.setup_websocket()
+            self.load_shipments_async()
     
     def closeEvent(self, event):
         """Manejar cierre de ventana"""

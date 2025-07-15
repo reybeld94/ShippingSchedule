@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
 from .widgets import ModernButton, ModernLineEdit
-from core.config import SERVER_URL, LOGIN_WIDTH, LOGIN_HEIGHT, REQUEST_TIMEOUT, MODERN_FONT
+from core.config import get_server_url, LOGIN_WIDTH, LOGIN_HEIGHT, REQUEST_TIMEOUT, MODERN_FONT
 
 class ModernLoginDialog(QDialog):
     def __init__(self):
@@ -207,7 +207,8 @@ class ModernLoginDialog(QDialog):
         self.password_edit.setEnabled(False)
         
         try:
-            response = requests.post(f"{SERVER_URL}/login", json={
+            server_url = get_server_url()
+            response = requests.post(f"{server_url}/login", json={
                 "username": username,
                 "password": password
             }, timeout=REQUEST_TIMEOUT)

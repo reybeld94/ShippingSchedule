@@ -8,6 +8,20 @@ class SettingsManager:
         # Organization and application names define where the settings are stored
         self._settings = QSettings("ShippingSchedule", "Client")
 
+    def get_server_url(self) -> str:
+        """Return stored server URL or default."""
+        return self._settings.value("server_url", "http://localhost:8000")
+
+    def set_server_url(self, url: str):
+        self._settings.setValue("server_url", url)
+
+    def get_ws_url(self) -> str:
+        """Return stored websocket URL or default."""
+        return self._settings.value("ws_url", "ws://localhost:8000/ws")
+
+    def set_ws_url(self, url: str):
+        self._settings.setValue("ws_url", url)
+
     def save_column_widths(self, table_name: str, widths: list[int]):
         """Persist column widths for a table."""
         self._settings.beginGroup(table_name)
