@@ -1,9 +1,19 @@
 ﻿# ui/shipment_dialog.py - Diálogo profesional para crear/editar shipments
 import requests
 import os
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, 
-                             QLabel, QFrame, QGroupBox, QScrollArea, QWidget,
-                             QTextEdit, QMessageBox, QSplitter)
+from PyQt6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QLabel,
+    QFrame,
+    QScrollArea,
+    QWidget,
+    QTextEdit,
+    QMessageBox,
+    QStyle,
+)
 from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtCore import Qt
 
@@ -63,7 +73,11 @@ class ModernShipmentDialog(QDialog):
         header_frame.setFixedHeight(70)
         header_frame.setStyleSheet("""
             QFrame {
-                background: #FFFFFF;
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #3B82F6,
+                    stop: 1 #1D4ED8
+                );
                 border: none;
                 border-bottom: 2px solid #E5E7EB;
             }
@@ -95,12 +109,12 @@ class ModernShipmentDialog(QDialog):
         title_text = "Create New Shipment" if not self.shipment_data else "Edit Shipment"
         title_label = QLabel(title_text)
         title_label.setFont(QFont("Segoe UI", 18, QFont.Weight.DemiBold))
-        title_label.setStyleSheet("color: #1F2937;")
+        title_label.setStyleSheet("color: white;")
         
         subtitle_text = "Enter shipment details below" if not self.shipment_data else f"Modifying Job #{self.shipment_data.get('job_number', '')}"
         subtitle_label = QLabel(subtitle_text)
         subtitle_label.setFont(QFont("Segoe UI", 11))
-        subtitle_label.setStyleSheet("color: #6B7280;")
+        subtitle_label.setStyleSheet("color: #E5E7EB;")
         
         title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label)
@@ -324,10 +338,16 @@ class ModernShipmentDialog(QDialog):
         # Botones
         self.cancel_btn = ModernButton("Cancel", "secondary")
         self.cancel_btn.setMinimumWidth(120)
+        self.cancel_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton)
+        )
         
         save_text = "Create Shipment" if not self.shipment_data else "Update Shipment"
         self.save_btn = ModernButton(save_text, "primary")
         self.save_btn.setMinimumWidth(150)
+        self.save_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+        )
         
         # Conectar eventos
         self.cancel_btn.clicked.connect(self.reject)
