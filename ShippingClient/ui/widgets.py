@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
+from core.config import MODERN_FONT
 
 class ModernButton(QPushButton):
     def __init__(self, text, button_type="primary"):
@@ -16,7 +17,7 @@ class ModernButton(QPushButton):
         self.button_type = button_type
         self.setMinimumHeight(40)
         self.setMinimumWidth(100)
-        self.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
+        self.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
         self.apply_professional_style()
     
     def apply_professional_style(self):
@@ -112,7 +113,7 @@ class ModernLineEdit(QLineEdit):
         super().__init__()
         self.setPlaceholderText(placeholder)
         self.setMinimumHeight(40)
-        self.setFont(QFont("Segoe UI", 10))
+        self.setFont(QFont(MODERN_FONT, 10))
         self.apply_professional_style()
     
     def apply_professional_style(self):
@@ -147,7 +148,7 @@ class ModernComboBox(QComboBox):
     def __init__(self):
         super().__init__()
         self.setMinimumHeight(40)
-        self.setFont(QFont("Segoe UI", 10))
+        self.setFont(QFont(MODERN_FONT, 10))
         self.apply_professional_style()
     
     def apply_professional_style(self):
@@ -226,7 +227,7 @@ class ProfessionalCard(QFrame):
         # Título si se proporciona
         if title:
             self.title_label = QLabel(title)
-            self.title_label.setFont(QFont("Segoe UI", 14, QFont.Weight.DemiBold))
+            self.title_label.setFont(QFont(MODERN_FONT, 14, QFont.Weight.DemiBold))
             self.title_label.setStyleSheet("color: #1F2937; margin-bottom: 8px;")
             self.card_layout.addWidget(self.title_label)
     
@@ -254,7 +255,7 @@ class StatusBadge(QLabel):
         super().__init__(text)
         self.status_type = status_type
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setFont(QFont("Segoe UI", 9, QFont.Weight.Medium))
+        self.setFont(QFont(MODERN_FONT, 9, QFont.Weight.Medium))
         self.apply_badge_style()
     
     def apply_badge_style(self):

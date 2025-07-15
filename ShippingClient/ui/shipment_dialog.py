@@ -18,7 +18,13 @@ from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtCore import Qt
 
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox, ProfessionalCard, StatusBadge
-from core.config import SERVER_URL, DIALOG_WIDTH, DIALOG_HEIGHT, REQUEST_TIMEOUT
+from core.config import (
+    SERVER_URL,
+    DIALOG_WIDTH,
+    DIALOG_HEIGHT,
+    REQUEST_TIMEOUT,
+    MODERN_FONT,
+)
 
 class ModernShipmentDialog(QDialog):
     def __init__(self, shipment_data=None, token=None):
@@ -80,7 +86,7 @@ class ModernShipmentDialog(QDialog):
                 );
                 border: none;
                 border-bottom: 2px solid #E5E7EB;
-            }
+            }}
         """)
         
         header_layout = QHBoxLayout(header_frame)
@@ -108,12 +114,12 @@ class ModernShipmentDialog(QDialog):
         
         title_text = "Create New Shipment" if not self.shipment_data else "Edit Shipment"
         title_label = QLabel(title_text)
-        title_label.setFont(QFont("Segoe UI", 18, QFont.Weight.DemiBold))
+        title_label.setFont(QFont(MODERN_FONT, 18, QFont.Weight.DemiBold))
         title_label.setStyleSheet("color: white;")
         
         subtitle_text = "Enter shipment details below" if not self.shipment_data else f"Modifying Job #{self.shipment_data.get('job_number', '')}"
         subtitle_label = QLabel(subtitle_text)
-        subtitle_label.setFont(QFont("Segoe UI", 11))
+        subtitle_label.setFont(QFont(MODERN_FONT, 11))
         subtitle_label.setStyleSheet("color: #E5E7EB;")
         
         title_layout.addWidget(title_label)
@@ -156,17 +162,17 @@ class ModernShipmentDialog(QDialog):
             QScrollArea {
                 background: transparent;
                 border: none;
-            }
+            }}
             QScrollBar:vertical {
                 background: #F3F4F6;
                 width: 8px;
                 border-radius: 4px;
-            }
+            }}
             QScrollBar::handle:vertical {
                 background: #D1D5DB;
                 border-radius: 4px;
                 min-height: 20px;
-            }
+            }}
             QScrollBar::handle:vertical:hover {
                 background: #9CA3AF;
             }
@@ -281,7 +287,7 @@ class ModernShipmentDialog(QDialog):
     def create_field_label(self, text, required=False):
         """Crear label profesional para campo"""
         label = QLabel(text + (" *" if required else ""))
-        label.setFont(QFont("Segoe UI", 11, QFont.Weight.Medium))
+        label.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
         
         if required:
             label.setStyleSheet("""
@@ -298,17 +304,17 @@ class ModernShipmentDialog(QDialog):
         """Crear QTextEdit con estilo profesional"""
         text_edit = QTextEdit()
         text_edit.setMaximumHeight(height)
-        text_edit.setStyleSheet("""
-            QTextEdit {
+        text_edit.setStyleSheet(f"""
+            QTextEdit {{
                 background: #FFFFFF;
                 border: 1px solid #D1D5DB;
                 border-radius: 6px;
                 padding: 10px;
-                font-family: 'Segoe UI';
+                font-family: '{MODERN_FONT}';
                 font-size: 13px;
                 color: #1F2937;
                 selection-background-color: #DBEAFE;
-            }
+            }}
             QTextEdit:focus {
                 border-color: #3B82F6;
                 outline: none;
@@ -361,11 +367,11 @@ class ModernShipmentDialog(QDialog):
     
     def apply_professional_theme(self):
         """Aplicar tema profesional"""
-        self.setStyleSheet("""
-            QDialog {
+        self.setStyleSheet(f"""
+            QDialog {{
                 background: #F3F4F6;
-                font-family: 'Segoe UI', sans-serif;
-            }
+                font-family: '{MODERN_FONT}', sans-serif;
+            }}
             QLabel {
                 color: #374151;
             }
@@ -491,11 +497,11 @@ class ModernShipmentDialog(QDialog):
         msg.setText(message)
         
         # Estilo profesional
-        msg.setStyleSheet("""
-            QMessageBox {
+        msg.setStyleSheet(f"""
+            QMessageBox {{
                 background: #FFFFFF;
-                font-family: 'Segoe UI';
-            }
+                font-family: '{MODERN_FONT}';
+            }}
             QMessageBox QLabel {
                 color: #374151;
                 font-size: 13px;
