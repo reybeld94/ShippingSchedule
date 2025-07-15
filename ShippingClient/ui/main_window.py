@@ -502,6 +502,10 @@ class ModernShippingMainWindow(QMainWindow):
         table.selectionModel().selectionChanged.connect(self.on_selection_changed)
         table.doubleClicked.connect(self.edit_shipment)
 
+        # Habilitar ordenamiento por columnas
+        table.setSortingEnabled(True)
+        header.setSortIndicatorShown(True)
+
     def save_table_column_widths(self, table, name):
         """Guardar anchos actuales de la tabla."""
         widths = [table.columnWidth(i) for i in range(table.columnCount())]
@@ -700,13 +704,24 @@ class ModernShippingMainWindow(QMainWindow):
         """Poblar tabla de forma optimizada"""
         try:
             table.setUpdatesEnabled(False)
-            
+
+            # Mantener columna y orden de sort actuales
+            header = table.horizontalHeader()
+            sort_col = header.sortIndicatorSection() if table.isSortingEnabled() else -1
+            sort_order = header.sortIndicatorOrder() if table.isSortingEnabled() else Qt.SortOrder.AscendingOrder
+
+            table.setSortingEnabled(False)
+
             row_count = len(shipments)
             table.setRowCount(row_count)
-            
+
             for row, shipment in enumerate(shipments):
                 self.populate_table_row(table, row, shipment, is_active)
-            
+
+            table.setSortingEnabled(True)
+            if sort_col >= 0:
+                table.sortItems(sort_col, sort_order)
+
             table.setUpdatesEnabled(True)
             print(f"Tabla poblada: {row_count} filas")
             
