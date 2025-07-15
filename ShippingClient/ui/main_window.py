@@ -707,8 +707,7 @@ class ModernShippingMainWindow(QMainWindow):
             filtered = [s for s in filtered if 
                        search_text in s.get("job_number", "").lower() or
                        search_text in s.get("job_name", "").lower() or
-                       search_text in s.get("status", "").lower() or
-                       search_text in s.get("shipping_list", "").lower()]
+                       search_text in s.get("status", "").lower()]
         
         # Filtro de status (solo para active)
         if is_active:

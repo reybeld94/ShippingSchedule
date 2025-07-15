@@ -24,7 +24,6 @@ class Shipment(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     job_number = Column(String(20), unique=True, index=True, nullable=False)
-    shipping_list = Column(String(200), nullable=False)
     job_name = Column(String(200), nullable=False)
     week = Column(String(20))
     description = Column(Text)

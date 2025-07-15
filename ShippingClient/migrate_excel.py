@@ -182,9 +182,8 @@ def migrate_excel_data():
                 invoice_number = str(row.iloc[7]) if len(row) > 7 and pd.notna(row.iloc[7]) else ""
                 shipping_notes = str(row.iloc[8]) if len(row) > 8 and pd.notna(row.iloc[8]) else ""
                 
-                # Campos que no están en tu Excel actual pero son requeridos
-                shipping_list = job_name  # Usar job_name como shipping_list
-                week = ""  # Campo vacío por ahora
+                # Campo week está en blanco en este formato
+                week = ""
                 
                 # Limpiar job_number
                 job_number = job_number.replace('.0', '').strip()
@@ -203,8 +202,6 @@ def migrate_excel_data():
                 if not job_number or job_number == 'nan' or len(job_number.strip()) == 0:
                     continue
                     
-                if not shipping_list or shipping_list == 'nan':
-                    continue
                     
                 if not job_name or job_name == 'nan':
                     continue
@@ -218,7 +215,6 @@ def migrate_excel_data():
                 # Crear objeto para enviar
                 shipment_data = {
                     "job_number": job_number,
-                    "shipping_list": shipping_list,
                     "job_name": job_name,
                     "week": week,
                     "description": description,
@@ -249,7 +245,7 @@ def migrate_excel_data():
                             )
                             if response.status_code == 200:
                                 successful_imports += 1
-                                print(f"🔄 Actualizado: Job #{job_number} - {shipping_list}")
+                                print(f"🔄 Actualizado: Job #{job_number}")
                                 continue
                 
                 # Crear nuevo (opción 1, 3, o si falló la actualización)
@@ -262,7 +258,7 @@ def migrate_excel_data():
                 
                 if response.status_code == 201:
                     successful_imports += 1
-                    print(f"✅ Importado: Job #{job_number} - {shipping_list}")
+                    print(f"✅ Importado: Job #{job_number}")
                 elif response.status_code == 400:
                     try:
                         error_detail = response.json().get('detail', 'Bad request')

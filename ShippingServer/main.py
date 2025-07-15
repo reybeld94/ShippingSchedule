@@ -50,7 +50,6 @@ manager = ConnectionManager()
 # Schemas para API
 class ShipmentCreate(BaseModel):
     job_number: str
-    shipping_list: str
     job_name: str
     week: str = ""
     description: str = ""
@@ -63,7 +62,6 @@ class ShipmentCreate(BaseModel):
     shipping_notes: str = ""
 
 class ShipmentUpdate(BaseModel):
-    shipping_list: str = None
     job_name: str = None
     week: str = None
     description: str = None
@@ -78,7 +76,6 @@ class ShipmentUpdate(BaseModel):
 class ShipmentResponse(BaseModel):
     id: int
     job_number: str
-    shipping_list: str
     job_name: str
     week: str
     description: str
@@ -253,7 +250,6 @@ async def delete_shipment(
     backup_data = {
         "job_number": shipment.job_number,
         "job_name": shipment.job_name,
-        "shipping_list": shipment.shipping_list,
         "week": shipment.week,
         "description": shipment.description,
         "status": shipment.status,

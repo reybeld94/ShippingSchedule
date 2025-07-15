@@ -410,7 +410,6 @@ class ModernShipmentDialog(QDialog):
             data = {
                 "job_number": self.job_number_edit.text().strip(),
                 "job_name": self.job_name_edit.text().strip(),
-                "shipping_list": self.description_edit.toPlainText().strip(),
                 "description": self.description_edit.toPlainText().strip(),
                 "status": actual_status,
                 "qc_release": self.qc_release_edit.text().strip(),
