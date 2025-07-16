@@ -411,6 +411,9 @@ class ModernShipmentDialog(QDialog):
     def save_shipment(self):
         """Guardar shipment con validaciones"""
         try:
+            # Guardar el texto original del botón por si se necesita restaurar
+            original_text = self.save_btn.text()
+
             # Validaciones
             if not self.job_number_edit.text().strip():
                 self.show_professional_error("Job Number is required")
@@ -446,9 +449,8 @@ class ModernShipmentDialog(QDialog):
             }
             
             print(f"Guardando shipment: {data['job_number']}")
-            
+
             # Cambiar estado del botón
-            original_text = self.save_btn.text()
             self.save_btn.setText("Saving...")
             self.save_btn.setEnabled(False)
             
