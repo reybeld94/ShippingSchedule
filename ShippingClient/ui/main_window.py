@@ -1,7 +1,7 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from .utils import show_popup_notification
 from core.settings_manager import SettingsManager
@@ -330,6 +330,18 @@ class ModernShippingMainWindow(QMainWindow):
         
         filter_layout.addWidget(filter_label)
         filter_layout.addWidget(self.status_filter)
+
+        # Filtro por semana
+        week_label = QLabel("Week:")
+        week_label.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
+        week_label.setStyleSheet("color: #374151;")
+
+        self.week_filter = ModernComboBox()
+        self.populate_week_filter()
+        self.week_filter.currentTextChanged.connect(self.perform_filter)
+
+        filter_layout.addWidget(week_label)
+        filter_layout.addWidget(self.week_filter)
         
         # Refresh button
         self.refresh_btn = ModernButton("Refresh", "secondary")
@@ -559,6 +571,33 @@ class ModernShippingMainWindow(QMainWindow):
             }}
         """)
 
+    # ==== Week filter helpers ====
+    def populate_week_filter(self):
+        """Populate week dropdown with current and next 2 Fridays"""
+        self.week_filter.clear()
+        self.week_filter.addItem("All Weeks", None)
+        for friday in self.generate_week_options():
+            label = friday.strftime("Week: %m/%d/%Y")
+            self.week_filter.addItem(label, friday.strftime("%m/%d/%Y"))
+
+    def generate_week_options(self):
+        today = datetime.now().date()
+        days_until_friday = (4 - today.weekday()) % 7
+        current_friday = today + timedelta(days=days_until_friday)
+        return [current_friday + timedelta(days=7 * i) for i in range(3)]
+
+    def get_week_friday(self, date_obj):
+        days_until_friday = (4 - date_obj.weekday()) % 7
+        return date_obj + timedelta(days=days_until_friday)
+
+    def parse_date(self, date_str):
+        for fmt in ("%m/%d/%y", "%m/%d/%Y"):
+            try:
+                return datetime.strptime(date_str, fmt)
+            except (ValueError, TypeError):
+                continue
+        return None
+
     # Resto de métodos permanecen igual pero con ajustes menores para status
     def setup_websocket(self):
         """Configurar cliente WebSocket"""
@@ -619,6 +658,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Manejar cambio de tab optimizado"""
         if index == 0:  # Active tab
             self.status_filter.setEnabled(True)
+            self.week_filter.setEnabled(True)
             self.add_btn.setEnabled(True)
             
             if not self._tables_populated["active"]:
@@ -626,6 +666,7 @@ class ModernShippingMainWindow(QMainWindow):
                 self._tables_populated["active"] = True
         else:  # History tab
             self.status_filter.setEnabled(False)
+            self.week_filter.setEnabled(False)
             
             if not self._tables_populated["history"]:
                 self.populate_history_table()
@@ -815,6 +856,17 @@ class ModernShippingMainWindow(QMainWindow):
                 }
                 actual_status = status_map.get(status_filter, status_filter)
                 filtered = [s for s in filtered if s.get("status") == actual_status]
+
+            # Filtro de semana
+            week_value = self.week_filter.currentData()
+            if week_value:
+                def match_week(ship):
+                    ship_date = self.parse_date(ship.get("ship_plan", ""))
+                    if not ship_date:
+                        return False
+                    return self.get_week_friday(ship_date.date()).strftime("%m/%d/%Y") == week_value
+
+                filtered = [s for s in filtered if match_week(s)]
         
         return filtered
     
