@@ -81,7 +81,7 @@ class ModernShippingMainWindow(QMainWindow):
         
         print(f"Inicializando ventana principal para usuario: {user_info['username']}")
         
-        self.setWindowTitle("Shipping Schedule Management System")
+        self.setWindowTitle("Shipping Schedule")
         self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
         self.showMaximized()
         try:
