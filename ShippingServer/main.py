@@ -56,6 +56,7 @@ class ShipmentCreate(BaseModel):
     description: str = ""
     status: str = "partial_release"
     qc_release: str = ""
+    qc_notes: str = ""
     created: str = ""
     ship_plan: str = ""
     shipped: str = ""
@@ -68,6 +69,7 @@ class ShipmentUpdate(BaseModel):
     description: str = None
     status: str = None
     qc_release: str = None
+    qc_notes: str = None
     created: str = None
     ship_plan: str = None
     shipped: str = None
@@ -82,6 +84,7 @@ class ShipmentResponse(BaseModel):
     description: str
     status: str
     qc_release: str
+    qc_notes: str
     created: str
     ship_plan: str
     shipped: str
@@ -380,6 +383,7 @@ async def delete_shipment(
         "description": shipment.description,
         "status": shipment.status,
         "qc_release": shipment.qc_release,
+        "qc_notes": shipment.qc_notes,
         "created": shipment.created,
         "ship_plan": shipment.ship_plan,
         "shipped": shipment.shipped,

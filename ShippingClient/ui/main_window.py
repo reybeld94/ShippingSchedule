@@ -430,7 +430,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Configurar tabla con estilo profesional y restaurar ancho de columnas"""
         columns = [
             "Job Number", "Job Name", "Description",
-            "Status", "QC Release", "Crated", "Ship Plan", "Shipped",
+            "Status", "QC Release", "QC Notes", "Crated", "Ship Plan", "Shipped",
             "Invoice Number", "Notes"
         ]
         
@@ -745,6 +745,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.truncate_text(shipment.get("description", ""), 45),
             shipment.get("status", ""),
             shipment.get("qc_release", ""),
+            shipment.get("qc_notes", ""),
             shipment.get("created", ""),
             shipment.get("ship_plan", ""),
             shipment.get("shipped", ""),
@@ -758,12 +759,12 @@ class ModernShippingMainWindow(QMainWindow):
             # Aplicar estilos profesionales
             if col == 3:  # Columna status
                 self.style_professional_status_item(item, shipment.get("status", ""))
-            elif not is_active and col == 9 and item_text:  # Shipped en history
+            elif not is_active and col == 8 and item_text:  # Shipped en history
                 item.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
                 item.setForeground(QColor("#059669"))
             
             # Alineación
-            if col in [0, 8]:  # Job # e Invoice #
+            if col in [0, 9]:  # Job # e Invoice #
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             
             table.setItem(row, col, item)
