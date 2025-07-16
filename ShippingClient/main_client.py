@@ -1,7 +1,8 @@
 ﻿# main_client.py - Archivo principal modular
 import sys
+import os
 from PyQt6.QtWidgets import QApplication, QDialog
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 
 # Imports locales
 from ui.login_dialog import ModernLoginDialog
@@ -9,7 +10,10 @@ from core.config import MODERN_FONT, FONT_SIZE
 
 def main():
     app = QApplication(sys.argv)
-    
+    logo_path = "assets/images/logo.png"
+    if os.path.exists(logo_path):
+        app.setWindowIcon(QIcon(logo_path))
+
     # Configurar fuente del sistema
     font = QFont(MODERN_FONT, FONT_SIZE)
     app.setFont(font)

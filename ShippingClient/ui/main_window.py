@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QStyle,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette
+from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
@@ -81,7 +81,10 @@ class ModernShippingMainWindow(QMainWindow):
         
         print(f"Inicializando ventana principal para usuario: {user_info['username']}")
         
-        self.setWindowTitle("Shipping Schedule Management System")
+        self.setWindowTitle("Shipping Schedule")
+        logo_path = "assets/images/logo.png"
+        if os.path.exists(logo_path):
+            self.setWindowIcon(QIcon(logo_path))
         self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
         self.showMaximized()
         try:
