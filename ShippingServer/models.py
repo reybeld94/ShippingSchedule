@@ -34,6 +34,7 @@ class Shipment(Base):
     
     # Fechas
     qc_release = Column(String(20))  # Formato: MM/DD/YY
+    qc_notes = Column(Text)
     created = Column(String(20))     # Formato: MM/DD/YY
     ship_plan = Column(String(20))   # Formato: MM/DD/YY  
     shipped = Column(String(20))     # Formato: MM/DD/YY
