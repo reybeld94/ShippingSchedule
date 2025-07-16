@@ -655,7 +655,11 @@ class ModernShippingMainWindow(QMainWindow):
         """Cargar shipments de forma asíncrona"""
         print("Iniciando carga asíncrona de shipments...")
         self.record_count_label.setText("Loading records...")
-        
+        # Detener hilo previo si todavía se está ejecutando
+        if hasattr(self, "shipment_loader") and self.shipment_loader.isRunning():
+            self.shipment_loader.quit()
+            self.shipment_loader.wait()
+
         self.shipment_loader = ShipmentLoader(self.token)
         self.shipment_loader.data_loaded.connect(self.on_shipments_loaded)
         self.shipment_loader.error_occurred.connect(self.on_shipments_error)
