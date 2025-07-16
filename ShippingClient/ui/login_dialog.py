@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QStyle,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 
 from .widgets import ModernButton, ModernLineEdit
 from .settings_dialog import SettingsDialog
@@ -28,7 +28,10 @@ from core.config import (
 class ModernLoginDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Shipping Schedule Management System")
+        self.setWindowTitle("Shipping Schedule")
+        logo_path = "assets/images/logo.png"
+        if os.path.exists(logo_path):
+            self.setWindowIcon(QIcon(logo_path))
         self.setMinimumSize(600, 600)
         self.setModal(True)
 
