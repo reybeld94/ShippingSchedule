@@ -98,6 +98,8 @@ class ModernLoginDialog(QDialog):
         main_layout.addWidget(background_frame)
 
         self.setLayout(main_layout)
+        # Prefill fields with last used credentials if available
+        self.load_last_credentials()
     
     def create_login_header(self, layout):
         """Crear header del login con logo"""
@@ -220,8 +222,13 @@ class ModernLoginDialog(QDialog):
 
         footer_layout.addWidget(separator)
         footer_layout.addLayout(connection_layout)
-        
+
         layout.addLayout(footer_layout)
+
+    def load_last_credentials(self):
+        """Fill username and password fields with last used credentials."""
+        self.username_edit.setText(self.settings_mgr.get_last_username())
+        self.password_edit.setText(self.settings_mgr.get_last_password())
     
     def login(self):
         """Realizar proceso de login"""
@@ -250,6 +257,8 @@ class ModernLoginDialog(QDialog):
                 self.token = data["access_token"]
                 self.user_info = data["user_info"]
                 print(f"Login successful for user: {username}")
+                # Store credentials for next session
+                self.settings_mgr.set_last_credentials(username, password)
                 self.accept()
             else:
                 error_data = response.json() if response.headers.get('content-type') == 'application/json' else {}

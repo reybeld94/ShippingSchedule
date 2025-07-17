@@ -41,3 +41,16 @@ class SettingsManager:
                 widths.append(None)
         self._settings.endGroup()
         return widths
+
+    def get_last_username(self) -> str:
+        """Return the last used username or empty string."""
+        return self._settings.value("last_username", "")
+
+    def get_last_password(self) -> str:
+        """Return the last used password or empty string."""
+        return self._settings.value("last_password", "")
+
+    def set_last_credentials(self, username: str, password: str):
+        """Persist last used username and password."""
+        self._settings.setValue("last_username", username)
+        self._settings.setValue("last_password", password)
