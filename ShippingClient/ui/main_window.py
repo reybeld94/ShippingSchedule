@@ -701,7 +701,10 @@ class ModernShippingMainWindow(QMainWindow):
     
     def is_shipped(self, shipment):
         """Verificar si un shipment ya fue enviado"""
-        shipped_date = shipment.get("shipped", "").strip()
+        shipped_date = shipment.get("shipped")
+        if not shipped_date:
+            return False
+        shipped_date = str(shipped_date).strip()
         return bool(shipped_date and shipped_date.lower() not in ["", "n/a", "pending", "tbd"])
     
     def load_shipments_async(self):
@@ -840,7 +843,7 @@ class ModernShippingMainWindow(QMainWindow):
             item.setBackground(QColor(bg_color))
             item.setForeground(QColor(text_color))
         else:
-            item.setText(status.replace("_", " ").title())
+            item.setText(str(status or "").replace("_", " ").title())
     
     def apply_filters_to_shipments(self, shipments, is_active=True):
         """Aplicar filtros"""
@@ -849,10 +852,16 @@ class ModernShippingMainWindow(QMainWindow):
         # Filtro de búsqueda
         search_text = self.search_edit.text().lower().strip()
         if search_text:
-            filtered = [s for s in filtered if 
-                       search_text in s.get("job_number", "").lower() or
-                       search_text in s.get("job_name", "").lower() or
-                       search_text in s.get("status", "").lower()]
+            def safe_lower(value):
+                return str(value or "").lower()
+
+            filtered = [
+                s
+                for s in filtered
+                if search_text in safe_lower(s.get("job_number"))
+                or search_text in safe_lower(s.get("job_name"))
+                or search_text in safe_lower(s.get("status"))
+            ]
         
         # Filtro de status (solo para active)
         if is_active:
