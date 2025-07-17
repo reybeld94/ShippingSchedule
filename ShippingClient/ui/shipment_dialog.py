@@ -214,16 +214,21 @@ class ModernShipmentDialog(QDialog):
         self.status_combo = ModernComboBox()
         self.status_combo.addItems([
             "Partial Release",
-            "Final Release", 
+            "Final Release",
             "Rejected",
             "Production Updated"
         ])
         grid_layout.addWidget(self.status_combo, 2, 1)
-        
+
         # Fila 4: Description (span completo)
         grid_layout.addWidget(self.create_field_label("Description"), 3, 0)
         self.description_edit = self.create_professional_text_edit(80)
         grid_layout.addWidget(self.description_edit, 3, 1, 1, 3)
+
+        # Fila 5: QC Notes debajo de Description
+        grid_layout.addWidget(self.create_field_label("QC Notes"), 4, 0)
+        self.qc_notes_edit = self.create_professional_text_edit(60)
+        grid_layout.addWidget(self.qc_notes_edit, 4, 1, 1, 3)
         
         basic_card.add_layout(grid_layout)
         layout.addWidget(basic_card)
@@ -237,28 +242,23 @@ class ModernShipmentDialog(QDialog):
         dates_grid.setSpacing(15)
         dates_grid.setContentsMargins(0, 10, 0, 0)
         
-        # Fila 1: QC Release y QC Notes
+        # Fila 1: QC Release y Crated
         dates_grid.addWidget(self.create_field_label("QC Release"), 0, 0)
         self.qc_release_edit = ModernLineEdit("MM/DD/YY")
         dates_grid.addWidget(self.qc_release_edit, 0, 1)
 
-        dates_grid.addWidget(self.create_field_label("QC Notes"), 0, 2)
-        self.qc_notes_edit = ModernLineEdit()
-        dates_grid.addWidget(self.qc_notes_edit, 0, 3)
-
-        # Fila 2: Crated y Ship Plan
-        dates_grid.addWidget(self.create_field_label("Crated"), 1, 0)
+        dates_grid.addWidget(self.create_field_label("Crated"), 0, 2)
         self.created_edit = ModernLineEdit("MM/DD/YY")
-        dates_grid.addWidget(self.created_edit, 1, 1)
+        dates_grid.addWidget(self.created_edit, 0, 3)
 
-        dates_grid.addWidget(self.create_field_label("Ship Plan"), 1, 2)
+        # Fila 2: Ship Plan y Shipped
+        dates_grid.addWidget(self.create_field_label("Ship Plan"), 1, 0)
         self.ship_plan_edit = ModernLineEdit("MM/DD/YY")
-        dates_grid.addWidget(self.ship_plan_edit, 1, 3)
+        dates_grid.addWidget(self.ship_plan_edit, 1, 1)
 
-        # Fila 3: Shipped
-        dates_grid.addWidget(self.create_field_label("Shipped"), 2, 0)
+        dates_grid.addWidget(self.create_field_label("Shipped"), 1, 2)
         self.shipped_edit = ModernLineEdit("MM/DD/YY")
-        dates_grid.addWidget(self.shipped_edit, 2, 1)
+        dates_grid.addWidget(self.shipped_edit, 1, 3)
         
         dates_card.add_layout(dates_grid)
         layout.addWidget(dates_card)
@@ -403,7 +403,7 @@ class ModernShipmentDialog(QDialog):
                 self.status_combo.setCurrentIndex(index)
             
             self.qc_release_edit.setText(safe_str(data.get("qc_release")))
-            self.qc_notes_edit.setText(safe_str(data.get("qc_notes")))
+            self.qc_notes_edit.setPlainText(safe_str(data.get("qc_notes")))
             self.created_edit.setText(safe_str(data.get("created")))
             self.ship_plan_edit.setText(safe_str(data.get("ship_plan")))
             self.shipped_edit.setText(safe_str(data.get("shipped")))
@@ -447,7 +447,7 @@ class ModernShipmentDialog(QDialog):
                 "description": self.description_edit.toPlainText().strip(),
                 "status": actual_status,
                 "qc_release": self.qc_release_edit.text().strip(),
-                "qc_notes": self.qc_notes_edit.text().strip(),
+                "qc_notes": self.qc_notes_edit.toPlainText().strip(),
                 "created": self.created_edit.text().strip(),
                 "ship_plan": self.ship_plan_edit.text().strip(),
                 "shipped": self.shipped_edit.text().strip(),
