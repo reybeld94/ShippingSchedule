@@ -836,8 +836,10 @@ class ModernShippingMainWindow(QMainWindow):
             table.setItem(row, col, item)
 
         crated = shipment.get("created")
-        shipped = shipment.get("shipped")
-        if crated and not shipped and job_item is not None:
+        if crated and not self.is_shipped(shipment) and job_item is not None:
+            # Highlight job number when there's a creation date but no valid
+            # shipped date. We reuse the same check as `is_shipped` so values
+            # like "pending" or "n/a" are treated as not shipped.
             job_item.setBackground(QColor("#FEF3C7"))
 
         # La altura de las filas se ajusta al finalizar el poblado completo
