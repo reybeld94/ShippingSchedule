@@ -22,8 +22,8 @@ from PyQt6.QtWidgets import (
     QStyle,
     QFileDialog,
 )
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QStandardPaths, QUrl
+from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
@@ -1114,12 +1114,10 @@ class ModernShippingMainWindow(QMainWindow):
             from reportlab.lib.styles import getSampleStyleSheet
             from reportlab.lib.units import inch
 
-            # Diálogo para elegir archivo
-            file_path, _ = QFileDialog.getSaveFileName(self, "Save PDF", "", "PDF Files (*.pdf)")
-            if not file_path:
-                return
-            if not file_path.lower().endswith(".pdf"):
-                file_path += ".pdf"
+            # Ruta por defecto en carpeta de Documentos
+            docs_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_path = os.path.join(docs_dir, f"Shipping_Schedule_{timestamp}.pdf")
 
             # Configurar documento con márgenes profesionales
             doc = SimpleDocTemplate(
@@ -1168,6 +1166,8 @@ class ModernShippingMainWindow(QMainWindow):
             # Generar PDF
             doc.build(elements)
             print("✅ PDF generado correctamente:", file_path)
+            self.show_toast(f"PDF saved: {os.path.basename(file_path)}")
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
 
         except Exception as e:
             print(f"❌ Error al generar PDF: {e}")
