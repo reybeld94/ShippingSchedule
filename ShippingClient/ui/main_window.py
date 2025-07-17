@@ -1102,14 +1102,27 @@ class ModernShippingMainWindow(QMainWindow):
             # Build HTML table with selected columns
             current_table = self.get_current_table()
             rows = current_table.rowCount()
-            html = ["<table border='1' cellspacing='0' cellpadding='4'>"]
-            html.append("<tr><th>Job Number</th><th>Description</th><th>Ship Plan</th></tr>")
+
+            html = [
+                "<html><head><style>",
+                "table {width: 100%; border-collapse: collapse;}",
+                f"th, td {{border: 1px solid #000; padding: 4px; font-family: '{MODERN_FONT}';}}",
+                "th:nth-child(1), td:nth-child(1) {width:20%;}",
+                "th:nth-child(2), td:nth-child(2) {width:60%;}",
+                "th:nth-child(3), td:nth-child(3) {width:20%;}",
+                "</style></head><body>",
+                f"<h1 style=\"text-align:center;font-family:'{MODERN_FONT}'\">Shipping Schedule</h1>",
+                "<table>",
+                "<tr><th>Job Number</th><th>Description</th><th>Ship Plan</th></tr>",
+            ]
             for row in range(rows):
                 job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
                 desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
                 plan = current_table.item(row, 7).text() if current_table.item(row, 7) else ""
-                html.append(f"<tr><td>{job}</td><td>{desc}</td><td>{plan}</td></tr>")
-            html.append("</table>")
+                html.append(
+                    f"<tr><td>{job}</td><td>{desc}</td><td>{plan}</td></tr>"
+                )
+            html.append("</table></body></html>")
 
             doc.setHtml("".join(html))
             doc.print(printer)
