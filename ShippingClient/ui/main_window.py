@@ -809,7 +809,7 @@ class ModernShippingMainWindow(QMainWindow):
             shipment.get("status", ""),
             shipment.get("qc_release", ""),
             shipment.get("qc_notes", ""),
-            shipment.get("created", ""),
+            shipment.get("crated", ""),
             shipment.get("ship_plan", ""),
             shipment.get("shipped", ""),
             shipment.get("invoice_number", ""),
@@ -835,9 +835,9 @@ class ModernShippingMainWindow(QMainWindow):
             
             table.setItem(row, col, item)
 
-        created = shipment.get("created")
+        crated = shipment.get("crated")
         shipped = shipment.get("shipped")
-        if created and not shipped and job_item is not None:
+        if crated and not shipped and job_item is not None:
             job_item.setBackground(QColor("#FEF3C7"))
 
         # La altura de las filas se ajusta al finalizar el poblado completo
