@@ -809,7 +809,7 @@ class ModernShippingMainWindow(QMainWindow):
             shipment.get("status", ""),
             shipment.get("qc_release", ""),
             shipment.get("qc_notes", ""),
-            shipment.get("crated", ""),
+            shipment.get("created", ""),
             shipment.get("ship_plan", ""),
             shipment.get("shipped", ""),
             shipment.get("invoice_number", ""),
@@ -835,7 +835,7 @@ class ModernShippingMainWindow(QMainWindow):
             
             table.setItem(row, col, item)
 
-        crated = shipment.get("crated")
+        crated = shipment.get("created")
         shipped = shipment.get("shipped")
         if crated and not shipped and job_item is not None:
             job_item.setBackground(QColor("#FEF3C7"))
