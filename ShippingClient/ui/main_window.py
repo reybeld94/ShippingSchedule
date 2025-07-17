@@ -20,9 +20,11 @@ from PyQt6.QtWidgets import (
     QDialog,
     QTabWidget,
     QStyle,
+    QFileDialog,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon
+from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QTextDocument
+from PyQt6.QtPrintSupport import QPrinter
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
@@ -346,6 +348,10 @@ class ModernShippingMainWindow(QMainWindow):
         # Refresh button
         self.refresh_btn = ModernButton("Refresh", "secondary")
         self.refresh_btn.clicked.connect(self.load_shipments_async)
+
+        # Print button to export table contents
+        self.print_btn = ModernButton("Print", "secondary")
+        self.print_btn.clicked.connect(self.print_table_to_pdf)
         
         # Agregar todo al toolbar
         toolbar_layout.addWidget(self.add_btn)
@@ -360,7 +366,8 @@ class ModernShippingMainWindow(QMainWindow):
             self.user_btn.clicked.connect(self.open_user_management)
             toolbar_layout.addWidget(self.user_btn)
         toolbar_layout.addWidget(self.refresh_btn)
-        
+        toolbar_layout.addWidget(self.print_btn)
+
         layout.addWidget(toolbar_frame)
     
     def create_professional_tabs(self, layout):
@@ -1076,6 +1083,38 @@ class ModernShippingMainWindow(QMainWindow):
                 self.ws_client.stop()
             self.setup_websocket()
             self.load_shipments_async()
+
+    def print_table_to_pdf(self):
+        """Export current table view to PDF"""
+        try:
+            file_path, _ = QFileDialog.getSaveFileName(self, "Save PDF", "", "PDF Files (*.pdf)")
+            if not file_path:
+                return
+            if not file_path.lower().endswith(".pdf"):
+                file_path += ".pdf"
+
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(file_path)
+
+            doc = QTextDocument()
+
+            # Build HTML table with selected columns
+            current_table = self.get_current_table()
+            rows = current_table.rowCount()
+            html = ["<table border='1' cellspacing='0' cellpadding='4'>"]
+            html.append("<tr><th>Job Number</th><th>Description</th><th>Ship Plan</th></tr>")
+            for row in range(rows):
+                job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
+                desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
+                plan = current_table.item(row, 7).text() if current_table.item(row, 7) else ""
+                html.append(f"<tr><td>{job}</td><td>{desc}</td><td>{plan}</td></tr>")
+            html.append("</table>")
+
+            doc.setHtml("".join(html))
+            doc.print(printer)
+        except Exception as e:
+            print(f"Error printing PDF: {e}")
     
     def closeEvent(self, event):
         """Manejar cierre de ventana"""
