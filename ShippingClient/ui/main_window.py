@@ -504,7 +504,9 @@ class ModernShippingMainWindow(QMainWindow):
         table.verticalHeader().setVisible(False)
         table.setShowGrid(False)
         table.setWordWrap(True)
-        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # Usar altura fija para filas en lugar de recalcular para cada dato,
+        # lo cual resulta muy costoso con miles de registros
+        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         table.verticalHeader().setDefaultSectionSize(45)
         
         # Optimización de performance
@@ -786,8 +788,8 @@ class ModernShippingMainWindow(QMainWindow):
             if sort_col >= 0:
                 table.sortItems(sort_col, sort_order)
 
-            table.resizeRowsToContents()
-
+            # El ajuste de filas a su contenido puede ser costoso para miles de
+            # registros. Dejamos un tamaño fijo establecido en la configuración
             table.setUpdatesEnabled(True)
             print(
                 f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas"
@@ -829,8 +831,8 @@ class ModernShippingMainWindow(QMainWindow):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             
             table.setItem(row, col, item)
-        
-        table.resizeRowToContents(row)
+
+        # La altura de las filas se ajusta al finalizar el poblado completo
     
     def style_professional_status_item(self, item, status):
         """Aplicar estilo profesional a item de status"""
