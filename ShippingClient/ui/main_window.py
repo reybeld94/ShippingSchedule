@@ -1084,29 +1084,36 @@ class ModernShippingMainWindow(QMainWindow):
             self.load_shipments_async()
 
     def print_table_to_pdf(self):
-        """Export current table view to PDF"""
+        """Export current table view to a well-formatted, professional PDF"""
         try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib.units import inch
+
+            # Diálogo para elegir archivo
             file_path, _ = QFileDialog.getSaveFileName(self, "Save PDF", "", "PDF Files (*.pdf)")
             if not file_path:
                 return
             if not file_path.lower().endswith(".pdf"):
                 file_path += ".pdf"
 
-            from reportlab.lib.pagesizes import letter
-            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-            from reportlab.lib import colors
-            from reportlab.lib.styles import getSampleStyleSheet
-
+            # Configurar documento con márgenes profesionales
             doc = SimpleDocTemplate(
                 file_path,
                 pagesize=letter,
                 leftMargin=40,
                 rightMargin=40,
+                topMargin=40,
+                bottomMargin=40
             )
 
+            # Obtener tabla actual
             current_table = self.get_current_table()
             rows = current_table.rowCount()
 
+            # Crear encabezado + datos
             data = [["Job Number", "Description", "Ship Plan"]]
             for row in range(rows):
                 job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
@@ -1114,28 +1121,35 @@ class ModernShippingMainWindow(QMainWindow):
                 plan = current_table.item(row, 7).text() if current_table.item(row, 7) else ""
                 data.append([job, desc, plan])
 
+            # Ancho de hoja disponible
             width = doc.width
-            col_widths = [width / 3] * 3
-            table = Table(data, colWidths=col_widths)
-            table.setStyle(
-                TableStyle(
-                    [
-                        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
-                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                    ]
-                )
-            )
+            col_widths = [width * 0.2, width * 0.6, width * 0.2]  # proporciones: 20%, 60%, 20%
 
+            # Crear tabla con estilo pro
+            table = Table(data, colWidths=col_widths, repeatRows=1)
+            table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F2937")),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ]))
+
+            # Título y contenido
             styles = getSampleStyleSheet()
-            elements = [
-                Paragraph("Shipping Schedule", styles["Title"]),
-                Spacer(1, 12),
-                table,
-            ]
+            title = Paragraph("Shipping Schedule", styles["Title"])
+            elements = [title, Spacer(1, 0.2 * inch), table]
+
+            # Generar PDF
             doc.build(elements)
+            print("✅ PDF generado correctamente:", file_path)
+
         except Exception as e:
-            print(f"Error printing PDF: {e}")
+            print(f"❌ Error al generar PDF: {e}")
+            self.show_error(f"Error generating PDF:\n{str(e)}")
     
     def closeEvent(self, event):
         """Manejar cierre de ventana"""
