@@ -665,6 +665,7 @@ class ModernShippingMainWindow(QMainWindow):
     
     def on_tab_changed(self, index):
         """Manejar cambio de tab optimizado"""
+        print(f"Cambio de tab: {index}")
         if index == 0:  # Active tab
             self.status_filter.setEnabled(True)
             self.week_filter.setEnabled(True)
@@ -677,6 +678,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.status_filter.setEnabled(False)
             self.week_filter.setEnabled(False)
             
+            print("Abriendo tab de historial")
             if not self._tables_populated["history"]:
                 self.populate_history_table()
                 self._tables_populated["history"] = True
@@ -757,7 +759,9 @@ class ModernShippingMainWindow(QMainWindow):
     
     def populate_history_table(self):
         """Poblar tabla de historial"""
+        print(f"Populando historial: {len(self._history_shipments)} shipments totales")
         filtered_shipments = self.apply_filters_to_shipments(self._history_shipments, is_active=False)
+        print(f"Populando historial tras filtros: {len(filtered_shipments)} shipments")
         self.populate_table_fast(self.history_table, filtered_shipments, is_active=False)
     
     def populate_table_fast(self, table, shipments, is_active=True):
@@ -785,7 +789,9 @@ class ModernShippingMainWindow(QMainWindow):
             table.resizeRowsToContents()
 
             table.setUpdatesEnabled(True)
-            print(f"Tabla poblada: {row_count} filas")
+            print(
+                f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas"
+            )
             
         except Exception as e:
             table.setUpdatesEnabled(True)
