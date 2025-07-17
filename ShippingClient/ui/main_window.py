@@ -23,8 +23,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QTextDocument
-from PyQt6.QtPrintSupport import QPrinter
+from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
@@ -1093,40 +1092,48 @@ class ModernShippingMainWindow(QMainWindow):
             if not file_path.lower().endswith(".pdf"):
                 file_path += ".pdf"
 
-            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-            printer.setOutputFileName(file_path)
+            from reportlab.lib.pagesizes import letter
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet
 
-            doc = QTextDocument()
+            doc = SimpleDocTemplate(
+                file_path,
+                pagesize=letter,
+                leftMargin=40,
+                rightMargin=40,
+            )
 
-            # Build HTML table with selected columns
             current_table = self.get_current_table()
             rows = current_table.rowCount()
 
-            html = [
-                "<html><head><style>",
-                "table {width: 95%; border-collapse: collapse; margin: 0 auto;}",
-                f"th, td {{border: 1px solid #000; padding: 4px; font-family: '{MODERN_FONT}';}}",
-                "th {background-color: #f2f2f2;}",
-                "th:nth-child(1), td:nth-child(1) {width:20%;}",
-                "th:nth-child(2), td:nth-child(2) {width:60%;}",
-                "th:nth-child(3), td:nth-child(3) {width:20%;}",
-                "</style></head><body>",
-                f"<h1 style=\"text-align:center;font-family:'{MODERN_FONT}'; margin-bottom: 20px;\">Shipping Schedule</h1>",
-                "<table>",
-                "<tr><th>Job Number</th><th>Description</th><th>Ship Plan</th></tr>",
-            ]
+            data = [["Job Number", "Description", "Ship Plan"]]
             for row in range(rows):
                 job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
                 desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
                 plan = current_table.item(row, 7).text() if current_table.item(row, 7) else ""
-                html.append(
-                    f"<tr><td>{job}</td><td>{desc}</td><td>{plan}</td></tr>"
-                )
-            html.append("</table></body></html>")
+                data.append([job, desc, plan])
 
-            doc.setHtml("".join(html))
-            doc.print(printer)
+            width = doc.width
+            col_widths = [width / 3] * 3
+            table = Table(data, colWidths=col_widths)
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ]
+                )
+            )
+
+            styles = getSampleStyleSheet()
+            elements = [
+                Paragraph("Shipping Schedule", styles["Title"]),
+                Spacer(1, 12),
+                table,
+            ]
+            doc.build(elements)
         except Exception as e:
             print(f"Error printing PDF: {e}")
     
