@@ -460,7 +460,7 @@ class ModernShippingMainWindow(QMainWindow):
             QTableWidget {{
                 background: #FFFFFF;
                 border: none;
-                gridline-color: #F3F4F6;
+                gridline-color: #E5E7EB;
                 font-family: '{MODERN_FONT}';
                 font-size: 12px;
                 selection-background-color: #EFF6FF;
@@ -468,8 +468,8 @@ class ModernShippingMainWindow(QMainWindow):
             }}
             QTableWidget::item {{
                 padding: 12px 8px;
-                border-bottom: 1px solid #F3F4F6;
-                border-right: 1px solid #F9FAFB;
+                border-bottom: 1px solid #E5E7EB;
+                border-right: 1px solid #E5E7EB;
             }}
             QTableWidget::item:selected {{
                 background: #EFF6FF;
@@ -500,9 +500,9 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Configuración
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setAlternatingRowColors(True)
+        table.setAlternatingRowColors(False)
         table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
+        table.setShowGrid(True)
         table.setWordWrap(True)
         # Usar altura fija para filas en lugar de recalcular para cada dato,
         # lo cual resulta muy costoso con miles de registros
@@ -816,6 +816,7 @@ class ModernShippingMainWindow(QMainWindow):
             shipment.get("shipping_notes", "")
         ]
         
+        job_item = None
         for col, item_text in enumerate(items):
             item = QTableWidgetItem(str(item_text))
             
@@ -829,8 +830,15 @@ class ModernShippingMainWindow(QMainWindow):
             # Alineación
             if col in [0, 9]:  # Job # e Invoice #
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if col == 0:
+                job_item = item
             
             table.setItem(row, col, item)
+
+        created = shipment.get("created")
+        shipped = shipment.get("shipped")
+        if created and not shipped and job_item is not None:
+            job_item.setBackground(QColor("#FEF3C7"))
 
         # La altura de las filas se ajusta al finalizar el poblado completo
     
