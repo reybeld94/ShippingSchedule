@@ -503,6 +503,9 @@ class ModernShippingMainWindow(QMainWindow):
         table.setAlternatingRowColors(True)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(False)
+        table.setWordWrap(True)
+        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        table.verticalHeader().setDefaultSectionSize(45)
         
         # Optimización de performance
         table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
@@ -776,6 +779,8 @@ class ModernShippingMainWindow(QMainWindow):
             if sort_col >= 0:
                 table.sortItems(sort_col, sort_order)
 
+            table.resizeRowsToContents()
+
             table.setUpdatesEnabled(True)
             print(f"Tabla poblada: {row_count} filas")
             
@@ -789,7 +794,7 @@ class ModernShippingMainWindow(QMainWindow):
         items = [
             shipment.get("job_number", ""),
             shipment.get("job_name", ""),
-            self.truncate_text(shipment.get("description", ""), 45),
+            shipment.get("description", ""),
             shipment.get("status", ""),
             shipment.get("qc_release", ""),
             shipment.get("qc_notes", ""),
@@ -797,7 +802,7 @@ class ModernShippingMainWindow(QMainWindow):
             shipment.get("ship_plan", ""),
             shipment.get("shipped", ""),
             shipment.get("invoice_number", ""),
-            self.truncate_text(shipment.get("shipping_notes", ""), 35)
+            shipment.get("shipping_notes", "")
         ]
         
         for col, item_text in enumerate(items):
@@ -816,7 +821,7 @@ class ModernShippingMainWindow(QMainWindow):
             
             table.setItem(row, col, item)
         
-        table.setRowHeight(row, 45)
+        table.resizeRowToContents(row)
     
     def style_professional_status_item(self, item, status):
         """Aplicar estilo profesional a item de status"""
