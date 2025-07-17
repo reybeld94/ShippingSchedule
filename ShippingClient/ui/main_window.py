@@ -1105,13 +1105,14 @@ class ModernShippingMainWindow(QMainWindow):
 
             html = [
                 "<html><head><style>",
-                "table {width: 100%; border-collapse: collapse;}",
+                "table {width: 95%; border-collapse: collapse; margin: 0 auto;}",
                 f"th, td {{border: 1px solid #000; padding: 4px; font-family: '{MODERN_FONT}';}}",
+                "th {background-color: #f2f2f2;}",
                 "th:nth-child(1), td:nth-child(1) {width:20%;}",
                 "th:nth-child(2), td:nth-child(2) {width:60%;}",
                 "th:nth-child(3), td:nth-child(3) {width:20%;}",
                 "</style></head><body>",
-                f"<h1 style=\"text-align:center;font-family:'{MODERN_FONT}'\">Shipping Schedule</h1>",
+                f"<h1 style=\"text-align:center;font-family:'{MODERN_FONT}'; margin-bottom: 20px;\">Shipping Schedule</h1>",
                 "<table>",
                 "<tr><th>Job Number</th><th>Description</th><th>Ship Plan</th></tr>",
             ]
