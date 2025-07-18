@@ -660,9 +660,9 @@ class ModernShippingMainWindow(QMainWindow):
     
     
 
-    def show_toast(self, message):
+    def show_toast(self, message, color="#3B82F6"):
         """Mostrar notificación visual flotante"""
-        show_popup_notification(self, message)
+        show_popup_notification(self, message, color=color)
     
     def on_tab_changed(self, index):
         """Manejar cambio de tab optimizado"""
@@ -957,6 +957,7 @@ class ModernShippingMainWindow(QMainWindow):
             dialog = ModernShipmentDialog(token=self.token)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_shipments_async()
+                self.show_toast("Shipment saved successfully", color="#16A34A")
         except Exception as e:
             print(f"Error abriendo diálogo de nuevo shipment: {e}")
             self.show_error(f"Error opening new shipment dialog: {str(e)}")
@@ -989,6 +990,7 @@ class ModernShippingMainWindow(QMainWindow):
             dialog = ModernShipmentDialog(shipment_data=shipment_data, token=self.token)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_shipments_async()
+                self.show_toast("Changes saved successfully", color="#16A34A")
         except Exception as e:
             print(f"Error editando shipment: {e}")
             self.show_error(f"Error editing shipment: {str(e)}")
