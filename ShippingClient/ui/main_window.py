@@ -504,10 +504,9 @@ class ModernShippingMainWindow(QMainWindow):
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
         table.setWordWrap(True)
-        # Usar altura fija para filas en lugar de recalcular para cada dato,
-        # lo cual resulta muy costoso con miles de registros
-        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        table.verticalHeader().setDefaultSectionSize(45)
+        # Ajustar altura automáticamente para permitir que el texto se envuelva
+        # en múltiples líneas cuando sea necesario
+        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         
         # Optimización de performance
         table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
