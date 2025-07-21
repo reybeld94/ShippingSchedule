@@ -831,6 +831,8 @@ class ModernShippingMainWindow(QMainWindow):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if col == 0:
                 job_item = item
+                # store full shipment data for easy retrieval even after sorting
+                item.setData(Qt.ItemDataRole.UserRole, shipment)
             
             table.setItem(row, col, item)
 
@@ -973,17 +975,12 @@ class ModernShippingMainWindow(QMainWindow):
                 return
             
             row = selected_rows[0].row()
-            
-            # Obtener datos según el tab actual
-            if self.tab_widget.currentIndex() == 0:  # Active
-                filtered_shipments = self.apply_filters_to_shipments(self._active_shipments, True)
-            else:  # History
-                filtered_shipments = self.apply_filters_to_shipments(self._history_shipments, False)
-            
-            if row >= len(filtered_shipments):
+            shipment_item = current_table.item(row, 0)
+            if not shipment_item:
                 return
-                
-            shipment_data = filtered_shipments[row]
+            shipment_data = shipment_item.data(Qt.ItemDataRole.UserRole)
+            if not shipment_data:
+                return
             
             from .shipment_dialog import ModernShipmentDialog
             
@@ -1006,17 +1003,12 @@ class ModernShippingMainWindow(QMainWindow):
                 return
             
             row = selected_rows[0].row()
-            
-            # Obtener datos según el tab actual
-            if self.tab_widget.currentIndex() == 0:  # Active
-                filtered_shipments = self.apply_filters_to_shipments(self._active_shipments, True)
-            else:  # History
-                filtered_shipments = self.apply_filters_to_shipments(self._history_shipments, False)
-            
-            if row >= len(filtered_shipments):
+            shipment_item = current_table.item(row, 0)
+            if not shipment_item:
                 return
-                
-            shipment = filtered_shipments[row]
+            shipment = shipment_item.data(Qt.ItemDataRole.UserRole)
+            if not shipment:
+                return
             
             # Confirmación profesional
             msg = QMessageBox(self)
