@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QStandardPaths, QUrl
-from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices
+from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
@@ -869,15 +869,15 @@ class ModernShippingMainWindow(QMainWindow):
             # Highlight job number when there's a creation date but no valid
             # shipped date. We reuse the same check as `is_shipped` so values
             # like "pending" or "n/a" are treated as not shipped.
-            job_item.setBackground(QColor("#FEF3C7"))
+            job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#FEF3C7")))
 
         # Color de la celda de Job Number según el status
         if job_item is not None:
             status = shipment.get("status", "")
             if status == "partial_release":
-                job_item.setBackground(QColor("#FEF3C7"))
+                job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#FEF3C7")))
             elif status == "final_release":
-                job_item.setBackground(QColor("#DCFCE7"))
+                job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#DCFCE7")))
 
         # La altura de las filas se ajusta al finalizar el poblado completo
     
@@ -1064,9 +1064,9 @@ class ModernShippingMainWindow(QMainWindow):
                 job_item = table.item(row, 0)
                 if job_item is not None:
                     if new_value == "partial_release":
-                        job_item.setBackground(QColor("#FEF3C7"))
+                        job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#FEF3C7")))
                     elif new_value == "final_release":
-                        job_item.setBackground(QColor("#DCFCE7"))
+                        job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#DCFCE7")))
                 self.updating_table = False
 
             self.show_toast("Changes saved successfully", color="#16A34A")
