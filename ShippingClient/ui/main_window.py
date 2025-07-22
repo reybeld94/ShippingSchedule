@@ -864,13 +864,6 @@ class ModernShippingMainWindow(QMainWindow):
 
             table.setItem(row, col, item)
 
-        crated = shipment.get("created")
-        if crated and not self.is_shipped(shipment) and job_item is not None:
-            # Highlight job number when there's a creation date but no valid
-            # shipped date. We reuse the same check as `is_shipped` so values
-            # like "pending" or "n/a" are treated as not shipped.
-            job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#FEF3C7")))
-
         # Color de la celda de Job Number según el status
         if job_item is not None:
             raw_status = shipment.get("status", "")
