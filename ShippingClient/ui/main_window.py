@@ -861,7 +861,7 @@ class ModernShippingMainWindow(QMainWindow):
                 item.setData(Qt.ItemDataRole.UserRole, shipment)
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            
+
             table.setItem(row, col, item)
 
         crated = shipment.get("created")
@@ -870,6 +870,14 @@ class ModernShippingMainWindow(QMainWindow):
             # shipped date. We reuse the same check as `is_shipped` so values
             # like "pending" or "n/a" are treated as not shipped.
             job_item.setBackground(QColor("#FEF3C7"))
+
+        # Color de la celda de Job Number según el status
+        if job_item is not None:
+            status = shipment.get("status", "")
+            if status == "partial_release":
+                job_item.setBackground(QColor("#FEF3C7"))
+            elif status == "final_release":
+                job_item.setBackground(QColor("#DCFCE7"))
 
         # La altura de las filas se ajusta al finalizar el poblado completo
     
@@ -1052,6 +1060,13 @@ class ModernShippingMainWindow(QMainWindow):
             if field == "status":
                 self.updating_table = True
                 self.style_professional_status_item(item, new_value)
+                # Actualizar color de la celda del Job Number seg\u00fan status
+                job_item = table.item(row, 0)
+                if job_item is not None:
+                    if new_value == "partial_release":
+                        job_item.setBackground(QColor("#FEF3C7"))
+                    elif new_value == "final_release":
+                        job_item.setBackground(QColor("#DCFCE7"))
                 self.updating_table = False
 
             self.show_toast("Changes saved successfully", color="#16A34A")
