@@ -10,13 +10,21 @@ class ClearableDateEdit(QDateEdit):
         self.dateChanged.connect(self._mark_filled)
 
     def _mark_filled(self, *args):
-        self._blank = False
+        """Mark the widget as filled unless we are clearing it."""
+        if getattr(self, "_ignore_next_date_change", False):
+            self._ignore_next_date_change = False
+            return
+        if self.text().strip():
+            self._blank = False
 
     def keyPressEvent(self, event):
         super().keyPressEvent(event)
         if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
             if self.text().strip() == "":
+                # Ensure the editor stays empty and mark it as blank
+                self.lineEdit().clear()
                 self._blank = True
+                self._ignore_next_date_change = True
 
 class DateDelegate(QStyledItemDelegate):
     """Delegate that shows a calendar popup when editing date cells."""
