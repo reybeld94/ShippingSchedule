@@ -490,7 +490,7 @@ class ModernShippingMainWindow(QMainWindow):
                 border-right: 1px solid #E5E7EB;
             }}
             QTableWidget::item:selected {{
-                background: #EFF6FF;
+                /* Remove background so per-item colors remain visible */
                 color: #1F2937;
             }}
             QHeaderView::section {{
