@@ -1181,7 +1181,7 @@ class ModernShippingMainWindow(QMainWindow):
             from reportlab.lib.pagesizes import letter
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
             from reportlab.lib import colors
-            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib.units import inch
 
             # Ruta por defecto en carpeta de Documentos
@@ -1204,7 +1204,7 @@ class ModernShippingMainWindow(QMainWindow):
             rows = current_table.rowCount()
 
             # Crear encabezado + datos
-            data = [[
+            raw_data = [[
                 "Job Number",
                 "Job Name",
                 "Description",
@@ -1219,7 +1219,16 @@ class ModernShippingMainWindow(QMainWindow):
                 qc_rel = current_table.item(row, 4).text() if current_table.item(row, 4) else ""
                 crated = current_table.item(row, 6).text() if current_table.item(row, 6) else ""
                 plan = current_table.item(row, 7).text() if current_table.item(row, 7) else ""
-                data.append([job, name, desc, qc_rel, crated, plan])
+                raw_data.append([job, name, desc, qc_rel, crated, plan])
+
+            # Convertir a Paragraph para ajuste de texto
+            styles = getSampleStyleSheet()
+            cell_style = ParagraphStyle(
+                "table_cell",
+                parent=styles["BodyText"],
+                wordWrap="CJK",
+            )
+            data = [[Paragraph(str(cell), cell_style) for cell in row] for row in raw_data]
 
             # Ancho de hoja disponible
             width = doc.width
@@ -1246,7 +1255,6 @@ class ModernShippingMainWindow(QMainWindow):
             ]))
 
             # Título y contenido
-            styles = getSampleStyleSheet()
             title = Paragraph("Shipping Schedule", styles["Title"])
             elements = [title, Spacer(1, 0.2 * inch), table]
 
