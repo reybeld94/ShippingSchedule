@@ -869,9 +869,9 @@ class ModernShippingMainWindow(QMainWindow):
             raw_status = shipment.get("status", "")
             status = str(raw_status).strip().lower().replace(" ", "_")
             if status == "partial_release":
-                job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#FEF3C7")))
+                job_item.setBackground(QColor("#FEF3C7"))  # Amarillo
             elif status == "final_release":
-                job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#DCFCE7")))
+                job_item.setBackground(QColor("#DCFCE7"))   # Verde
 
         # La altura de las filas se ajusta al finalizar el poblado completo
     
@@ -1058,9 +1058,9 @@ class ModernShippingMainWindow(QMainWindow):
                 job_item = table.item(row, 0)
                 if job_item is not None:
                     if new_value == "partial_release":
-                        job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#FEF3C7")))
+                        job_item.setBackground(QColor("#FEF3C7"))  # Amarillo
                     elif new_value == "final_release":
-                        job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#DCFCE7")))
+                        job_item.setBackground(QColor("#DCFCE7"))   # Verde
                 self.updating_table = False
 
             self.show_toast("Changes saved successfully", color="#16A34A")
