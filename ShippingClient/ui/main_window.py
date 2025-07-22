@@ -873,7 +873,8 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Color de la celda de Job Number según el status
         if job_item is not None:
-            status = shipment.get("status", "")
+            raw_status = shipment.get("status", "")
+            status = str(raw_status).strip().lower().replace(" ", "_")
             if status == "partial_release":
                 job_item.setData(Qt.ItemDataRole.BackgroundRole, QBrush(QColor("#FEF3C7")))
             elif status == "final_release":
