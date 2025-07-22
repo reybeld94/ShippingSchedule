@@ -14,7 +14,7 @@ class ClearableDateEdit(QDateEdit):
 
     def keyPressEvent(self, event):
         super().keyPressEvent(event)
-        if event.key() in (Qt.Key_Backspace, Qt.Key_Delete):
+        if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
             if self.text().strip() == "":
                 self._blank = True
 
