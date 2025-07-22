@@ -1204,16 +1204,33 @@ class ModernShippingMainWindow(QMainWindow):
             rows = current_table.rowCount()
 
             # Crear encabezado + datos
-            data = [["Job Number", "Description", "Ship Plan"]]
+            data = [[
+                "Job Number",
+                "Job Name",
+                "Description",
+                "QC Release",
+                "Crated",
+                "Ship Plan",
+            ]]
             for row in range(rows):
                 job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
+                name = current_table.item(row, 1).text() if current_table.item(row, 1) else ""
                 desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
+                qc_rel = current_table.item(row, 4).text() if current_table.item(row, 4) else ""
+                crated = current_table.item(row, 6).text() if current_table.item(row, 6) else ""
                 plan = current_table.item(row, 7).text() if current_table.item(row, 7) else ""
-                data.append([job, desc, plan])
+                data.append([job, name, desc, qc_rel, crated, plan])
 
             # Ancho de hoja disponible
             width = doc.width
-            col_widths = [width * 0.2, width * 0.6, width * 0.2]  # proporciones: 20%, 60%, 20%
+            col_widths = [
+                width * 0.15,  # Job Number
+                width * 0.2,   # Job Name
+                width * 0.3,   # Description
+                width * 0.1,   # QC Release
+                width * 0.1,   # Crated
+                width * 0.15,  # Ship Plan
+            ]
 
             # Crear tabla con estilo pro
             table = Table(data, colWidths=col_widths, repeatRows=1)
