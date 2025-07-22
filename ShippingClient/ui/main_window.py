@@ -473,48 +473,48 @@ class ModernShippingMainWindow(QMainWindow):
         table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
         
-        # Estilo profesional para la tabla
-        table.setStyleSheet(f"""
-            QTableWidget {{
-                background: #FFFFFF;
-                border: none;
-                gridline-color: #E5E7EB;
-                font-family: '{MODERN_FONT}';
-                font-size: 12px;
-                selection-background-color: #EFF6FF;
-                selection-color: #1F2937;
-            }}
-            QTableWidget::item {{
-                padding: 12px 8px;
-                border-bottom: 1px solid #E5E7EB;
-                border-right: 1px solid #E5E7EB;
-            }}
-            QTableWidget::item:selected {{
-                /* Remove background so per-item colors remain visible */
-                color: #1F2937;
-            }}
-            QHeaderView::section {{
-                background-color: #F9FAFB;
-                color: #374151;
-                padding: 12px 8px;
-                border: none;
-                border-bottom: 2px solid #E5E7EB;
-                border-right: 1px solid #E5E7EB;
-                font-weight: 600;
-                font-size: 11px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }}
-            QHeaderView::section:first {{
-                border-left: none;
-            }}
-            QHeaderView::section:last {{
-                border-right: none;
-            }}
-            QTableWidget::item:hover {{
-                background: #F9FAFB;
-            }}
-        """)
+        # Estilo profesional para la tabla (temporalmente deshabilitado)
+        # table.setStyleSheet(f"""
+        #     QTableWidget {{
+        #         background: #FFFFFF;
+        #         border: none;
+        #         gridline-color: #E5E7EB;
+        #         font-family: '{MODERN_FONT}';
+        #         font-size: 12px;
+        #         selection-background-color: #EFF6FF;
+        #         selection-color: #1F2937;
+        #     }}
+        #     QTableWidget::item {{
+        #         padding: 12px 8px;
+        #         border-bottom: 1px solid #E5E7EB;
+        #         border-right: 1px solid #E5E7EB;
+        #     }}
+        #     QTableWidget::item:selected {{
+        #         /* Remove background so per-item colors remain visible */
+        #         color: #1F2937;
+        #     }}
+        #     QHeaderView::section {{
+        #         background-color: #F9FAFB;
+        #         color: #374151;
+        #         padding: 12px 8px;
+        #         border: none;
+        #         border-bottom: 2px solid #E5E7EB;
+        #         border-right: 1px solid #E5E7EB;
+        #         font-weight: 600;
+        #         font-size: 11px;
+        #         text-transform: uppercase;
+        #         letter-spacing: 0.5px;
+        #     }}
+        #     QHeaderView::section:first {{
+        #         border-left: none;
+        #     }}
+        #     QHeaderView::section:last {{
+        #         border-right: none;
+        #     }}
+        #     QTableWidget::item:hover {{
+        #         background: #F9FAFB;
+        #     }}
+        # """)
         
         # Configuración
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
