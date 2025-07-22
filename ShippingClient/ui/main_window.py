@@ -489,10 +489,8 @@ class ModernShippingMainWindow(QMainWindow):
                 padding: 12px 8px;
                 border-bottom: 1px solid #E5E7EB;
                 border-right: 1px solid #E5E7EB;
-                /* NO poner background aquí - deja que el código lo maneje */
             }}
             QTableWidget::item:selected {{
-                /* NO poner background aquí tampoco - solo texto */
                 color: #1F2937;
             }}
             QHeaderView::section {{
