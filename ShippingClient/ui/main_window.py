@@ -27,6 +27,7 @@ from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopService
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
+from .date_delegate import DateDelegate
 from .settings_dialog import SettingsDialog
 from core.websocket_client import WebSocketClient
 from core.config import (
@@ -533,6 +534,11 @@ class ModernShippingMainWindow(QMainWindow):
         header = table.horizontalHeader()
         for i in range(len(columns)):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+
+        # Delegates para campos de fecha
+        date_delegate = DateDelegate(table)
+        for col in (4, 6, 7, 8):
+            table.setItemDelegateForColumn(col, date_delegate)
 
         # Restaurar anchos guardados si existen
         self.restore_column_widths(table, name)
