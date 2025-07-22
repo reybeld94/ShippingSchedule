@@ -79,6 +79,23 @@ class ModernShippingMainWindow(QMainWindow):
         self._last_filter_text = ""
         self._last_status_filter = "All Status"
         self._tables_populated = {"active": False, "history": False}
+
+        # Mapa de columna a campo de API para ediciones inline
+        self.column_field_map = {
+            1: "job_name",
+            2: "description",
+            3: "status",
+            4: "qc_release",
+            5: "qc_notes",
+            6: "created",
+            7: "ship_plan",
+            8: "shipped",
+            9: "invoice_number",
+            10: "shipping_notes",
+        }
+
+        # Flag para evitar disparar eventos al poblar tablas
+        self.updating_table = False
         
         print(f"Inicializando ventana principal para usuario: {user_info['username']}")
         
@@ -525,7 +542,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Eventos
         table.selectionModel().selectionChanged.connect(self.on_selection_changed)
-        table.doubleClicked.connect(self.edit_shipment)
+        table.itemChanged.connect(self.on_item_changed)
 
         # Habilitar ordenamiento por columnas
         table.setSortingEnabled(True)
@@ -768,6 +785,7 @@ class ModernShippingMainWindow(QMainWindow):
     def populate_table_fast(self, table, shipments, is_active=True):
         """Poblar tabla de forma optimizada"""
         try:
+            self.updating_table = True
             table.setUpdatesEnabled(False)
 
             # Mantener columna y orden de sort actuales
@@ -790,12 +808,14 @@ class ModernShippingMainWindow(QMainWindow):
             # El ajuste de filas a su contenido puede ser costoso para miles de
             # registros. Dejamos un tamaño fijo establecido en la configuración
             table.setUpdatesEnabled(True)
+            self.updating_table = False
             print(
                 f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas"
             )
             
         except Exception as e:
             table.setUpdatesEnabled(True)
+            self.updating_table = False
             print(f"Error poblando tabla: {e}")
             raise
     
@@ -833,6 +853,8 @@ class ModernShippingMainWindow(QMainWindow):
                 job_item = item
                 # store full shipment data for easy retrieval even after sorting
                 item.setData(Qt.ItemDataRole.UserRole, shipment)
+                # job number no editable
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             
             table.setItem(row, col, item)
 
@@ -965,32 +987,71 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_error(f"Error opening new shipment dialog: {str(e)}")
     
     def edit_shipment(self):
-        """Editar shipment seleccionado"""
+        """Permitir edición directa de la celda seleccionada"""
         if self.read_only:
             return
+        current_table = self.get_current_table()
+        item = current_table.currentItem()
+        if item:
+            current_table.editItem(item)
+
+    def on_item_changed(self, item):
+        """Guardar cambios de celda editada"""
+        if self.updating_table or self.read_only:
+            return
+
+        table = item.tableWidget()
+        row = item.row()
+        col = item.column()
+        field = self.column_field_map.get(col)
+
+        if field is None:
+            return
+
+        job_item = table.item(row, 0)
+        shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
+        if not shipment:
+            return
+
+        old_value = shipment.get(field, "") or ""
+        new_value = item.text().strip()
+
+        # Manejo especial para status
+        if field == "status":
+            mapping = {
+                "final release": "final_release",
+                "partial release": "partial_release",
+                "rejected": "rejected",
+                "production updated": "prod_updated",
+                "updated": "prod_updated",
+            }
+            code = mapping.get(new_value.lower(), new_value.lower().replace(" ", "_"))
+            new_value = code
+
+        if new_value == (old_value or ""):  # Sin cambios reales
+            return
+
         try:
-            current_table = self.get_current_table()
-            selected_rows = current_table.selectionModel().selectedRows()
-            if not selected_rows:
-                return
-            
-            row = selected_rows[0].row()
-            shipment_item = current_table.item(row, 0)
-            if not shipment_item:
-                return
-            shipment_data = shipment_item.data(Qt.ItemDataRole.UserRole)
-            if not shipment_data:
-                return
-            
-            from .shipment_dialog import ModernShipmentDialog
-            
-            dialog = ModernShipmentDialog(shipment_data=shipment_data, token=self.token)
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                self.load_shipments_async()
-                self.show_toast("Changes saved successfully", color="#16A34A")
+            headers = {"Authorization": f"Bearer {self.token}"}
+            server_url = get_server_url()
+            requests.put(
+                f"{server_url}/shipments/{shipment['id']}",
+                json={field: new_value},
+                headers=headers,
+                timeout=REQUEST_TIMEOUT,
+            )
+
+            # Actualizar localmente y restablecer estilo si es status
+            shipment[field] = new_value
+            if field == "status":
+                self.updating_table = True
+                self.style_professional_status_item(item, new_value)
+                self.updating_table = False
+
+            self.show_toast("Changes saved successfully", color="#16A34A")
+            self.load_shipments_async()
         except Exception as e:
-            print(f"Error editando shipment: {e}")
-            self.show_error(f"Error editing shipment: {str(e)}")
+            self.show_error(f"Failed to save changes: {str(e)}")
     
     def delete_shipment(self):
         """Eliminar shipment seleccionado"""
