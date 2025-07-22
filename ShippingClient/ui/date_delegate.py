@@ -18,13 +18,15 @@ class ClearableDateEdit(QDateEdit):
             self._blank = False
 
     def keyPressEvent(self, event):
-        super().keyPressEvent(event)
+        """Allow the user to completely clear the date using Delete/Backspace."""
         if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
-            if self.text().strip() == "":
-                # Ensure the editor stays empty and mark it as blank
-                self.lineEdit().clear()
-                self._blank = True
-                self._ignore_next_date_change = True
+            # Clear the line edit and mark the widget as blank
+            self.lineEdit().clear()
+            self._blank = True
+            self._ignore_next_date_change = True
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 class DateDelegate(QStyledItemDelegate):
     """Delegate that shows a calendar popup when editing date cells."""
