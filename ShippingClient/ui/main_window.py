@@ -645,18 +645,21 @@ class ModernShippingMainWindow(QMainWindow):
             msg_type = data.get("type")
             
             if msg_type in ["shipment_created", "shipment_updated", "shipment_deleted"]:
-                self.load_shipments_async()
-                
-                # Notificación discreta
                 action_by = data["data"].get("action_by", "User")
                 job_number = data["data"].get("job_number", "")
-                
-                if msg_type == "shipment_created":
-                    self.show_toast(f"New shipment created: Job #{job_number}")
-                elif msg_type == "shipment_updated":
-                    self.show_toast(f"Shipment updated: Job #{job_number}")
-                elif msg_type == "shipment_deleted":
-                    self.show_toast(f"Shipment deleted: Job #{job_number}")
+
+                # Solo recargar para actualizaciones realizadas por otros usuarios
+                if msg_type != "shipment_updated" or action_by != self.user_info.get("username"):
+                    self.load_shipments_async()
+
+                # Notificación discreta solo si la acción la realizó otro usuario
+                if action_by != self.user_info.get("username"):
+                    if msg_type == "shipment_created":
+                        self.show_toast(f"New shipment created: Job #{job_number}")
+                    elif msg_type == "shipment_updated":
+                        self.show_toast(f"Shipment updated: Job #{job_number}")
+                    elif msg_type == "shipment_deleted":
+                        self.show_toast(f"Shipment deleted: Job #{job_number}")
                     
         except json.JSONDecodeError:
             pass
@@ -1042,7 +1045,6 @@ class ModernShippingMainWindow(QMainWindow):
                 self.updating_table = False
 
             self.show_toast("Changes saved successfully", color="#16A34A")
-            self.load_shipments_async()
         except Exception as e:
             self.show_error(f"Failed to save changes: {str(e)}")
     
