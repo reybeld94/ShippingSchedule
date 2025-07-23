@@ -28,6 +28,7 @@ from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopService
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
 from .date_delegate import DateDelegate
+from .status_delegate import StatusDelegate
 from .settings_dialog import SettingsDialog
 from core.websocket_client import WebSocketClient
 from core.config import (
@@ -518,6 +519,8 @@ class ModernShippingMainWindow(QMainWindow):
         date_delegate = DateDelegate(table)
         for col in (4, 6, 7, 8):
             table.setItemDelegateForColumn(col, date_delegate)
+        status_delegate = StatusDelegate(table)
+        table.setItemDelegateForColumn(3, status_delegate)
 
         # Restaurar anchos guardados si existen
         self.restore_column_widths(table, name)
@@ -822,14 +825,16 @@ class ModernShippingMainWindow(QMainWindow):
         
         job_item = None
         for col, item_text in enumerate(items):
-            item = QTableWidgetItem(str(item_text))
-            
-            # Aplicar estilos profesionales
-            if col == 3:  # Columna status
-                self.style_professional_status_item(item, shipment.get("status", ""))
-            elif not is_active and col == 8 and item_text:  # Shipped en history
-                item.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
-                item.setForeground(QColor("#059669"))
+            # Para la columna de Status guardamos el valor real y mostramos el texto adecuado
+            if col == 3:
+                item = QTableWidgetItem()
+                item.setData(Qt.ItemDataRole.EditRole, item_text)
+                self.style_professional_status_item(item, item_text)
+            else:
+                item = QTableWidgetItem(str(item_text))
+                if not is_active and col == 8 and item_text:  # Shipped en history
+                    item.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
+                    item.setForeground(QColor("#059669"))
             
             # Alineación
             if col in [0, 9]:  # Job # e Invoice #
@@ -851,13 +856,16 @@ class ModernShippingMainWindow(QMainWindow):
                 job_item.setBackground(QColor("#FEF3C7"))  # Amarillo
             elif status == "final_release":
                 job_item.setBackground(QColor("#DCFCE7"))   # Verde
+            elif status == "rejected":
+                job_item.setBackground(QColor("#FFEDD5"))   # Soft Orange
 
         # La altura de las filas se ajusta al finalizar el poblado completo
     
     def style_professional_status_item(self, item, status):
         """Aplicar estilo profesional a item de status"""
         item.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
-        
+        item.setData(Qt.ItemDataRole.EditRole, status)
+
         status_map = {
             "final_release": ("Final Release", "#166534"),
             "partial_release": ("Partial Release", "#92400E"),
@@ -1000,19 +1008,9 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         old_value = shipment.get(field, "") or ""
-        new_value = item.text().strip()
+        new_value = item.data(Qt.ItemDataRole.EditRole)
 
-        # Manejo especial para status
-        if field == "status":
-            mapping = {
-                "final release": "final_release",
-                "partial release": "partial_release",
-                "rejected": "rejected",
-                "production updated": "prod_updated",
-                "updated": "prod_updated",
-            }
-            code = mapping.get(new_value.lower(), new_value.lower().replace(" ", "_"))
-            new_value = code
+        # Manejo especial para status ya viene mapeado en el delegate
 
         if new_value == (old_value or ""):  # Sin cambios reales
             return
@@ -1039,6 +1037,8 @@ class ModernShippingMainWindow(QMainWindow):
                         job_item.setBackground(QColor("#FEF3C7"))  # Amarillo
                     elif new_value == "final_release":
                         job_item.setBackground(QColor("#DCFCE7"))   # Verde
+                    elif new_value == "rejected":
+                        job_item.setBackground(QColor("#FFEDD5"))   # Soft Orange
                 self.updating_table = False
 
             self.show_toast("Changes saved successfully", color="#16A34A")
