@@ -338,9 +338,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.status_filter.addItems([
             "All Status",
             "Final Release",
-            "Partial Release", 
-            "Rejected",
-            "Production Updated"
+            "Partial Release",
+            "Rejected"
         ])
         self.status_filter.currentTextChanged.connect(self.perform_filter)
         
@@ -902,8 +901,7 @@ class ModernShippingMainWindow(QMainWindow):
                 status_map = {
                     "Final Release": "final_release",
                     "Partial Release": "partial_release",
-                    "Rejected": "rejected",
-                    "Production Updated": "prod_updated"
+                    "Rejected": "rejected"
                 }
                 actual_status = status_map.get(status_filter, status_filter)
                 filtered = [s for s in filtered if s.get("status") == actual_status]
