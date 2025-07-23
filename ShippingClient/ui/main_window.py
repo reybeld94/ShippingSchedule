@@ -291,9 +291,6 @@ class ModernShippingMainWindow(QMainWindow):
         self.add_btn = ModernButton("New Shipment", "primary")
         self.add_btn.clicked.connect(self.add_shipment)
         
-        self.edit_btn = ModernButton("Edit", "secondary")
-        self.edit_btn.clicked.connect(self.edit_shipment)
-        self.edit_btn.setEnabled(False)
         
         self.delete_btn = ModernButton("Delete", "danger")
         self.delete_btn.clicked.connect(self.delete_shipment)
@@ -301,7 +298,6 @@ class ModernShippingMainWindow(QMainWindow):
 
         if self.read_only:
             self.add_btn.setEnabled(False)
-            self.edit_btn.setEnabled(False)
             self.delete_btn.setEnabled(False)
         
         # Separador
@@ -373,7 +369,6 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Agregar todo al toolbar
         toolbar_layout.addWidget(self.add_btn)
-        toolbar_layout.addWidget(self.edit_btn)
         toolbar_layout.addWidget(self.delete_btn)
         toolbar_layout.addWidget(separator)
         toolbar_layout.addLayout(search_layout)
@@ -700,10 +695,8 @@ class ModernShippingMainWindow(QMainWindow):
         current_table = self.get_current_table()
         has_selection = len(current_table.selectionModel().selectedRows()) > 0
         if self.read_only:
-            self.edit_btn.setEnabled(False)
             self.delete_btn.setEnabled(False)
         else:
-            self.edit_btn.setEnabled(has_selection)
             self.delete_btn.setEnabled(has_selection)
     
     def get_current_table(self):
