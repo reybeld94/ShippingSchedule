@@ -474,9 +474,26 @@ class ModernShippingMainWindow(QMainWindow):
         table.setHorizontalHeaderLabels(columns)
         
         # Estilo profesional para la tabla
-        table.setStyleSheet(
-            "QTableWidget { font-family: 'Helvetica Neue'; font-size: 12px; }"
-        )
+        table.setStyleSheet(f"""
+    QTableWidget {{
+        font-family: '{MODERN_FONT}';
+        font-size: 12px;
+        background: #FFFFFF;
+        gridline-color: #E5E7EB;
+        border: 1px solid #E5E7EB;
+    }}
+    QHeaderView::section {{
+        background-color: #F9FAFB;
+        color: #374151;
+        padding: 12px 8px;
+        border: none;
+        border-bottom: 2px solid #E5E7EB;
+        border-right: 1px solid #E5E7EB;
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+    }}
+        """)
         
         # Configuración
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
