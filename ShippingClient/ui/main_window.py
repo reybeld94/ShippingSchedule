@@ -859,16 +859,15 @@ class ModernShippingMainWindow(QMainWindow):
         item.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
         
         status_map = {
-            "final_release": ("Final Release", "#DCFCE7", "#166534"),
-            "partial_release": ("Partial Release", "#FEF3C7", "#92400E"), 
-            "rejected": ("Rejected", "#FEE2E2", "#991B1B"),
-            "prod_updated": ("Updated", "#DBEAFE", "#1E40AF")
+            "final_release": ("Final Release", "#166534"),
+            "partial_release": ("Partial Release", "#92400E"),
+            "rejected": ("Rejected", "#991B1B"),
+            "prod_updated": ("Updated", "#1E40AF")
         }
-        
+
         if status in status_map:
-            text, bg_color, text_color = status_map[status]
+            text, text_color = status_map[status]
             item.setText(text)
-            item.setBackground(QColor(bg_color))
             item.setForeground(QColor(text_color))
         else:
             item.setText(str(status or "").replace("_", " ").title())
