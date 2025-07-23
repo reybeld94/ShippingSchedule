@@ -481,13 +481,6 @@ class ModernShippingMainWindow(QMainWindow):
         background: #FFFFFF;
         gridline-color: #E5E7EB;
         border: 1px solid #E5E7EB;
-        selection-background-color: #EFF6FF;
-        selection-color: #1F2937;
-    }}
-    QTableWidget::item {{
-        padding: 8px;
-        border-right: 1px solid #E5E7EB;
-        border-bottom: 1px solid #E5E7EB;
     }}
     QHeaderView::section {{
         background-color: #F9FAFB;
