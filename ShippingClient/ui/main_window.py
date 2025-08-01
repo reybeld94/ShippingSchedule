@@ -1169,14 +1169,14 @@ class ModernShippingMainWindow(QMainWindow):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             file_path = os.path.join(docs_dir, f"Shipping_Schedule_{timestamp}.pdf")
 
-            # Configurar documento con márgenes profesionales
+            # Configurar documento vertical con márgenes reducidos
             doc = SimpleDocTemplate(
                 file_path,
                 pagesize=letter,
-                leftMargin=40,
-                rightMargin=40,
-                topMargin=40,
-                bottomMargin=40
+                leftMargin=20,
+                rightMargin=20,
+                topMargin=20,
+                bottomMargin=20,
             )
 
             # Obtener tabla actual
@@ -1221,22 +1221,46 @@ class ModernShippingMainWindow(QMainWindow):
                 width * 0.15,  # Ship Plan
             ]
 
-            # Crear tabla con estilo pro
+            # Crear tabla con estilo ajustable
             table = Table(data, colWidths=col_widths, repeatRows=1)
-            table.setStyle(TableStyle([
+
+            base_style = [
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F2937")),
                 ("ALIGN", (0, 0), (-1, -1), "LEFT"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ]))
+            ]
 
-            # Título y contenido
+            font_size = 8
+            padding = 3
+            min_font = 6
+            min_pad = 1
+
+            def apply_style(f_size, pad):
+                style = TableStyle(base_style + [
+                    ("FONTSIZE", (0, 0), (-1, -1), f_size),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
+                    ("TOPPADDING", (0, 0), (-1, -1), pad),
+                ])
+                table.setStyle(style)
+
+            apply_style(font_size, padding)
+
+            # Calcular espacio disponible y ajustar tamaño si es necesario
             title = Paragraph("Shipping Schedule", styles["Title"])
-            elements = [title, Spacer(1, 0.2 * inch), table]
+            spacer = Spacer(1, 0.2 * inch)
+            title_height = title.wrap(doc.width, doc.topMargin)[1]
+            available_height = doc.height - title_height - spacer.height
+            table_height = table.wrap(doc.width, doc.bottomMargin)[1]
+
+            while table_height > available_height and font_size > min_font:
+                font_size -= 0.5
+                padding = max(min_pad, padding - 0.5)
+                apply_style(font_size, padding)
+                table_height = table.wrap(doc.width, doc.bottomMargin)[1]
+
+            elements = [title, spacer, table]
 
             # Generar PDF
             doc.build(elements)
