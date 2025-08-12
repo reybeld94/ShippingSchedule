@@ -1232,11 +1232,12 @@ class ModernShippingMainWindow(QMainWindow):
                 "Crated",
                 "Ship Plan",
             ]]
+            max_name_len = 18
             for row in range(rows):
                 job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
                 name = current_table.item(row, 1).text() if current_table.item(row, 1) else ""
-                # Wrap long job names to avoid overly wide columns
-                name = "<br/>".join(textwrap.wrap(name, width=20))
+                if len(name) > max_name_len:
+                    name = name[: max_name_len - 1] + "…"
                 desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
                 qc_rel = current_table.item(row, 4).text() if current_table.item(row, 4) else ""
                 crated = current_table.item(row, 6).text() if current_table.item(row, 6) else ""
