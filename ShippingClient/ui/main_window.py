@@ -3,6 +3,7 @@ import json
 import requests
 from datetime import datetime, timedelta
 import os
+import textwrap
 from .utils import show_popup_notification
 from core.settings_manager import SettingsManager
 from PyQt6.QtWidgets import (
