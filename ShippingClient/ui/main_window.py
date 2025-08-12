@@ -3,6 +3,7 @@ import json
 import requests
 from datetime import datetime, timedelta
 import os
+import textwrap
 from .utils import show_popup_notification
 from core.settings_manager import SettingsManager
 from PyQt6.QtWidgets import (
@@ -1212,8 +1213,8 @@ class ModernShippingMainWindow(QMainWindow):
             doc = SimpleDocTemplate(
                 file_path,
                 pagesize=letter,
-                leftMargin=20,
-                rightMargin=20,
+                leftMargin=10,
+                rightMargin=10,
                 topMargin=20,
                 bottomMargin=20,
             )
@@ -1234,6 +1235,8 @@ class ModernShippingMainWindow(QMainWindow):
             for row in range(rows):
                 job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
                 name = current_table.item(row, 1).text() if current_table.item(row, 1) else ""
+                # Wrap long job names to avoid overly wide columns
+                name = "<br/>".join(textwrap.wrap(name, width=20))
                 desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
                 qc_rel = current_table.item(row, 4).text() if current_table.item(row, 4) else ""
                 crated = current_table.item(row, 6).text() if current_table.item(row, 6) else ""
@@ -1253,8 +1256,8 @@ class ModernShippingMainWindow(QMainWindow):
             width = doc.width
             col_widths = [
                 width * 0.15,  # Job Number
-                width * 0.2,   # Job Name
-                width * 0.3,   # Description
+                width * 0.15,  # Job Name
+                width * 0.35,  # Description
                 width * 0.1,   # QC Release
                 width * 0.1,   # Crated
                 width * 0.15,  # Ship Plan
