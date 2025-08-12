@@ -1199,7 +1199,7 @@ class ModernShippingMainWindow(QMainWindow):
     def print_table_to_pdf(self):
         """Export current table view to a well-formatted, professional PDF"""
         try:
-            from reportlab.lib.pagesizes import letter, landscape
+            from reportlab.lib.pagesizes import letter, portrait
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
             from reportlab.lib import colors
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1210,10 +1210,10 @@ class ModernShippingMainWindow(QMainWindow):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             file_path = os.path.join(docs_dir, f"Shipping_Schedule_{timestamp}.pdf")
 
-            # Configurar documento horizontal con márgenes reducidos
+            # Configurar documento vertical con márgenes reducidos
             doc = SimpleDocTemplate(
                 file_path,
-                pagesize=landscape(letter),
+                pagesize=portrait(letter),
                 leftMargin=10,
                 rightMargin=10,
                 topMargin=15,
