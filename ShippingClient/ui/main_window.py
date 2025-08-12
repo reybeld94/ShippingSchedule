@@ -1239,7 +1239,7 @@ class ModernShippingMainWindow(QMainWindow):
                 name = current_table.item(row, 1).text() if current_table.item(row, 1) else ""
                 if len(name) > max_name_len:
                     name = name[: max_name_len - 1] + "…"
-                name = escape(name).replace(" ", "&nbsp;")
+                name = escape(name)
                 desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
                 qc_rel = current_table.item(row, 4).text() if current_table.item(row, 4) else ""
                 crated = current_table.item(row, 6).text() if current_table.item(row, 6) else ""
@@ -1272,11 +1272,11 @@ class ModernShippingMainWindow(QMainWindow):
             width = doc.width
             col_widths = [
                 width * 0.12,  # Job Number
-                width * 0.18,  # Job Name
+                width * 0.22,  # Job Name
                 width * 0.35,  # Description
                 width * 0.1,   # QC Release
                 width * 0.1,   # Crated
-                width * 0.15,  # Ship Plan
+                width * 0.11,  # Ship Plan
             ]
 
             # Crear tabla con estilo ajustable
