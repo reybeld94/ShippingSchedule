@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QStyle,
     QFileDialog,
+    QMenu,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QStandardPaths, QUrl
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
@@ -74,6 +75,11 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Manage persistent UI settings
         self.settings_mgr = SettingsManager()
+        # Loaded cell color mappings for persistence
+        self.cell_colors = {
+            "active": self.settings_mgr.load_cell_colors("active"),
+            "history": self.settings_mgr.load_cell_colors("history"),
+        }
 
         # Cache para optimización
         self._active_shipments = []
@@ -525,6 +531,10 @@ class ModernShippingMainWindow(QMainWindow):
         # Eventos
         table.selectionModel().selectionChanged.connect(self.on_selection_changed)
         table.itemChanged.connect(self.on_item_changed)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(
+            lambda pos, tbl=table, nm=name: self.show_cell_menu(tbl, nm, pos)
+        )
 
         # Habilitar ordenamiento por columnas
         table.setSortingEnabled(True)
@@ -541,6 +551,33 @@ class ModernShippingMainWindow(QMainWindow):
         for i, width in enumerate(widths):
             if width is not None:
                 table.setColumnWidth(i, width)
+
+    def show_cell_menu(self, table, name, pos):
+        item = table.itemAt(pos)
+        if not item:
+            return
+        menu = QMenu(table)
+        update_action = menu.addAction("Update")
+        clear_action = menu.addAction("Clear Mark")
+        action = menu.exec(table.viewport().mapToGlobal(pos))
+        if action == update_action:
+            item.setBackground(QColor("#1E90FF"))
+            self.cell_colors[name][(item.row(), item.column())] = "#1E90FF"
+            self.save_cell_colors(name)
+        elif action == clear_action:
+            item.setBackground(QColor("transparent"))
+            self.cell_colors[name].pop((item.row(), item.column()), None)
+            self.save_cell_colors(name)
+
+    def save_cell_colors(self, name):
+        self.settings_mgr.save_cell_colors(name, self.cell_colors[name])
+
+    def apply_saved_cell_colors(self, table, name):
+        for (row, col), color in self.cell_colors.get(name, {}).items():
+            if row < table.rowCount() and col < table.columnCount():
+                item = table.item(row, col)
+                if item:
+                    item.setBackground(QColor(color))
     
     def create_professional_status_bar(self):
         """Crear status bar profesional"""
@@ -787,6 +824,8 @@ class ModernShippingMainWindow(QMainWindow):
             table.setSortingEnabled(True)
             if sort_col >= 0:
                 table.sortItems(sort_col, sort_order)
+
+            self.apply_saved_cell_colors(table, "active" if is_active else "history")
 
             # El ajuste de filas a su contenido puede ser costoso para miles de
             # registros. Dejamos un tamaño fijo establecido en la configuración
