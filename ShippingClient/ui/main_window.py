@@ -1199,7 +1199,7 @@ class ModernShippingMainWindow(QMainWindow):
     def print_table_to_pdf(self):
         """Export current table view to a well-formatted, professional PDF"""
         try:
-            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.pagesizes import letter, landscape
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
             from reportlab.lib import colors
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -1210,10 +1210,10 @@ class ModernShippingMainWindow(QMainWindow):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             file_path = os.path.join(docs_dir, f"Shipping_Schedule_{timestamp}.pdf")
 
-            # Configurar documento vertical con márgenes reducidos
+            # Configurar documento horizontal con márgenes reducidos
             doc = SimpleDocTemplate(
                 file_path,
-                pagesize=letter,
+                pagesize=landscape(letter),
                 leftMargin=10,
                 rightMargin=10,
                 topMargin=20,
@@ -1317,6 +1317,16 @@ class ModernShippingMainWindow(QMainWindow):
                 padding = max(min_pad, padding - 0.5)
                 apply_style(font_size, padding)
                 table_height = table.wrap(doc.width, doc.bottomMargin)[1]
+
+            # Scale down further if needed to ensure a single-page output
+            table_width, table_height = table.wrap(doc.width, doc.bottomMargin)
+            if table_height > available_height or table_width > doc.width:
+                scale = min(available_height / table_height, doc.width / table_width)
+                table._argW = [w * scale for w in table._argW]
+                table._rowHeights = [h * scale for h in table._rowHeights]
+                font_size = max(min_font, font_size * scale)
+                padding = max(min_pad, padding * scale)
+                apply_style(font_size, padding)
 
             elements = [title, spacer, table]
 
