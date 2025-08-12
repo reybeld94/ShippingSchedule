@@ -4,6 +4,7 @@ import requests
 from datetime import datetime, timedelta
 import os
 import textwrap
+from html import escape
 from .utils import show_popup_notification
 from core.settings_manager import SettingsManager
 from PyQt6.QtWidgets import (
@@ -1232,12 +1233,13 @@ class ModernShippingMainWindow(QMainWindow):
                 "Crated",
                 "Ship Plan",
             ]]
-            max_name_len = 18
+            max_name_len = 24
             for row in range(rows):
                 job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
                 name = current_table.item(row, 1).text() if current_table.item(row, 1) else ""
                 if len(name) > max_name_len:
                     name = name[: max_name_len - 1] + "…"
+                name = escape(name).replace(" ", "&nbsp;")
                 desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
                 qc_rel = current_table.item(row, 4).text() if current_table.item(row, 4) else ""
                 crated = current_table.item(row, 6).text() if current_table.item(row, 6) else ""
@@ -1251,13 +1253,26 @@ class ModernShippingMainWindow(QMainWindow):
                 parent=styles["BodyText"],
                 wordWrap="CJK",
             )
-            data = [[Paragraph(str(cell), cell_style) for cell in row] for row in raw_data]
+            nowrap_style = ParagraphStyle(
+                "table_cell_nowrap",
+                parent=styles["BodyText"],
+                wordWrap="LTR",
+                splitLongWords=False,
+            )
+            data = []
+            for r, row in enumerate(raw_data):
+                data_row = []
+                for c, cell in enumerate(row):
+                    text = str(cell)
+                    style = cell_style if (c == 2 or r == 0) else nowrap_style
+                    data_row.append(Paragraph(text, style))
+                data.append(data_row)
 
             # Ancho de hoja disponible
             width = doc.width
             col_widths = [
-                width * 0.15,  # Job Number
-                width * 0.15,  # Job Name
+                width * 0.12,  # Job Number
+                width * 0.18,  # Job Name
                 width * 0.35,  # Description
                 width * 0.1,   # QC Release
                 width * 0.1,   # Crated
