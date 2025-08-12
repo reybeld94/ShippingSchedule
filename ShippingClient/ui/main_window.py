@@ -1216,8 +1216,8 @@ class ModernShippingMainWindow(QMainWindow):
                 pagesize=landscape(letter),
                 leftMargin=10,
                 rightMargin=10,
-                topMargin=20,
-                bottomMargin=20,
+                topMargin=15,
+                bottomMargin=15,
             )
 
             # Obtener tabla actual
