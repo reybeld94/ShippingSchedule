@@ -65,6 +65,33 @@ class ShipmentLoader(QThread):
         except Exception as e:
             self.error_occurred.emit(str(e))
 
+
+class ShipPlanItem(QTableWidgetItem):
+    """Item de tabla que ordena fechas colocando los vacíos al final."""
+
+    def __lt__(self, other):  # type: ignore[override]
+        def parse(text: str):
+            text = text.strip()
+            if not text or text == "-":
+                return None
+            for fmt in ("%m/%d/%y", "%m/%d/%Y"):
+                try:
+                    return datetime.strptime(text, fmt)
+                except ValueError:
+                    continue
+            return None
+
+        self_date = parse(self.text())
+        other_date = parse(other.text())
+
+        if self_date and other_date:
+            return self_date < other_date
+        if self_date and not other_date:
+            return True
+        if not self_date and other_date:
+            return False
+        return QTableWidgetItem.__lt__(self, other)
+
 class ModernShippingMainWindow(QMainWindow):
     def __init__(self, token, user_info):
         super().__init__()
@@ -869,7 +896,7 @@ class ModernShippingMainWindow(QMainWindow):
             else:
                 if col == 7:  # Ship Plan
                     display_text = str(item_text).strip() if str(item_text).strip() else "-"
-                    item = QTableWidgetItem(display_text)
+                    item = ShipPlanItem(display_text)
                 else:
                     item = QTableWidgetItem(str(item_text))
                 if not is_active and col == 8 and item_text:  # Shipped en history
