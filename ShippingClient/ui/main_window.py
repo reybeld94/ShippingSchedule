@@ -1198,6 +1198,33 @@ class ModernShippingMainWindow(QMainWindow):
 
     def print_table_to_pdf(self):
         """Export current table view to a well-formatted, professional PDF"""
+        # Verificar dependencias antes de continuar
+        missing_deps = []
+
+        try:
+            import reportlab
+        except ImportError:
+            missing_deps.append("reportlab")
+
+        try:
+            from reportlab.lib.pagesizes import letter
+        except ImportError:
+            missing_deps.append("reportlab (lib.pagesizes)")
+
+        try:
+            from reportlab.platypus import SimpleDocTemplate
+        except ImportError:
+            missing_deps.append("reportlab (platypus)")
+
+        if missing_deps:
+            error_msg = f"Missing dependencies: {', '.join(missing_deps)}\n\n"
+            error_msg += "Please install with:\n"
+            error_msg += "pip install reportlab pillow\n\n"
+            error_msg += "Make sure you're in the correct virtual environment."
+
+            self.show_error(error_msg)
+            return
+
         try:
             from reportlab.lib.pagesizes import letter, portrait
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -1336,6 +1363,12 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_toast(f"PDF saved: {os.path.basename(file_path)}")
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
 
+        except ImportError as e:
+            error_msg = f"Import error: {str(e)}\n\n"
+            error_msg += "Please ensure ReportLab is installed:\n"
+            error_msg += "pip install reportlab pillow\n\n"
+            error_msg += "And that you're running from the correct virtual environment."
+            self.show_error(error_msg)
         except Exception as e:
             print(f"❌ Error al generar PDF: {e}")
             self.show_error(f"Error generating PDF:\n{str(e)}")
