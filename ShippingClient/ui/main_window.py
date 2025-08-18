@@ -867,13 +867,9 @@ class ModernShippingMainWindow(QMainWindow):
                 item.setData(Qt.ItemDataRole.EditRole, item_text)
                 self.style_professional_status_item(item, item_text)
             else:
-                if col == 7:  # Solo Ship Plan
-                    item = QTableWidgetItem()
-                    display_text = str(item_text) if str(item_text).strip() else ""
-                    sort_text = "zzzzz" if not str(item_text).strip() else str(item_text)
-
-                    item.setText(display_text)
-                    item.setData(Qt.ItemDataRole.UserRole, sort_text)
+                if col == 7:  # Ship Plan
+                    display_text = str(item_text).strip() if str(item_text).strip() else "-"
+                    item = QTableWidgetItem(display_text)
                 else:
                     item = QTableWidgetItem(str(item_text))
                 if not is_active and col == 8 and item_text:  # Shipped en history
