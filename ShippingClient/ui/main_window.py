@@ -1207,7 +1207,7 @@ class ModernShippingMainWindow(QMainWindow):
             missing_deps.append("reportlab")
 
         try:
-            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.pagesizes import LEGAL
         except ImportError:
             missing_deps.append("reportlab (lib.pagesizes)")
 
@@ -1226,7 +1226,7 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         try:
-            from reportlab.lib.pagesizes import letter, landscape
+            from reportlab.lib.pagesizes import LEGAL
             from reportlab.platypus import (
                 SimpleDocTemplate,
                 Table,
@@ -1250,14 +1250,14 @@ class ModernShippingMainWindow(QMainWindow):
                 docs_dir, f"Shipping_Schedule_{tab_name}_{timestamp}.pdf"
             )
 
-            # Usar landscape para aprovechar mejor el espacio horizontal
-            page_width, page_height = landscape(letter)
+            # Usar formato vertical con papel Legal (8.5" x 14")
+            page_width, page_height = LEGAL
 
             # Márgenes mínimos para maximizar espacio disponible
             margin = 20
             doc = SimpleDocTemplate(
                 file_path,
-                pagesize=landscape(letter),
+                pagesize=LEGAL,
                 leftMargin=margin,
                 rightMargin=margin,
                 topMargin=margin,
@@ -1272,33 +1272,31 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error("No data to export")
                 return
 
-            # Crear encabezados completos
+            # Solo las columnas necesarias
             headers = [
-                "Job #",
                 "Job Name",
                 "Description",
-                "Status",
                 "QC Release",
-                "QC Notes",
                 "Crated",
                 "Ship Plan",
-                "Shipped",
-                "Invoice #",
-                "Notes",
             ]
 
-            # Preparar datos sin procesamiento inicial (texto crudo)
-            raw_data = [headers]
+            # Mapeo de columnas: posición en el PDF -> columna en la tabla original
+            column_map = [1, 2, 4, 6, 7]
 
+            # Preparar datos con solo las columnas seleccionadas
+            raw_data = [headers]
             for row in range(rows):
                 row_data = []
-                for col in range(11):  # 11 columnas
-                    item = current_table.item(row, col)
+                for col_index in column_map:
+                    item = current_table.item(row, col_index)
                     text = item.text() if item else ""
                     row_data.append(text)
                 raw_data.append(row_data)
 
-            print(f"📊 Exportando {len(raw_data)-1} filas con {len(headers)} columnas")
+            print(
+                f"📊 Exportando {len(raw_data)-1} filas con {len(headers)} columnas seleccionadas"
+            )
 
             # Calcular espacio disponible
             styles = getSampleStyleSheet()
@@ -1326,20 +1324,8 @@ class ModernShippingMainWindow(QMainWindow):
 
             # === ALGORITMO DE AJUSTE AUTOMÁTICO ===
 
-            # Anchos relativos de columnas basados en contenido típico
-            relative_widths = [
-                0.08,
-                0.15,
-                0.20,
-                0.10,
-                0.08,
-                0.12,
-                0.08,
-                0.08,
-                0.08,
-                0.08,
-                0.12,
-            ]
+            # Anchos relativos optimizados para las 5 columnas en formato vertical
+            relative_widths = [0.25, 0.40, 0.12, 0.12, 0.11]
 
             # Calcular anchos absolutos
             col_widths = [available_width * w for w in relative_widths]
@@ -1394,11 +1380,8 @@ class ModernShippingMainWindow(QMainWindow):
                         ("FONTSIZE", (0, 1), (-1, -1), font_size),
                         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
 
-                        # Alineación
-                        ("ALIGN", (0, 0), (0, -1), "CENTER"),  # Job # centrado
-                        ("ALIGN", (3, 0), (3, -1), "CENTER"),  # Status centrado
-                        ("ALIGN", (4, 0), (8, -1), "CENTER"),  # Fechas centradas
-                        ("ALIGN", (9, 0), (9, -1), "CENTER"),  # Invoice # centrado
+                        # Alineación optimizada para las 5 columnas
+                        ("ALIGN", (2, 0), (4, -1), "CENTER"),
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
 
                         # Padding
