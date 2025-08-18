@@ -1197,7 +1197,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.load_shipments_async()
 
     def print_table_to_pdf(self):
-        """Export current table view to a well-formatted, professional PDF"""
+        """Export current table view to a professional PDF that fits on one page"""
         # Verificar dependencias antes de continuar
         missing_deps = []
 
@@ -1226,141 +1226,260 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         try:
-            from reportlab.lib.pagesizes import letter, portrait
-            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.pagesizes import letter, landscape
+            from reportlab.platypus import (
+                SimpleDocTemplate,
+                Table,
+                TableStyle,
+                Paragraph,
+                Spacer,
+            )
             from reportlab.lib import colors
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib.units import inch
 
             # Ruta por defecto en carpeta de Documentos
-            docs_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+            docs_dir = QStandardPaths.writableLocation(
+                QStandardPaths.StandardLocation.DocumentsLocation
+            )
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            file_path = os.path.join(docs_dir, f"Shipping_Schedule_{timestamp}.pdf")
 
-            # Configurar documento vertical con márgenes reducidos
-            doc = SimpleDocTemplate(
-                file_path,
-                pagesize=portrait(letter),
-                leftMargin=10,
-                rightMargin=10,
-                topMargin=15,
-                bottomMargin=15,
+            # Determinar nombre según tab actual
+            tab_name = "Active" if self.tab_widget.currentIndex() == 0 else "History"
+            file_path = os.path.join(
+                docs_dir, f"Shipping_Schedule_{tab_name}_{timestamp}.pdf"
             )
 
-            # Obtener tabla actual
+            # Usar landscape para aprovechar mejor el espacio horizontal
+            page_width, page_height = landscape(letter)
+
+            # Márgenes mínimos para maximizar espacio disponible
+            margin = 20
+            doc = SimpleDocTemplate(
+                file_path,
+                pagesize=landscape(letter),
+                leftMargin=margin,
+                rightMargin=margin,
+                topMargin=margin,
+                bottomMargin=margin,
+            )
+
+            # Obtener tabla actual y datos
             current_table = self.get_current_table()
             rows = current_table.rowCount()
 
-            # Crear encabezado + datos
-            raw_data = [[
-                "Job Number",
+            if rows == 0:
+                self.show_error("No data to export")
+                return
+
+            # Crear encabezados completos
+            headers = [
+                "Job #",
                 "Job Name",
                 "Description",
+                "Status",
                 "QC Release",
+                "QC Notes",
                 "Crated",
                 "Ship Plan",
-            ]]
-            max_name_len = 24
+                "Shipped",
+                "Invoice #",
+                "Notes",
+            ]
+
+            # Preparar datos sin procesamiento inicial (texto crudo)
+            raw_data = [headers]
+
             for row in range(rows):
-                job = current_table.item(row, 0).text() if current_table.item(row, 0) else ""
-                name = current_table.item(row, 1).text() if current_table.item(row, 1) else ""
-                if len(name) > max_name_len:
-                    name = name[: max_name_len - 1] + "…"
-                name = escape(name)
-                desc = current_table.item(row, 2).text() if current_table.item(row, 2) else ""
-                qc_rel = current_table.item(row, 4).text() if current_table.item(row, 4) else ""
-                crated = current_table.item(row, 6).text() if current_table.item(row, 6) else ""
-                plan = current_table.item(row, 7).text() if current_table.item(row, 7) else ""
-                raw_data.append([job, name, desc, qc_rel, crated, plan])
+                row_data = []
+                for col in range(11):  # 11 columnas
+                    item = current_table.item(row, col)
+                    text = item.text() if item else ""
+                    row_data.append(text)
+                raw_data.append(row_data)
 
-            # Convertir a Paragraph para ajuste de texto
+            print(f"📊 Exportando {len(raw_data)-1} filas con {len(headers)} columnas")
+
+            # Calcular espacio disponible
             styles = getSampleStyleSheet()
-            cell_style = ParagraphStyle(
-                "table_cell",
-                parent=styles["BodyText"],
-                wordWrap="CJK",
-            )
-            nowrap_style = ParagraphStyle(
-                "table_cell_nowrap",
-                parent=styles["BodyText"],
-                wordWrap="LTR",
-                splitLongWords=False,
-            )
-            data = []
-            for r, row in enumerate(raw_data):
-                data_row = []
-                for c, cell in enumerate(row):
-                    text = str(cell)
-                    style = cell_style if (c == 2 or r == 0) else nowrap_style
-                    data_row.append(Paragraph(text, style))
-                data.append(data_row)
 
-            # Ancho de hoja disponible
-            width = doc.width
-            col_widths = [
-                width * 0.12,  # Job Number
-                width * 0.22,  # Job Name
-                width * 0.35,  # Description
-                width * 0.1,   # QC Release
-                width * 0.1,   # Crated
-                width * 0.11,  # Ship Plan
+            # Título compacto
+            title_style = ParagraphStyle(
+                "CustomTitle",
+                parent=styles["Title"],
+                fontSize=14,
+                spaceBefore=0,
+                spaceAfter=6,
+                alignment=1,  # Center
+            )
+
+            title = Paragraph(f"Shipping Schedule - {tab_name}", title_style)
+            title_height = 25  # Estimado para el título compacto
+
+            # Espacio disponible para la tabla
+            available_width = doc.width
+            available_height = doc.height - title_height - 10  # 10 para spacing
+
+            print(
+                f"📐 Espacio disponible: {available_width} x {available_height}"
+            )
+
+            # === ALGORITMO DE AJUSTE AUTOMÁTICO ===
+
+            # Anchos relativos de columnas basados en contenido típico
+            relative_widths = [
+                0.08,
+                0.15,
+                0.20,
+                0.10,
+                0.08,
+                0.12,
+                0.08,
+                0.08,
+                0.08,
+                0.08,
+                0.12,
             ]
 
-            # Crear tabla con estilo ajustable
-            table = Table(data, colWidths=col_widths, repeatRows=1)
+            # Calcular anchos absolutos
+            col_widths = [available_width * w for w in relative_widths]
 
-            base_style = [
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F3F4F6")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1F2937")),
-                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ]
+            # Función para crear tabla con parámetros dados
+            def create_table_with_params(font_size, padding, row_height_factor=1.0):
+                # Estilo de celda adaptativo
+                cell_style = ParagraphStyle(
+                    "CellStyle",
+                    parent=styles["BodyText"],
+                    fontSize=font_size,
+                    leading=font_size * 1.1,
+                    wordWrap="CJK",
+                    alignment=0,  # Left align
+                    spaceBefore=0,
+                    spaceAfter=0,
+                )
 
-            font_size = 8
-            padding = 3
-            min_font = 6
-            min_pad = 1
+                # Convertir datos a Paragraphs con el estilo apropiado
+                processed_data = []
+                for r, row in enumerate(raw_data):
+                    processed_row = []
+                    for c, cell_text in enumerate(row):
+                        # Truncar texto muy largo para optimizar
+                        if len(str(cell_text)) > 100:
+                            cell_text = str(cell_text)[:97] + "..."
 
-            def apply_style(f_size, pad):
-                style = TableStyle(base_style + [
-                    ("FONTSIZE", (0, 0), (-1, -1), f_size),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
-                    ("TOPPADDING", (0, 0), (-1, -1), pad),
-                ])
-                table.setStyle(style)
+                        para = Paragraph(str(cell_text), cell_style)
+                        processed_row.append(para)
+                    processed_data.append(processed_row)
 
-            apply_style(font_size, padding)
+                # Crear tabla
+                table = Table(
+                    processed_data,
+                    colWidths=col_widths,
+                    repeatRows=1,  # Repetir header si se extiende a múltiples páginas
+                )
 
-            # Calcular espacio disponible y ajustar tamaño si es necesario
-            title = Paragraph("Shipping Schedule", styles["Title"])
-            spacer = Spacer(1, 0.2 * inch)
-            title_height = title.wrap(doc.width, doc.topMargin)[1]
-            available_height = doc.height - title_height - spacer.height
-            table_height = table.wrap(doc.width, doc.bottomMargin)[1]
+                # Aplicar estilo
+                table_style = TableStyle(
+                    [
+                        # Bordes y grid
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
 
-            while table_height > available_height and font_size > min_font:
-                font_size -= 0.5
-                padding = max(min_pad, padding - 0.5)
-                apply_style(font_size, padding)
-                table_height = table.wrap(doc.width, doc.bottomMargin)[1]
+                        # Header styling
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("FONTSIZE", (0, 0), (-1, 0), font_size),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
 
-            # Scale down further if needed to ensure a single-page output
-            table_width, table_height = table.wrap(doc.width, doc.bottomMargin)
-            if table_height > available_height or table_width > doc.width:
-                scale = min(available_height / table_height, doc.width / table_width)
-                table._argW = [w * scale for w in table._argW]
-                table._rowHeights = [h * scale for h in table._rowHeights]
-                font_size = max(min_font, font_size * scale)
-                padding = max(min_pad, padding * scale)
-                apply_style(font_size, padding)
+                        # Datos
+                        ("FONTSIZE", (0, 1), (-1, -1), font_size),
+                        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
 
-            elements = [title, spacer, table]
+                        # Alineación
+                        ("ALIGN", (0, 0), (0, -1), "CENTER"),  # Job # centrado
+                        ("ALIGN", (3, 0), (3, -1), "CENTER"),  # Status centrado
+                        ("ALIGN", (4, 0), (8, -1), "CENTER"),  # Fechas centradas
+                        ("ALIGN", (9, 0), (9, -1), "CENTER"),  # Invoice # centrado
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+
+                        # Padding
+                        ("TOPPADDING", (0, 0), (-1, -1), padding),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), padding),
+                        ("LEFTPADDING", (0, 0), (-1, -1), padding * 0.7),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), padding * 0.7),
+
+                        # Filas alternas para mejor legibilidad
+                        (
+                            "ROWBACKGROUNDS",
+                            (0, 1),
+                            (-1, -1),
+                            [colors.white, colors.HexColor("#F8F9FA")],
+                        ),
+                    ]
+                )
+
+                table.setStyle(table_style)
+                return table
+
+            # === BÚSQUEDA BINARIA PARA EL TAMAÑO ÓPTIMO ===
+
+            min_font = 4
+            max_font = 12
+            optimal_font = min_font
+            optimal_padding = 1
+
+            print("🔍 Buscando tamaño óptimo...")
+
+            # Búsqueda binaria del tamaño de fuente óptimo
+            while max_font - min_font > 0.5:
+                test_font = (min_font + max_font) / 2
+                test_padding = max(1, test_font * 0.3)
+
+                test_table = create_table_with_params(test_font, test_padding)
+
+                # Medir la tabla
+                table_width, table_height = test_table.wrap(
+                    available_width, available_height
+                )
+
+                print(
+                    f"   Probando font={test_font:.1f}, padding={test_padding:.1f} -> {table_width:.0f}x{table_height:.0f}"
+                )
+
+                # Verificar si cabe
+                if table_width <= available_width and table_height <= available_height:
+                    optimal_font = test_font
+                    optimal_padding = test_padding
+                    min_font = test_font  # Puede ser más grande
+                else:
+                    max_font = test_font  # Debe ser más pequeño
+
+            print(
+                f"✅ Tamaño óptimo encontrado: font={optimal_font:.1f}, padding={optimal_padding:.1f}"
+            )
+
+            # Crear tabla final con parámetros óptimos
+            final_table = create_table_with_params(optimal_font, optimal_padding)
+
+            # Verificar medidas finales
+            final_width, final_height = final_table.wrap(
+                available_width, available_height
+            )
+            print(
+                f"📏 Medidas finales: {final_width:.0f}x{final_height:.0f} (disponible: {available_width:.0f}x{available_height:.0f})"
+            )
+
+            # Construir documento
+            elements = [title, final_table]
 
             # Generar PDF
             doc.build(elements)
-            print("✅ PDF generado correctamente:", file_path)
-            self.show_toast(f"PDF saved: {os.path.basename(file_path)}")
+
+            print(f"✅ PDF generado exitosamente: {file_path}")
+            self.show_toast(
+                f"PDF saved: {os.path.basename(file_path)}", color="#16A34A"
+            )
+
+            # Abrir PDF automáticamente
             QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
 
         except ImportError as e:
@@ -1371,6 +1490,9 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_error(error_msg)
         except Exception as e:
             print(f"❌ Error al generar PDF: {e}")
+            import traceback
+
+            traceback.print_exc()
             self.show_error(f"Error generating PDF:\n{str(e)}")
     
     def closeEvent(self, event):
