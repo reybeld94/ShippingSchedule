@@ -524,6 +524,17 @@ class ModernShippingMainWindow(QMainWindow):
         status_delegate = StatusDelegate(table)
         table.setItemDelegateForColumn(3, status_delegate)
 
+        from PyQt6.QtCore import QSortFilterProxyModel
+
+        # Custom sorting para Ship Plan
+        class ShipPlanSortModel(QSortFilterProxyModel):
+            def lessThan(self, left, right):
+                if left.column() == 7:  # Ship Plan column
+                    left_data = self.sourceModel().data(left, Qt.ItemDataRole.UserRole + 1)
+                    right_data = self.sourceModel().data(right, Qt.ItemDataRole.UserRole + 1)
+                    return str(left_data or "") < str(right_data or "")
+                return super().lessThan(left, right)
+
         # Restaurar anchos guardados si existen
         self.restore_column_widths(table, name)
 
@@ -541,6 +552,11 @@ class ModernShippingMainWindow(QMainWindow):
         # Habilitar ordenamiento por columnas
         table.setSortingEnabled(True)
         header.setSortIndicatorShown(True)
+
+        # Habilitar sorting custom para Ship Plan
+        proxy_model = ShipPlanSortModel()
+        proxy_model.setSourceModel(table.model())
+        table.setModel(proxy_model)
 
     def save_table_column_widths(self, table, name):
         """Guardar anchos actuales de la tabla."""
