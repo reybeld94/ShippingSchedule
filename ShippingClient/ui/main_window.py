@@ -1274,6 +1274,7 @@ class ModernShippingMainWindow(QMainWindow):
 
             # Solo las columnas necesarias
             headers = [
+                "Job Number",
                 "Job Name",
                 "Description",
                 "QC Release",
@@ -1282,7 +1283,7 @@ class ModernShippingMainWindow(QMainWindow):
             ]
 
             # Mapeo de columnas: posición en el PDF -> columna en la tabla original
-            column_map = [1, 2, 4, 6, 7]
+            column_map = [0, 1, 2, 4, 6, 7]
 
             # Preparar datos con solo las columnas seleccionadas
             raw_data = [headers]
@@ -1324,8 +1325,8 @@ class ModernShippingMainWindow(QMainWindow):
 
             # === ALGORITMO DE AJUSTE AUTOMÁTICO ===
 
-            # Anchos relativos optimizados para las 5 columnas en formato vertical
-            relative_widths = [0.25, 0.40, 0.12, 0.12, 0.11]
+            # Anchos relativos optimizados para las 6 columnas en formato vertical
+            relative_widths = [0.12, 0.25, 0.30, 0.12, 0.11, 0.10]
 
             # Calcular anchos absolutos
             col_widths = [available_width * w for w in relative_widths]
@@ -1380,8 +1381,8 @@ class ModernShippingMainWindow(QMainWindow):
                         ("FONTSIZE", (0, 1), (-1, -1), font_size),
                         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
 
-                        # Alineación optimizada para las 5 columnas
-                        ("ALIGN", (2, 0), (4, -1), "CENTER"),
+                        # Alineación optimizada para las 6 columnas
+                        ("ALIGN", (3, 0), (5, -1), "CENTER"),
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
 
                         # Padding
