@@ -486,8 +486,8 @@ class ModernShippingMainWindow(QMainWindow):
         border: 1px solid #E5E7EB;
     }}
     QHeaderView::section {{
-        background-color: #F9FAFB;
-        color: #374151;
+        background-color: #E5E5E5;
+        color: #000000;
         padding: 12px 8px;
         border: none;
         border-bottom: 2px solid #E5E7EB;

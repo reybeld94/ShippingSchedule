@@ -130,6 +130,15 @@ class UserManagementDialog(QDialog):
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["ID", "Username", "Email", "Role"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setStyleSheet("""
+    QHeaderView::section {
+        background-color: #E5E5E5;
+        color: #000000;
+        padding: 8px 4px;
+        border: none;
+        border-right: 1px solid #D1D5DB;
+    }
+        """)
         layout.addWidget(self.table)
 
         btn_layout = QHBoxLayout()
