@@ -25,8 +25,18 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QMenu,
     QProgressDialog,
+    QProgressBar,
 )
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QStandardPaths, QUrl
+from PyQt6.QtCore import (
+    Qt,
+    QTimer,
+    QThread,
+    pyqtSignal,
+    QStandardPaths,
+    QUrl,
+    QFutureWatcher,
+    QtConcurrent,
+)
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
 
 # Imports locales
@@ -120,6 +130,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._last_filter_text = ""
         self._last_status_filter = "All Status"
         self._tables_populated = {"active": False, "history": False}
+        self._update_watchers = []
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -1121,9 +1132,38 @@ class ModernShippingMainWindow(QMainWindow):
 
         if new_value == (old_value or ""):  # Sin cambios reales
             return
+        progress = QProgressBar()
+        progress.setRange(0, 0)
+        progress.setTextVisible(False)
+        table.setCellWidget(row, col, progress)
 
-        try:
-            api_response = self.api_client.update_shipment(shipment['id'], {field: new_value})
+        old_flags = item.flags()
+        item.setFlags(old_flags & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsEnabled)
+
+        watcher = QFutureWatcher(self)
+        self._update_watchers.append(watcher)
+
+        def do_update():
+            try:
+                return self.api_client.update_shipment(shipment['id'], {field: new_value})
+            except Exception as e:
+                return e
+
+        watcher.setFuture(QtConcurrent.run(do_update))
+
+        def finish():
+            table.removeCellWidget(row, col)
+            item.setFlags(old_flags)
+            self._update_watchers.remove(watcher)
+            result = watcher.result()
+            if isinstance(result, Exception):
+                self.updating_table = True
+                item.setData(Qt.ItemDataRole.EditRole, old_value)
+                table.viewport().update()
+                self.updating_table = False
+                self.show_error(f"Failed to save changes: {str(result)}")
+                return
+            api_response = result
             if api_response.is_success():
                 shipment[field] = new_value
                 if field == "status":
@@ -1140,9 +1180,13 @@ class ModernShippingMainWindow(QMainWindow):
                     self.updating_table = False
                 self.show_toast("Changes saved successfully", color="#16A34A")
             else:
+                self.updating_table = True
+                item.setData(Qt.ItemDataRole.EditRole, old_value)
+                table.viewport().update()
+                self.updating_table = False
                 self.show_error(f"Failed to save changes: {api_response.get_error()}")
-        except Exception as e:
-            self.show_error(f"Failed to save changes: {str(e)}")
+
+        watcher.finished.connect(finish)
     
     def delete_shipment(self):
         """Eliminar shipment seleccionado"""
