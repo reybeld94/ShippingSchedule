@@ -26,20 +26,23 @@ class ApiResponse:
 class RobustApiClient:
     """Cliente API con retry automático y manejo robusto de errores"""
 
-    def __init__(self, base_url: str, token: str, max_retries: int = 3, timeout: int = 10):
-        if not token or not token.strip():
-            raise ValueError("A valid authentication token must be provided")
-
+    def __init__(
+        self,
+        base_url: str,
+        token: Optional[str] = None,
+        max_retries: int = 3,
+        timeout: int = 10,
+    ):
         self.base_url = base_url.rstrip('/')
-        self.token = token
+        self.token = token.strip() if token else None
         self.max_retries = max_retries
         self.timeout = timeout
 
         self.session = requests.Session()
-        self.session.headers.update({
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        })
+        headers = {"Content-Type": "application/json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        self.session.headers.update(headers)
 
     def update_token(self, new_token: str):
         """Actualizar token de autenticación"""
