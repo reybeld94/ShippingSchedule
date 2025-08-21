@@ -16,6 +16,11 @@ def get_mie_trak_address(job_number: str) -> str:
     raw_job_number = job_number
     cleaned_job_number = str(job_number).strip()
 
+    # If the job number contains a suffix (e.g. "12345.1"), remove it before
+    # querying Mie Trak. The DB only stores the base number.
+    if "." in cleaned_job_number:
+        cleaned_job_number = cleaned_job_number.split(".", 1)[0]
+
     variants: List[Any] = [cleaned_job_number]
     if cleaned_job_number.isdigit():
         variants.extend([
