@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any, Union
 from dataclasses import dataclass
 import time
 import json
+import logging
 
 
 @dataclass
@@ -44,6 +45,11 @@ class RobustApiClient:
             headers["Authorization"] = f"Bearer {self.token}"
         self.session.headers.update(headers)
 
+        # Configuración básica de logging
+        self.logger = logging.getLogger(__name__)
+        if not logging.getLogger().hasHandlers():
+            logging.basicConfig(level=logging.INFO)
+
     def update_token(self, new_token: str):
         """Actualizar token de autenticación"""
         self.token = new_token
@@ -55,39 +61,58 @@ class RobustApiClient:
         kwargs.setdefault('timeout', self.timeout)
         last_exception = None
 
+        self.logger.info("%s %s", method.upper(), url)
+        if 'params' in kwargs and kwargs['params']:
+            self.logger.debug("Params: %s", kwargs['params'])
+        if 'json' in kwargs and kwargs['json']:
+            self.logger.debug("Payload: %s", kwargs['json'])
+
         for attempt in range(self.max_retries + 1):
             try:
                 response = self.session.request(method, url, **kwargs)
+                self.logger.debug("Response status: %s", response.status_code)
                 if response.status_code in [200, 201]:
                     try:
                         data = response.json()
+                        self.logger.debug("Response data: %s", data)
                         return ApiResponse(success=True, data=data, status_code=response.status_code)
                     except json.JSONDecodeError:
+                        self.logger.debug("Non-JSON response: %s", response.text)
                         return ApiResponse(success=True, data=response.text, status_code=response.status_code)
 
                 error_msg = self._extract_error_message(response)
+                self.logger.warning("Request failed with status %s: %s", response.status_code, error_msg)
                 return ApiResponse(success=False, error=error_msg, status_code=response.status_code)
 
             except requests.exceptions.ConnectionError as e:
                 last_exception = e
                 if attempt < self.max_retries:
-                    print(
-                        f"Connection failed (attempt {attempt + 1}/{self.max_retries + 1}), retrying in {attempt + 1} seconds...")
+                    self.logger.warning(
+                        "Connection failed (attempt %s/%s), retrying in %s seconds...",
+                        attempt + 1,
+                        self.max_retries + 1,
+                        attempt + 1,
+                    )
                     time.sleep(attempt + 1)
                     continue
 
             except requests.exceptions.Timeout as e:
                 last_exception = e
                 if attempt < self.max_retries:
-                    print(
-                        f"Request timeout (attempt {attempt + 1}/{self.max_retries + 1}), retrying...")
+                    self.logger.warning(
+                        "Request timeout (attempt %s/%s), retrying...",
+                        attempt + 1,
+                        self.max_retries + 1,
+                    )
                     time.sleep(1)
                     continue
 
             except requests.exceptions.RequestException as e:
+                self.logger.exception("RequestException: %s", e)
                 return ApiResponse(success=False, error=f"Request error: {str(e)}")
 
             except Exception as e:
+                self.logger.exception("Unexpected error: %s", e)
                 return ApiResponse(success=False, error=f"Unexpected error: {str(e)}")
 
         if isinstance(last_exception, requests.exceptions.ConnectionError):
