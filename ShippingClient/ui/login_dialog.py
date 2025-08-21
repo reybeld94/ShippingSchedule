@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QStyle,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon
 
 from .widgets import ModernButton, ModernLineEdit
@@ -22,6 +22,7 @@ from core.config import (
     LOGIN_WIDTH,
     LOGIN_HEIGHT,
     MODERN_FONT,
+    CONNECTION_RETRY_INTERVAL,
 )
 
 class ModernLoginDialog(QDialog):
@@ -43,6 +44,14 @@ class ModernLoginDialog(QDialog):
         self.setup_professional_ui()
         self.token = None
         self.user_info = None
+
+        # Periodically check server connection
+        self.connection_timer = QTimer(self)
+        self.connection_timer.setInterval(CONNECTION_RETRY_INTERVAL)
+        self.connection_timer.timeout.connect(self.check_server_connection)
+        self.connection_timer.start()
+        # Initial check
+        self.check_server_connection()
     
     def setup_professional_ui(self):
         """Configurar interfaz profesional"""
@@ -199,13 +208,13 @@ class ModernLoginDialog(QDialog):
         connection_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         connection_layout.setSpacing(6)
         
-        connection_indicator = QLabel("●")
-        connection_indicator.setFont(QFont("Arial", 10))
-        connection_indicator.setStyleSheet("color: #10B981;")
+        self.connection_indicator = QLabel("●")
+        self.connection_indicator.setFont(QFont("Arial", 10))
+        self.connection_indicator.setStyleSheet("color: #10B981;")
 
-        connection_text = QLabel("Server connection active")
-        connection_text.setFont(QFont(MODERN_FONT, 9))
-        connection_text.setStyleSheet("color: #6B7280;")
+        self.connection_text = QLabel("Server connection active")
+        self.connection_text.setFont(QFont(MODERN_FONT, 9))
+        self.connection_text.setStyleSheet("color: #6B7280;")
 
         # Botón para abrir la configuración de servidor
         self.settings_btn = ModernButton("", "secondary")
@@ -215,8 +224,8 @@ class ModernLoginDialog(QDialog):
         self.settings_btn.setFixedSize(24, 24)
         self.settings_btn.clicked.connect(self.open_settings_dialog)
 
-        connection_layout.addWidget(connection_indicator)
-        connection_layout.addWidget(connection_text)
+        connection_layout.addWidget(self.connection_indicator)
+        connection_layout.addWidget(self.connection_text)
         connection_layout.addWidget(self.settings_btn)
 
         footer_layout.addWidget(separator)
@@ -228,6 +237,23 @@ class ModernLoginDialog(QDialog):
         """Fill username and password fields with last used credentials."""
         self.username_edit.setText(self.settings_mgr.get_last_username())
         self.password_edit.setText(self.settings_mgr.get_last_password())
+
+    def check_server_connection(self):
+        """Check server connectivity and update footer indicator."""
+        try:
+            response = RobustApiClient(get_server_url()).get("/")
+            if response.is_success():
+                self.connection_indicator.setStyleSheet("color: #10B981;")
+                self.connection_text.setText("Connected")
+                self.connection_text.setStyleSheet("color: #10B981;")
+            else:
+                self.connection_indicator.setStyleSheet("color: #EF4444;")
+                self.connection_text.setText("Disconnected")
+                self.connection_text.setStyleSheet("color: #EF4444;")
+        except Exception:
+            self.connection_indicator.setStyleSheet("color: #EF4444;")
+            self.connection_text.setText("Disconnected")
+            self.connection_text.setStyleSheet("color: #EF4444;")
     
     def login(self):
         """Realizar proceso de login"""
@@ -323,4 +349,6 @@ class ModernLoginDialog(QDialog):
     
     def closeEvent(self, event):
         """Manejar evento de cierre"""
+        if hasattr(self, "connection_timer"):
+            self.connection_timer.stop()
         self.reject()
