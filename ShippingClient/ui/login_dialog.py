@@ -245,7 +245,7 @@ class ModernLoginDialog(QDialog):
         self.password_edit.setEnabled(False)
         
         try:
-            temp_client = RobustApiClient(get_server_url(), "", max_retries=2)
+            temp_client = RobustApiClient(get_server_url(), max_retries=2)
             api_response = temp_client.login(username, password)
 
             if api_response.is_success():
