@@ -39,7 +39,6 @@ from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopService
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
 from .date_delegate import DateDelegate
-from .status_delegate import StatusDelegate
 from .settings_dialog import SettingsDialog
 from core.websocket_client import WebSocketClient
 from core.config import (
@@ -132,14 +131,13 @@ class ModernShippingMainWindow(QMainWindow):
         self.column_field_map = {
             1: "job_name",
             2: "description",
-            3: "status",
-            4: "qc_release",
-            5: "qc_notes",
-            6: "created",
-            7: "ship_plan",
-            8: "shipped",
-            9: "invoice_number",
-            10: "shipping_notes",
+            3: "qc_release",
+            4: "qc_notes",
+            5: "created",
+            6: "ship_plan",
+            7: "shipped",
+            8: "invoice_number",
+            9: "shipping_notes",
         }
 
         # Flag para evitar disparar eventos al poblar tablas
@@ -507,7 +505,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Configurar tabla con estilo profesional y restaurar ancho de columnas"""
         columns = [
             "Job Number", "Job Name", "Description",
-            "Status", "QC Release", "QC Notes", "Crated", "Ship Plan", "Shipped",
+            "QC Release", "QC Notes", "Crated", "Ship Plan", "Shipped",
             "Invoice Number", "Notes"
         ]
         
@@ -557,10 +555,8 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Delegates para campos de fecha
         date_delegate = DateDelegate(table)
-        for col in (4, 6, 7, 8):
+        for col in (3, 5, 6, 7):
             table.setItemDelegateForColumn(col, date_delegate)
-        status_delegate = StatusDelegate(table)
-        table.setItemDelegateForColumn(3, status_delegate)
 
         # Restaurar anchos guardados si existen
         self.restore_column_widths(table, name)
@@ -599,6 +595,26 @@ class ModernShippingMainWindow(QMainWindow):
         menu = QMenu(table)
         update_action = menu.addAction("Update")
         clear_action = menu.addAction("Clear Mark")
+        row = item.row()
+
+        status_actions = {}
+        if not self.read_only:
+            job_item = table.item(row, 0)
+            shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
+            current_status = shipment.get("status") if shipment else ""
+            status_menu = menu.addMenu("Status")
+            status_map = {
+                "partial_release": "Partial Release",
+                "final_release": "Final Release",
+                "rejected": "Rejected",
+            }
+            for code, text in status_map.items():
+                act = status_menu.addAction(text)
+                act.setCheckable(True)
+                if code == current_status:
+                    act.setChecked(True)
+                status_actions[act] = code
+
         action = menu.exec(table.viewport().mapToGlobal(pos))
         if action == update_action:
             item.setBackground(QColor("#1E90FF"))
@@ -608,6 +624,34 @@ class ModernShippingMainWindow(QMainWindow):
             item.setBackground(QColor("transparent"))
             self.cell_colors[name].pop((item.row(), item.column()), None)
             self.save_cell_colors(name)
+        elif action in status_actions:
+            self.change_status(table, row, status_actions[action])
+
+    def change_status(self, table, row, new_status):
+        """Change shipment status and update visuals"""
+        if self.read_only:
+            return
+        job_item = table.item(row, 0)
+        shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
+        if not shipment or shipment.get("status") == new_status:
+            return
+        try:
+            api_response = self.api_client.update_shipment(shipment['id'], {"status": new_status})
+            if api_response.is_success():
+                shipment["status"] = new_status
+                if new_status == "partial_release":
+                    job_item.setBackground(QColor("#FEF3C7"))
+                elif new_status == "final_release":
+                    job_item.setBackground(QColor("#DCFCE7"))
+                elif new_status == "rejected":
+                    job_item.setBackground(QColor("#FFEDD5"))
+                else:
+                    job_item.setBackground(QColor("transparent"))
+                self.show_toast("Changes saved successfully", color="#16A34A")
+            else:
+                self.show_error(f"Failed to save changes: {api_response.get_error()}")
+        except Exception as e:
+            self.show_error(f"Failed to save changes: {str(e)}")
 
     def save_cell_colors(self, name):
         self.settings_mgr.save_cell_colors(name, self.cell_colors[name])
@@ -924,7 +968,6 @@ class ModernShippingMainWindow(QMainWindow):
             shipment.get("job_number", ""),
             shipment.get("job_name", ""),
             shipment.get("description", ""),
-            shipment.get("status", ""),
             shipment.get("qc_release", ""),
             shipment.get("qc_notes", ""),
             shipment.get("created", ""),
@@ -936,23 +979,17 @@ class ModernShippingMainWindow(QMainWindow):
         
         job_item = None
         for col, item_text in enumerate(items):
-            # Para la columna de Status guardamos el valor real y mostramos el texto adecuado
-            if col == 3:
-                item = QTableWidgetItem()
-                item.setData(Qt.ItemDataRole.EditRole, item_text)
-                self.style_professional_status_item(item, item_text)
+            if col == 6:  # Ship Plan
+                display_text = str(item_text).strip() if str(item_text).strip() else "-"
+                item = ShipPlanItem(display_text)
             else:
-                if col == 7:  # Ship Plan
-                    display_text = str(item_text).strip() if str(item_text).strip() else "-"
-                    item = ShipPlanItem(display_text)
-                else:
-                    item = QTableWidgetItem(str(item_text))
-                if not is_active and col == 8 and item_text:  # Shipped en history
+                item = QTableWidgetItem(str(item_text))
+                if not is_active and col == 7 and item_text:  # Shipped en history
                     item.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
                     item.setForeground(QColor("#059669"))
             
             # Alineación
-            if col in [0, 9]:  # Job # e Invoice #
+            if col in [0, 8]:  # Job # e Invoice #
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if col == 0:
                 job_item = item
@@ -981,26 +1018,7 @@ class ModernShippingMainWindow(QMainWindow):
                 job_item.setBackground(QColor("#FFEDD5"))   # Soft Orange
 
         # La altura de las filas se ajusta al finalizar el poblado completo
-    
-    def style_professional_status_item(self, item, status):
-        """Aplicar estilo profesional a item de status"""
-        item.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
-        item.setData(Qt.ItemDataRole.EditRole, status)
 
-        status_map = {
-            "final_release": ("Final Release", "#166534"),
-            "partial_release": ("Partial Release", "#92400E"),
-            "rejected": ("Rejected", "#991B1B"),
-            "prod_updated": ("Updated", "#1E40AF")
-        }
-
-        if status in status_map:
-            text, text_color = status_map[status]
-            item.setText(text)
-            item.setForeground(QColor(text_color))
-        else:
-            item.setText(str(status or "").replace("_", " ").title())
-    
     def apply_filters_to_shipments(self, shipments, is_active=True):
         """Aplicar filtros"""
         filtered = shipments
@@ -1130,8 +1148,6 @@ class ModernShippingMainWindow(QMainWindow):
         old_value = shipment.get(field, "") or ""
         new_value = item.data(Qt.ItemDataRole.EditRole)
 
-        # Manejo especial para status ya viene mapeado en el delegate
-
         if new_value == (old_value or ""):  # Sin cambios reales
             return
 
@@ -1139,18 +1155,6 @@ class ModernShippingMainWindow(QMainWindow):
             api_response = self.api_client.update_shipment(shipment['id'], {field: new_value})
             if api_response.is_success():
                 shipment[field] = new_value
-                if field == "status":
-                    self.updating_table = True
-                    self.style_professional_status_item(item, new_value)
-                    job_item = table.item(row, 0)
-                    if job_item is not None:
-                        if new_value == "partial_release":
-                            job_item.setBackground(QColor("#FEF3C7"))
-                        elif new_value == "final_release":
-                            job_item.setBackground(QColor("#DCFCE7"))
-                        elif new_value == "rejected":
-                            job_item.setBackground(QColor("#FFEDD5"))
-                    self.updating_table = False
                 self.show_toast("Changes saved successfully", color="#16A34A")
             else:
                 self.show_error(f"Failed to save changes: {api_response.get_error()}")
