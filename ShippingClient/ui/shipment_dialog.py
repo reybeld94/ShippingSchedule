@@ -1,5 +1,4 @@
 ﻿# ui/shipment_dialog.py - Diálogo profesional para crear/editar shipments
-import requests
 import os
 from PyQt6.QtWidgets import (
     QDialog,
@@ -18,18 +17,17 @@ from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtCore import Qt
 
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox, ProfessionalCard, StatusBadge
+from core.api_client import RobustApiClient
 from core.config import (
-    get_server_url,
     DIALOG_WIDTH,
     DIALOG_HEIGHT,
-    REQUEST_TIMEOUT,
     MODERN_FONT,
 )
 
 class ModernShipmentDialog(QDialog):
-    def __init__(self, shipment_data=None, token=None):
+    def __init__(self, shipment_data=None, api_client: RobustApiClient | None = None):
         super().__init__()
-        self.token = token
+        self.api_client = api_client
         self.shipment_data = shipment_data
         
         # Configurar ventana
@@ -461,36 +459,17 @@ class ModernShipmentDialog(QDialog):
             self.save_btn.setText("Saving...")
             self.save_btn.setEnabled(False)
             
-            headers = {"Authorization": f"Bearer {self.token}"}
-            server_url = get_server_url()
-
             if self.shipment_data:  # Editar
-                response = requests.put(
-                    f"{server_url}/shipments/{self.shipment_data['id']}",
-                    json=data,
-                    headers=headers,
-                    timeout=REQUEST_TIMEOUT
-                )
+                api_response = self.api_client.update_shipment(self.shipment_data['id'], data)
             else:  # Crear nuevo
-                response = requests.post(
-                    f"{server_url}/shipments",
-                    json=data,
-                    headers=headers,
-                    timeout=REQUEST_TIMEOUT
-                )
-            
-            if response.status_code in [200, 201]:
+                api_response = self.api_client.create_shipment(data)
+
+            if api_response.is_success():
                 print("Shipment guardado exitosamente")
                 self.accept()
             else:
-                try:
-                    error_detail = response.json().get("detail", "Unknown error")
-                except:
-                    error_detail = f"HTTP {response.status_code}: {response.text[:100]}"
-                self.show_professional_error(f"Failed to save shipment:\n{error_detail}")
-        
-        except requests.exceptions.RequestException as e:
-            self.show_professional_error(f"Connection error:\n{str(e)}")
+                self.show_professional_error(f"Failed to save shipment:\n{api_response.get_error()}")
+
         except Exception as e:
             print(f"Error guardando shipment: {e}")
             self.show_professional_error(f"Error saving shipment:\n{str(e)}")
