@@ -67,12 +67,16 @@ class SettingsManager:
     def get_last_username(self) -> str:
         """Return the last used username or empty string."""
         return self._settings.value("last_username", "")
+    def should_remember_credentials(self) -> bool:
+        """Return True if credentials should be remembered."""
+        return self._settings.value("remember_credentials", False, bool)
 
-    def get_last_password(self) -> str:
-        """Return the last used password or empty string."""
-        return self._settings.value("last_password", "")
-
-    def set_last_credentials(self, username: str, password: str):
-        """Persist last used username and password."""
-        self._settings.setValue("last_username", username)
-        self._settings.setValue("last_password", password)
+    def save_credentials(self, username: str, remember: bool):
+        """Persist last used username when requested, otherwise clear stored data."""
+        if remember:
+            self._settings.setValue("last_username", username)
+            self._settings.setValue("remember_credentials", True)
+        else:
+            self._settings.remove("last_username")
+            self._settings.remove("last_password")
+            self._settings.setValue("remember_credentials", False)
