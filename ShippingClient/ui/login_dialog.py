@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QLineEdit,
     QStyle,
+    QCheckBox,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon
@@ -161,13 +162,18 @@ class ModernLoginDialog(QDialog):
         
         self.password_edit = ModernLineEdit("Enter your password")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        
+
         password_layout.addWidget(password_label)
         password_layout.addWidget(self.password_edit)
-        
+
+        # Remember me checkbox
+        self.remember_checkbox = QCheckBox("Remember me")
+        self.remember_checkbox.setChecked(False)
+
         form_layout.addLayout(username_layout)
         form_layout.addLayout(password_layout)
-        
+        form_layout.addWidget(self.remember_checkbox)
+
         layout.addLayout(form_layout)
     
     def create_login_buttons(self, layout):
@@ -234,9 +240,10 @@ class ModernLoginDialog(QDialog):
         layout.addLayout(footer_layout)
 
     def load_last_credentials(self):
-        """Fill username and password fields with last used credentials."""
-        self.username_edit.setText(self.settings_mgr.get_last_username())
-        self.password_edit.setText(self.settings_mgr.get_last_password())
+        """Fill username field with last used credentials if requested."""
+        if self.settings_mgr.should_remember_credentials():
+            self.username_edit.setText(self.settings_mgr.get_last_username())
+            self.remember_checkbox.setChecked(True)
 
     def check_server_connection(self):
         """Check server connectivity and update footer indicator."""
@@ -279,7 +286,7 @@ class ModernLoginDialog(QDialog):
                 self.token = data["access_token"]
                 self.user_info = data["user_info"]
                 print(f"Login successful for user: {username}")
-                self.settings_mgr.set_last_credentials(username, password)
+                self.settings_mgr.save_credentials(username, self.remember_checkbox.isChecked())
                 self.accept()
             else:
                 self.show_professional_error(api_response.get_error())
