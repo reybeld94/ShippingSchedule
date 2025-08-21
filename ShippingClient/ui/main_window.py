@@ -34,8 +34,6 @@ from PyQt6.QtCore import (
     pyqtSignal,
     QStandardPaths,
     QUrl,
-    QFutureWatcher,
-    QtConcurrent,
 )
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
 
@@ -71,6 +69,24 @@ class ShipmentLoader(QThread):
                 self.error_occurred.emit(api_response.get_error())
         except Exception as e:
             self.error_occurred.emit(f"Unexpected error: {str(e)}")
+
+
+class ShipmentUpdateThread(QThread):
+    """Thread simple para actualizar un shipment en background"""
+    result_ready = pyqtSignal(object)
+
+    def __init__(self, api_client, shipment_id, data):
+        super().__init__()
+        self.api_client = api_client
+        self.shipment_id = shipment_id
+        self.data = data
+
+    def run(self):
+        try:
+            result = self.api_client.update_shipment(self.shipment_id, self.data)
+        except Exception as e:
+            result = e
+        self.result_ready.emit(result)
 
 
 class ShipPlanItem(QTableWidgetItem):
@@ -130,7 +146,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._last_filter_text = ""
         self._last_status_filter = "All Status"
         self._tables_populated = {"active": False, "history": False}
-        self._update_watchers = []
+        self._update_threads = []
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -1140,22 +1156,13 @@ class ModernShippingMainWindow(QMainWindow):
         old_flags = item.flags()
         item.setFlags(old_flags & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsEnabled)
 
-        watcher = QFutureWatcher(self)
-        self._update_watchers.append(watcher)
+        worker = ShipmentUpdateThread(self.api_client, shipment['id'], {field: new_value})
+        self._update_threads.append(worker)
 
-        def do_update():
-            try:
-                return self.api_client.update_shipment(shipment['id'], {field: new_value})
-            except Exception as e:
-                return e
-
-        watcher.setFuture(QtConcurrent.run(do_update))
-
-        def finish():
+        def finish(result):
             table.removeCellWidget(row, col)
             item.setFlags(old_flags)
-            self._update_watchers.remove(watcher)
-            result = watcher.result()
+            self._update_threads.remove(worker)
             if isinstance(result, Exception):
                 self.updating_table = True
                 item.setData(Qt.ItemDataRole.EditRole, old_value)
@@ -1186,7 +1193,8 @@ class ModernShippingMainWindow(QMainWindow):
                 self.updating_table = False
                 self.show_error(f"Failed to save changes: {api_response.get_error()}")
 
-        watcher.finished.connect(finish)
+        worker.result_ready.connect(finish)
+        worker.start()
     
     def delete_shipment(self):
         """Eliminar shipment seleccionado"""
