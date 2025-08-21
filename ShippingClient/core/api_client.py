@@ -175,7 +175,3 @@ class RobustApiClient:
     def login(self, username: str, password: str) -> ApiResponse:
         """Autenticar usuario"""
         return self.post("/login", data={"username": username, "password": password})
-
-    def get_mie_trak_address(self, job_number: str) -> ApiResponse:
-        """Obtener dirección de Mie Trak para un job"""
-        return self.get(f"/mie-trak/address/{job_number}")

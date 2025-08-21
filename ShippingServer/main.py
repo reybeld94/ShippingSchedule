@@ -2,11 +2,10 @@
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Any
+from typing import List
 from datetime import timedelta
 import json
 import asyncio
-import pymssql
 import logging
 
 # Imports locales
@@ -458,81 +457,6 @@ async def root():
         "websocket": "/ws"
     }
 
-
-@app.get("/mie-trak/address/{job_number}")
-async def get_mie_trak_address(job_number: str):
-    raw_job_number = job_number
-    logger.info("Recibida solicitud de dirección para job_number=%s", raw_job_number)
-    cleaned_job_number = str(job_number).strip()
-    logger.debug("Job_number limpiado: '%s'", cleaned_job_number)
-
-    variants: List[Any] = [cleaned_job_number]
-    if cleaned_job_number.isdigit():
-        variants.extend([cleaned_job_number.zfill(len(cleaned_job_number) + 1), int(cleaned_job_number)])
-    # Eliminar duplicados conservando el orden
-    variants = list(dict.fromkeys(variants))
-    logger.debug("Variantes de búsqueda: %s", variants)
-
-    try:
-        logger.debug("Conectando a la base de datos GunderlinLive")
-        conn = pymssql.connect(
-            server="GUNDMAIN",
-            user="mie",
-            password="mie",
-            database="GunderlinLive",
-        )
-        cursor = conn.cursor(as_dict=True)
-
-        query = (
-            """
-            SELECT ShippingAddress1, ShippingAddress2,
-                   ShippingAddressCity, ShippingAddressStateDescription,
-                   ShippingAddressZipCode
-            FROM SalesOrder
-            WHERE SalesOrderPK = %s
-            """
-        )
-
-        row = None
-        for variant in variants:
-            logger.debug("Ejecutando consulta para job_number variante=%r", variant)
-            cursor.execute(query, (variant,))
-            row = cursor.fetchone()
-            logger.debug("Resultado para variante %r: %s", variant, row)
-            if row:
-                logger.debug("Registro encontrado usando variante=%r", variant)
-                break
-
-        if not row:
-            logger.warning(
-                "Job number %s no encontrado tras probar variantes %s", raw_job_number, variants
-            )
-            cursor.execute("SELECT TOP 5 SalesOrderPK FROM SalesOrder")
-            examples = [r["SalesOrderPK"] for r in cursor.fetchall()]
-            logger.info("Ejemplos de SalesOrderPK: %s", examples)
-            raise HTTPException(
-                status_code=404,
-                detail=f"Job number {raw_job_number} not found. Variants tried: {variants}",
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(
-            "Error al consultar la base de datos para job_number=%s", raw_job_number
-        )
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-
-    address_parts = [row.get("ShippingAddress1"), row.get("ShippingAddress2")]
-    city_line = f"{row.get('ShippingAddressCity')},{row.get('ShippingAddressStateDescription')} {row.get('ShippingAddressZipCode')}"
-    address_parts.append(city_line)
-    address = "\n".join(part for part in address_parts if part)
-    logger.info("Enviando dirección para job_number=%s: %s", raw_job_number, address)
-    return {"address": address}
 
 @app.get("/audit-logs")
 async def get_audit_logs(limit: int = Query(100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
