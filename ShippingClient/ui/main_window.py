@@ -981,7 +981,11 @@ class ModernShippingMainWindow(QMainWindow):
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             # store original flags to avoid calling item.flags() during edits
-            item.setData(Qt.ItemDataRole.UserRole + 1, int(item.flags()))
+            # Qt6's ItemFlag cannot be converted directly to int; use the .value
+            item.setData(
+                Qt.ItemDataRole.UserRole + 1,
+                item.flags().value,
+            )
 
             table.setItem(row, col, item)
 
@@ -1158,8 +1162,12 @@ class ModernShippingMainWindow(QMainWindow):
         # Retrieve stored flags instead of calling item.flags() to avoid recursion issues
         stored_flags = item.data(Qt.ItemDataRole.UserRole + 1)
         if stored_flags is None:
-            stored_flags = int(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable)
-        old_flags = Qt.ItemFlag(int(stored_flags))
+            stored_flags = (
+                Qt.ItemFlag.ItemIsEnabled
+                | Qt.ItemFlag.ItemIsSelectable
+                | Qt.ItemFlag.ItemIsEditable
+            ).value
+        old_flags = Qt.ItemFlag(stored_flags)
         item.setFlags(old_flags & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsEnabled)
 
         worker = ShipmentUpdateThread(self.api_client, shipment['id'], {field: new_value})
