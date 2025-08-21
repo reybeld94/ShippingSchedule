@@ -7,6 +7,7 @@ from html import escape
 from .utils import show_popup_notification
 from core.settings_manager import SettingsManager
 from core.api_client import RobustApiClient
+from core.mie_trak_client import get_mie_trak_address
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -661,14 +662,12 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_error(f"Failed to save changes: {str(e)}")
 
     def show_mie_trak_address(self, job_number: str):
-        """Fetch and display Mie Trak address for a job"""
+        """Fetch and display Mie Trak address for a job directly from DB"""
         try:
-            api_response = self.api_client.get_mie_trak_address(job_number)
-            if api_response.is_success():
-                address = api_response.get_data().get("address", "")
-                QMessageBox.information(self, "Mie Trak Address", address or "No address found")
-            else:
-                self.show_error(api_response.get_error())
+            address = get_mie_trak_address(job_number)
+            QMessageBox.information(
+                self, "Mie Trak Address", address or "No address found"
+            )
         except Exception as e:
             self.show_error(str(e))
 
