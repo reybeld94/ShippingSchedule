@@ -6,6 +6,7 @@ from typing import List
 from datetime import timedelta
 import json
 import asyncio
+import pymssql
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
@@ -451,6 +452,45 @@ async def root():
         "docs": "/docs",
         "websocket": "/ws"
     }
+
+
+@app.get("/mie-trak/address/{job_number}")
+async def get_mie_trak_address(job_number: str):
+    try:
+        conn = pymssql.connect(
+            server="GUNDMAIN",
+            user="mie",
+            password="mie",
+            database="GunderlinLive",
+        )
+        cursor = conn.cursor(as_dict=True)
+        cursor.execute(
+            """
+            SELECT ShippingAddress1, ShippingAddress2,
+                   ShippingAddressCity, ShippingAddressStateDescription,
+                   ShippingAddressZipCode
+            FROM SalesOrder
+            WHERE SalesOrderPK = %s
+            """,
+            (job_number,),
+        )
+        row = cursor.fetchone()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Job number not found")
+
+    address_parts = [row.get("ShippingAddress1"), row.get("ShippingAddress2")]
+    city_line = f"{row.get('ShippingAddressCity')},{row.get('ShippingAddressStateDescription')} {row.get('ShippingAddressZipCode')}"
+    address_parts.append(city_line)
+    address = "\n".join(part for part in address_parts if part)
+    return {"address": address}
 
 @app.get("/audit-logs")
 async def get_audit_logs(limit: int = Query(100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
