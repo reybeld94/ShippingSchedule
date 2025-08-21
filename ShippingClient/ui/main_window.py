@@ -639,6 +639,7 @@ class ModernShippingMainWindow(QMainWindow):
             api_response = self.api_client.update_shipment(shipment['id'], {"status": new_status})
             if api_response.is_success():
                 shipment["status"] = new_status
+                job_item.setData(Qt.ItemDataRole.UserRole, shipment)
                 if new_status == "partial_release":
                     job_item.setBackground(QColor("#FEF3C7"))
                 elif new_status == "final_release":
