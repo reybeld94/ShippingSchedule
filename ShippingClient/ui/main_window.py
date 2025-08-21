@@ -25,7 +25,6 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QMenu,
     QProgressDialog,
-    QProgressBar,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -69,24 +68,6 @@ class ShipmentLoader(QThread):
                 self.error_occurred.emit(api_response.get_error())
         except Exception as e:
             self.error_occurred.emit(f"Unexpected error: {str(e)}")
-
-
-class ShipmentUpdateThread(QThread):
-    """Thread simple para actualizar un shipment en background"""
-    result_ready = pyqtSignal(object)
-
-    def __init__(self, api_client, shipment_id, data):
-        super().__init__()
-        self.api_client = api_client
-        self.shipment_id = shipment_id
-        self.data = data
-
-    def run(self):
-        try:
-            result = self.api_client.update_shipment(self.shipment_id, self.data)
-        except Exception as e:
-            result = e
-        self.result_ready.emit(result)
 
 
 class ShipPlanItem(QTableWidgetItem):
@@ -146,7 +127,6 @@ class ModernShippingMainWindow(QMainWindow):
         self._last_filter_text = ""
         self._last_status_filter = "All Status"
         self._tables_populated = {"active": False, "history": False}
-        self._update_threads = []
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -1154,37 +1134,9 @@ class ModernShippingMainWindow(QMainWindow):
 
         if new_value == (old_value or ""):  # Sin cambios reales
             return
-        progress = QProgressBar()
-        progress.setRange(0, 0)
-        progress.setTextVisible(False)
-        table.setCellWidget(row, col, progress)
 
-        # Retrieve stored flags instead of calling item.flags() to avoid recursion issues
-        stored_flags = item.data(Qt.ItemDataRole.UserRole + 1)
-        if stored_flags is None:
-            stored_flags = (
-                Qt.ItemFlag.ItemIsEnabled
-                | Qt.ItemFlag.ItemIsSelectable
-                | Qt.ItemFlag.ItemIsEditable
-            ).value
-        old_flags = Qt.ItemFlag(stored_flags)
-        item.setFlags(old_flags & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsEnabled)
-
-        worker = ShipmentUpdateThread(self.api_client, shipment['id'], {field: new_value})
-        self._update_threads.append(worker)
-
-        def finish(result):
-            table.removeCellWidget(row, col)
-            item.setFlags(old_flags)
-            self._update_threads.remove(worker)
-            if isinstance(result, Exception):
-                self.updating_table = True
-                item.setData(Qt.ItemDataRole.EditRole, old_value)
-                table.viewport().update()
-                self.updating_table = False
-                self.show_error(f"Failed to save changes: {str(result)}")
-                return
-            api_response = result
+        try:
+            api_response = self.api_client.update_shipment(shipment['id'], {field: new_value})
             if api_response.is_success():
                 shipment[field] = new_value
                 if field == "status":
@@ -1201,14 +1153,9 @@ class ModernShippingMainWindow(QMainWindow):
                     self.updating_table = False
                 self.show_toast("Changes saved successfully", color="#16A34A")
             else:
-                self.updating_table = True
-                item.setData(Qt.ItemDataRole.EditRole, old_value)
-                table.viewport().update()
-                self.updating_table = False
                 self.show_error(f"Failed to save changes: {api_response.get_error()}")
-
-        worker.result_ready.connect(finish)
-        worker.start()
+        except Exception as e:
+            self.show_error(f"Failed to save changes: {str(e)}")
     
     def delete_shipment(self):
         """Eliminar shipment seleccionado"""
