@@ -1,5 +1,4 @@
 ﻿# ui/login_dialog.py - Diálogo de autenticación profesional
-import requests
 import os
 from PyQt6.QtWidgets import (
     QDialog,
@@ -17,11 +16,11 @@ from PyQt6.QtGui import QFont, QIcon
 from .widgets import ModernButton, ModernLineEdit
 from .settings_dialog import SettingsDialog
 from core.settings_manager import SettingsManager
+from core.api_client import RobustApiClient
 from core.config import (
     get_server_url,
     LOGIN_WIDTH,
     LOGIN_HEIGHT,
-    REQUEST_TIMEOUT,
     MODERN_FONT,
 )
 
@@ -246,31 +245,19 @@ class ModernLoginDialog(QDialog):
         self.password_edit.setEnabled(False)
         
         try:
-            server_url = get_server_url()
-            response = requests.post(f"{server_url}/login", json={
-                "username": username,
-                "password": password
-            }, timeout=REQUEST_TIMEOUT)
-            
-            if response.status_code == 200:
-                data = response.json()
+            temp_client = RobustApiClient(get_server_url(), "", max_retries=2)
+            api_response = temp_client.login(username, password)
+
+            if api_response.is_success():
+                data = api_response.get_data()
                 self.token = data["access_token"]
                 self.user_info = data["user_info"]
                 print(f"Login successful for user: {username}")
-                # Store credentials for next session
                 self.settings_mgr.set_last_credentials(username, password)
                 self.accept()
             else:
-                error_data = response.json() if response.headers.get('content-type') == 'application/json' else {}
-                error_message = error_data.get("detail", "Invalid credentials. Please check your username and password.")
-                self.show_professional_error(error_message)
-                
-        except requests.exceptions.ConnectionError:
-            self.show_professional_error("Unable to connect to server.\nPlease check your network connection.")
-        except requests.exceptions.Timeout:
-            self.show_professional_error("Connection timeout.\nPlease try again.")
-        except requests.exceptions.RequestException as e:
-            self.show_professional_error(f"Network error:\n{str(e)}")
+                self.show_professional_error(api_response.get_error())
+
         except Exception as e:
             self.show_professional_error(f"Login error:\n{str(e)}")
         finally:

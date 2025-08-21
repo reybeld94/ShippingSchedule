@@ -1,12 +1,12 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import json
-import requests
 from datetime import datetime, timedelta
 import os
 import textwrap
 from html import escape
 from .utils import show_popup_notification
 from core.settings_manager import SettingsManager
+from core.api_client import RobustApiClient
 from PyQt6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -38,7 +38,6 @@ from core.config import (
     get_server_url,
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
-    REQUEST_TIMEOUT,
     MODERN_FONT,
 )
 
@@ -46,24 +45,21 @@ class ShipmentLoader(QThread):
     """Thread para cargar datos en background"""
     data_loaded = pyqtSignal(list)
     error_occurred = pyqtSignal(str)
-    
-    def __init__(self, token):
+
+    def __init__(self, api_client):
         super().__init__()
-        self.token = token
-    
+        self.api_client = api_client
+
     def run(self):
         try:
-            headers = {"Authorization": f"Bearer {self.token}"}
-            server_url = get_server_url()
-            response = requests.get(f"{server_url}/shipments", headers=headers, timeout=REQUEST_TIMEOUT)
-            
-            if response.status_code == 200:
-                shipments = response.json()
+            api_response = self.api_client.get_shipments()
+            if api_response.is_success():
+                shipments = api_response.get_data()
                 self.data_loaded.emit(shipments)
             else:
-                self.error_occurred.emit(f"HTTP {response.status_code}")
+                self.error_occurred.emit(api_response.get_error())
         except Exception as e:
-            self.error_occurred.emit(str(e))
+            self.error_occurred.emit(f"Unexpected error: {str(e)}")
 
 
 class ShipPlanItem(QTableWidgetItem):
@@ -98,6 +94,13 @@ class ModernShippingMainWindow(QMainWindow):
         self.token = token
         self.user_info = user_info
         self.shipments = []
+
+        self.api_client = RobustApiClient(
+            base_url=get_server_url(),
+            token=self.token,
+            max_retries=3,
+            timeout=10,
+        )
 
         self.is_admin = self.user_info.get("role") == "admin"
         self.read_only = self.user_info.get("role") == "read"
@@ -785,7 +788,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.shipment_loader.quit()
             self.shipment_loader.wait()
 
-        self.shipment_loader = ShipmentLoader(self.token)
+        self.shipment_loader = ShipmentLoader(self.api_client)
         self.shipment_loader.data_loaded.connect(self.on_shipments_loaded)
         self.shipment_loader.error_occurred.connect(self.on_shipments_error)
         self.shipment_loader.start()
@@ -1037,8 +1040,8 @@ class ModernShippingMainWindow(QMainWindow):
             return
         try:
             from .shipment_dialog import ModernShipmentDialog
-            
-            dialog = ModernShipmentDialog(token=self.token)
+
+            dialog = ModernShipmentDialog(api_client=self.api_client)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_shipments_async()
                 self.show_toast("Shipment saved successfully", color="#16A34A")
@@ -1082,32 +1085,24 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         try:
-            headers = {"Authorization": f"Bearer {self.token}"}
-            server_url = get_server_url()
-            requests.put(
-                f"{server_url}/shipments/{shipment['id']}",
-                json={field: new_value},
-                headers=headers,
-                timeout=REQUEST_TIMEOUT,
-            )
-
-            # Actualizar localmente y restablecer estilo si es status
-            shipment[field] = new_value
-            if field == "status":
-                self.updating_table = True
-                self.style_professional_status_item(item, new_value)
-                # Actualizar color de la celda del Job Number seg\u00fan status
-                job_item = table.item(row, 0)
-                if job_item is not None:
-                    if new_value == "partial_release":
-                        job_item.setBackground(QColor("#FEF3C7"))  # Amarillo
-                    elif new_value == "final_release":
-                        job_item.setBackground(QColor("#DCFCE7"))   # Verde
-                    elif new_value == "rejected":
-                        job_item.setBackground(QColor("#FFEDD5"))   # Soft Orange
-                self.updating_table = False
-
-            self.show_toast("Changes saved successfully", color="#16A34A")
+            api_response = self.api_client.update_shipment(shipment['id'], {field: new_value})
+            if api_response.is_success():
+                shipment[field] = new_value
+                if field == "status":
+                    self.updating_table = True
+                    self.style_professional_status_item(item, new_value)
+                    job_item = table.item(row, 0)
+                    if job_item is not None:
+                        if new_value == "partial_release":
+                            job_item.setBackground(QColor("#FEF3C7"))
+                        elif new_value == "final_release":
+                            job_item.setBackground(QColor("#DCFCE7"))
+                        elif new_value == "rejected":
+                            job_item.setBackground(QColor("#FFEDD5"))
+                    self.updating_table = False
+                self.show_toast("Changes saved successfully", color="#16A34A")
+            else:
+                self.show_error(f"Failed to save changes: {api_response.get_error()}")
         except Exception as e:
             self.show_error(f"Failed to save changes: {str(e)}")
     
@@ -1166,22 +1161,14 @@ class ModernShippingMainWindow(QMainWindow):
             """)
             
             if msg.exec() == QMessageBox.StandardButton.Yes:
-                headers = {"Authorization": f"Bearer {self.token}"}
-                server_url = get_server_url()
-                response = requests.delete(
-                    f"{server_url}/shipments/{shipment['id']}",
-                    headers=headers,
-                    timeout=REQUEST_TIMEOUT
-                )
-                
-                if response.status_code == 200:
+                api_response = self.api_client.delete_shipment(shipment['id'])
+
+                if api_response.is_success():
                     self.load_shipments_async()
                     self.show_toast(f"Shipment deleted: Job #{shipment['job_number']}")
                 else:
-                    self.show_error("Failed to delete shipment")
-        
-        except requests.exceptions.RequestException as e:
-            self.show_error(f"Connection error: {str(e)}")
+                    self.show_error(f"Failed to delete shipment: {api_response.get_error()}")
+
         except Exception as e:
             print(f"Error eliminando shipment: {e}")
             self.show_error(f"Error deleting shipment: {str(e)}")
