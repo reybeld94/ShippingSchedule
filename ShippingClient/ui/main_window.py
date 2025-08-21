@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QStyle,
     QFileDialog,
     QMenu,
+    QProgressDialog,
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QStandardPaths, QUrl
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
@@ -778,11 +779,46 @@ class ModernShippingMainWindow(QMainWindow):
             return False
         shipped_date = str(shipped_date).strip()
         return bool(shipped_date and shipped_date.lower() not in ["", "n/a", "pending", "tbd"])
-    
+
+    def _show_loading_indicator(self):
+        """Mostrar indicador de progreso y desactivar controles"""
+        self._hide_loading_indicator()
+        self.progress_dialog = QProgressDialog("Loading shipments...", None, 0, 0, self)
+        self.progress_dialog.setWindowTitle("Loading")
+        self.progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.progress_dialog.setCancelButton(None)
+        self.progress_dialog.show()
+
+        widgets = [
+            self.active_table,
+            self.history_table,
+            self.add_btn,
+            self.delete_btn,
+            self.refresh_btn,
+            self.print_btn,
+        ]
+        if hasattr(self, "user_btn"):
+            widgets.append(self.user_btn)
+
+        self._disabled_widgets = {w: w.isEnabled() for w in widgets}
+        for w in self._disabled_widgets:
+            w.setEnabled(False)
+
+    def _hide_loading_indicator(self):
+        """Ocultar indicador de progreso y restaurar controles"""
+        if hasattr(self, "progress_dialog") and self.progress_dialog:
+            self.progress_dialog.close()
+            self.progress_dialog = None
+        if hasattr(self, "_disabled_widgets"):
+            for w, state in self._disabled_widgets.items():
+                w.setEnabled(state)
+            del self._disabled_widgets
+
     def load_shipments_async(self):
         """Cargar shipments de forma asíncrona"""
         print("Iniciando carga asíncrona de shipments...")
         self.record_count_label.setText("Loading records...")
+        self._show_loading_indicator()
         # Detener hilo previo si todavía se está ejecutando
         if hasattr(self, "shipment_loader") and self.shipment_loader.isRunning():
             self.shipment_loader.quit()
@@ -792,9 +828,10 @@ class ModernShippingMainWindow(QMainWindow):
         self.shipment_loader.data_loaded.connect(self.on_shipments_loaded)
         self.shipment_loader.error_occurred.connect(self.on_shipments_error)
         self.shipment_loader.start()
-    
+
     def on_shipments_loaded(self, shipments):
         """Callback cuando se cargan los shipments"""
+        self._hide_loading_indicator()
         print(f"Shipments cargados: {len(shipments)}")
         self.shipments = shipments
         
@@ -815,9 +852,10 @@ class ModernShippingMainWindow(QMainWindow):
             self._tables_populated["history"] = True
         
         self.update_status()
-    
+
     def on_shipments_error(self, error_msg):
         """Callback cuando hay error cargando shipments"""
+        self._hide_loading_indicator()
         print(f"Error cargando shipments: {error_msg}")
         self.show_error(f"Failed to load shipments: {error_msg}")
         self.record_count_label.setText("Error loading records")
