@@ -7,6 +7,7 @@ from datetime import timedelta
 import json
 import asyncio
 import pymssql
+import logging
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
@@ -16,6 +17,10 @@ from pydantic import BaseModel
 
 # Crear app FastAPI
 app = FastAPI(title="Shipping Schedule API", version="1.0.0")
+
+# Configuración básica de logging para depuración
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # CORS para permitir conexiones desde clientes
 app.add_middleware(
@@ -456,7 +461,9 @@ async def root():
 
 @app.get("/mie-trak/address/{job_number}")
 async def get_mie_trak_address(job_number: str):
+    logger.info("Recibida solicitud de dirección para job_number=%s", job_number)
     try:
+        logger.debug("Conectando a la base de datos GunderlinLive")
         conn = pymssql.connect(
             server="GUNDMAIN",
             user="mie",
@@ -464,6 +471,7 @@ async def get_mie_trak_address(job_number: str):
             database="GunderlinLive",
         )
         cursor = conn.cursor(as_dict=True)
+        logger.debug("Ejecutando consulta para job_number=%s", job_number)
         cursor.execute(
             """
             SELECT ShippingAddress1, ShippingAddress2,
@@ -475,7 +483,9 @@ async def get_mie_trak_address(job_number: str):
             (job_number,),
         )
         row = cursor.fetchone()
+        logger.debug("Resultado de la consulta: %s", row)
     except Exception as e:
+        logger.exception("Error al consultar la base de datos para job_number=%s", job_number)
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     finally:
         try:
@@ -484,12 +494,14 @@ async def get_mie_trak_address(job_number: str):
             pass
 
     if not row:
+        logger.info("Job number %s no encontrado", job_number)
         raise HTTPException(status_code=404, detail="Job number not found")
 
     address_parts = [row.get("ShippingAddress1"), row.get("ShippingAddress2")]
     city_line = f"{row.get('ShippingAddressCity')},{row.get('ShippingAddressStateDescription')} {row.get('ShippingAddressZipCode')}"
     address_parts.append(city_line)
     address = "\n".join(part for part in address_parts if part)
+    logger.info("Enviando dirección para job_number=%s: %s", job_number, address)
     return {"address": address}
 
 @app.get("/audit-logs")
