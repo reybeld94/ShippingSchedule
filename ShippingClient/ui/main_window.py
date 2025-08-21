@@ -595,6 +595,7 @@ class ModernShippingMainWindow(QMainWindow):
         menu = QMenu(table)
         update_action = menu.addAction("Update")
         clear_action = menu.addAction("Clear Mark")
+        address_action = menu.addAction("Show Mie Trak Address")
         row = item.row()
 
         status_actions = {}
@@ -624,6 +625,11 @@ class ModernShippingMainWindow(QMainWindow):
             item.setBackground(QColor("transparent"))
             self.cell_colors[name].pop((item.row(), item.column()), None)
             self.save_cell_colors(name)
+        elif action == address_action:
+            job_item = table.item(row, 0)
+            job_number = job_item.text() if job_item else ""
+            if job_number:
+                self.show_mie_trak_address(job_number)
         elif action in status_actions:
             self.change_status(table, row, status_actions[action])
 
@@ -653,6 +659,18 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error(f"Failed to save changes: {api_response.get_error()}")
         except Exception as e:
             self.show_error(f"Failed to save changes: {str(e)}")
+
+    def show_mie_trak_address(self, job_number: str):
+        """Fetch and display Mie Trak address for a job"""
+        try:
+            api_response = self.api_client.get_mie_trak_address(job_number)
+            if api_response.is_success():
+                address = api_response.get_data().get("address", "")
+                QMessageBox.information(self, "Mie Trak Address", address or "No address found")
+            else:
+                self.show_error(api_response.get_error())
+        except Exception as e:
+            self.show_error(str(e))
 
     def save_cell_colors(self, name):
         self.settings_mgr.save_cell_colors(name, self.cell_colors[name])
