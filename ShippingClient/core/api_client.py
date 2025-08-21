@@ -27,6 +27,9 @@ class RobustApiClient:
     """Cliente API con retry automático y manejo robusto de errores"""
 
     def __init__(self, base_url: str, token: str, max_retries: int = 3, timeout: int = 10):
+        if not token or not token.strip():
+            raise ValueError("A valid authentication token must be provided")
+
         self.base_url = base_url.rstrip('/')
         self.token = token
         self.max_retries = max_retries
