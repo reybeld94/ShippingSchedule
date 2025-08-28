@@ -44,4 +44,8 @@ def resource_path(relative_path: str) -> str:
     return os.path.join(BASE_DIR, relative_path)
 
 
+# Ruta al logo en formato PNG para usos dentro de la UI (QPixmap)
 LOGO_PATH = resource_path("assets/images/logo.png")
+
+# Ruta al icono en formato ICO para iconos de ventana/aplicación
+ICON_PATH = resource_path("icon.ico")
