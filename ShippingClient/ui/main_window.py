@@ -1374,7 +1374,17 @@ class ModernShippingMainWindow(QMainWindow):
             ]
 
             # Mapeo de columnas: posición en el PDF -> columna en la tabla original
-            column_map = [0, 1, 2, 4, 6, 7]
+            # La tabla principal tiene las columnas en el siguiente orden:
+            # 0: Job Number, 1: Job Name, 2: Description, 3: QC Release,
+            # 4: QC Notes, 5: Crated, 6: Ship Plan, 7: Shipped, 8: Invoice Number, 9: Notes
+            # Para el PDF solo exportamos seis columnas específicas y es importante
+            # que los índices coincidan exactamente con el orden de la tabla para
+            # evitar desalineaciones.  El mapeo anterior usaba los índices
+            # [0, 1, 2, 4, 6, 7], lo que provocaba que la columna "QC Release"
+            # mostrara los datos de "QC Notes" y que las columnas siguientes se
+            # desplazaran.  Ajustamos el mapeo para que cada encabezado apunte a la
+            # columna correcta.
+            column_map = [0, 1, 2, 3, 5, 6]
 
             # Preparar datos con solo las columnas seleccionadas
             raw_data = [headers]
