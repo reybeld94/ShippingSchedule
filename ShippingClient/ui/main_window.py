@@ -48,6 +48,7 @@ from core.config import (
     WINDOW_HEIGHT,
     MODERN_FONT,
     LOGO_PATH,
+    ICON_PATH,
 )
 
 class ShipmentLoader(QThread):
@@ -148,8 +149,8 @@ class ModernShippingMainWindow(QMainWindow):
         print(f"Inicializando ventana principal para usuario: {user_info['username']}")
         
         self.setWindowTitle("Shipping Schedule")
-        if os.path.exists(LOGO_PATH):
-            self.setWindowIcon(QIcon(LOGO_PATH))
+        if os.path.exists(ICON_PATH):
+            self.setWindowIcon(QIcon(ICON_PATH))
         self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
         self.showMaximized()
         try:
