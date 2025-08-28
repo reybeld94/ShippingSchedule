@@ -47,6 +47,7 @@ from core.config import (
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
     MODERN_FONT,
+    LOGO_PATH,
 )
 
 class ShipmentLoader(QThread):
@@ -147,9 +148,8 @@ class ModernShippingMainWindow(QMainWindow):
         print(f"Inicializando ventana principal para usuario: {user_info['username']}")
         
         self.setWindowTitle("Shipping Schedule")
-        logo_path = "assets/images/logo.png"
-        if os.path.exists(logo_path):
-            self.setWindowIcon(QIcon(logo_path))
+        if os.path.exists(LOGO_PATH):
+            self.setWindowIcon(QIcon(LOGO_PATH))
         self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
         self.showMaximized()
         try:
@@ -223,9 +223,8 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Intentar cargar el logo
         logo_label = QLabel()
-        logo_path = "assets/images/logo.png"
-        if os.path.exists(logo_path):
-            pixmap = QPixmap(logo_path)
+        if os.path.exists(LOGO_PATH):
+            pixmap = QPixmap(LOGO_PATH)
             # Escalar el logo manteniendo aspecto
             scaled_pixmap = pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled_pixmap)

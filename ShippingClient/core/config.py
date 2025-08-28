@@ -1,4 +1,6 @@
 # core/config.py - Configuraciones centralizadas
+import os
+import sys
 from .settings_manager import SettingsManager
 
 DEFAULT_SERVER_URL = "http://localhost:8000"
@@ -31,3 +33,15 @@ CONNECTION_RETRY_INTERVAL = 5000  # 5 segundos
 # de toda la aplicación.
 MODERN_FONT = "Helvetica Neue"
 FONT_SIZE = 10
+
+# Recursos
+# Directorio base considerando ejecución congelada con PyInstaller
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def resource_path(relative_path: str) -> str:
+    """Obtener ruta absoluta a un recurso empaquetado."""
+    return os.path.join(BASE_DIR, relative_path)
+
+
+LOGO_PATH = resource_path("assets/images/logo.png")
