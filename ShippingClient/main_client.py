@@ -6,13 +6,12 @@ from PyQt6.QtGui import QFont, QIcon
 
 # Imports locales
 from ui.login_dialog import ModernLoginDialog
-from core.config import MODERN_FONT, FONT_SIZE
+from core.config import MODERN_FONT, FONT_SIZE, LOGO_PATH
 
 def main():
     app = QApplication(sys.argv)
-    logo_path = "assets/images/logo.png"
-    if os.path.exists(logo_path):
-        app.setWindowIcon(QIcon(logo_path))
+    if os.path.exists(LOGO_PATH):
+        app.setWindowIcon(QIcon(LOGO_PATH))
 
     # Configurar fuente del sistema
     font = QFont(MODERN_FONT, FONT_SIZE)

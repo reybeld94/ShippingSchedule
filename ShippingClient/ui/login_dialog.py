@@ -24,15 +24,15 @@ from core.config import (
     LOGIN_HEIGHT,
     MODERN_FONT,
     CONNECTION_RETRY_INTERVAL,
+    LOGO_PATH,
 )
 
 class ModernLoginDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Shipping Schedule")
-        logo_path = "assets/images/logo.png"
-        if os.path.exists(logo_path):
-            self.setWindowIcon(QIcon(logo_path))
+        if os.path.exists(LOGO_PATH):
+            self.setWindowIcon(QIcon(LOGO_PATH))
         self.setMinimumSize(600, 600)
         self.setModal(True)
 

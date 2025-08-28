@@ -22,6 +22,7 @@ from core.config import (
     DIALOG_WIDTH,
     DIALOG_HEIGHT,
     MODERN_FONT,
+    LOGO_PATH,
 )
 
 class ModernShipmentDialog(QDialog):
@@ -91,10 +92,9 @@ class ModernShipmentDialog(QDialog):
         
         # Icono (usando logo si está disponible)
         icon_label = QLabel()
-        logo_path = "assets/images/logo.png"
-        
-        if os.path.exists(logo_path):
-            pixmap = QPixmap(logo_path)
+
+        if os.path.exists(LOGO_PATH):
+            pixmap = QPixmap(LOGO_PATH)
             scaled_pixmap = pixmap.scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             icon_label.setPixmap(scaled_pixmap)
         else:
