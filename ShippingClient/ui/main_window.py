@@ -1555,8 +1555,22 @@ class ModernShippingMainWindow(QMainWindow):
             # Construir documento
             elements = [title, final_table]
 
-            # Generar PDF
-            doc.build(elements)
+            # Texto de pie de página con la fecha actual en formato M/D/AAAA
+            today = datetime.now()
+            footer_text = f"Printed: {today.month}/{today.day}/{today.year}"
+
+            def add_footer(canvas, document):
+                """Agregar fecha de impresión en la esquina inferior derecha"""
+                canvas.saveState()
+                canvas.setFont("Helvetica", 8)
+                text_width = canvas.stringWidth(footer_text, "Helvetica", 8)
+                x = document.pagesize[0] - document.rightMargin - text_width
+                y = document.bottomMargin * 0.5
+                canvas.drawString(x, y, footer_text)
+                canvas.restoreState()
+
+            # Generar PDF con pie de página
+            doc.build(elements, onFirstPage=add_footer, onLaterPages=add_footer)
 
             print(f"✅ PDF generado exitosamente: {file_path}")
             self.show_toast(
