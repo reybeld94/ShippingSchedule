@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QStyle,
     QCheckBox,
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 
 from .widgets import ModernButton, ModernLineEdit
@@ -26,6 +26,20 @@ from core.config import (
     CONNECTION_RETRY_INTERVAL,
     ICON_PATH,
 )
+
+
+class ConnectionCheckThread(QThread):
+    """Thread to check server connectivity without blocking the UI."""
+
+    checked = pyqtSignal(bool)
+
+    def run(self):  # type: ignore[override]
+        try:
+            client = RobustApiClient(get_server_url(), max_retries=0, timeout=3)
+            response = client.get("/")
+            self.checked.emit(response.is_success())
+        except Exception:
+            self.checked.emit(False)
 
 class ModernLoginDialog(QDialog):
     def __init__(self):
@@ -49,10 +63,10 @@ class ModernLoginDialog(QDialog):
         # Periodically check server connection
         self.connection_timer = QTimer(self)
         self.connection_timer.setInterval(CONNECTION_RETRY_INTERVAL)
-        self.connection_timer.timeout.connect(self.check_server_connection)
+        self.connection_timer.timeout.connect(self.start_connection_check)
         self.connection_timer.start()
         # Initial check
-        self.check_server_connection()
+        self.start_connection_check()
     
     def setup_professional_ui(self):
         """Configurar interfaz profesional"""
@@ -245,19 +259,19 @@ class ModernLoginDialog(QDialog):
             self.username_edit.setText(self.settings_mgr.get_last_username())
             self.remember_checkbox.setChecked(True)
 
-    def check_server_connection(self):
-        """Check server connectivity and update footer indicator."""
-        try:
-            response = RobustApiClient(get_server_url()).get("/")
-            if response.is_success():
-                self.connection_indicator.setStyleSheet("color: #10B981;")
-                self.connection_text.setText("Connected")
-                self.connection_text.setStyleSheet("color: #10B981;")
-            else:
-                self.connection_indicator.setStyleSheet("color: #EF4444;")
-                self.connection_text.setText("Disconnected")
-                self.connection_text.setStyleSheet("color: #EF4444;")
-        except Exception:
+    def start_connection_check(self):
+        """Launch a background thread to verify server connectivity."""
+        self.connection_thread = ConnectionCheckThread()
+        self.connection_thread.checked.connect(self.update_connection_status)
+        self.connection_thread.start()
+
+    def update_connection_status(self, is_connected: bool):
+        """Update UI elements based on connection status."""
+        if is_connected:
+            self.connection_indicator.setStyleSheet("color: #10B981;")
+            self.connection_text.setText("Connected")
+            self.connection_text.setStyleSheet("color: #10B981;")
+        else:
             self.connection_indicator.setStyleSheet("color: #EF4444;")
             self.connection_text.setText("Disconnected")
             self.connection_text.setStyleSheet("color: #EF4444;")
@@ -341,7 +355,13 @@ class ModernLoginDialog(QDialog):
     def open_settings_dialog(self):
         """Open settings dialog for server configuration"""
         dlg = SettingsDialog(self.settings_mgr)
+        was_active = self.connection_timer.isActive()
+        if was_active:
+            self.connection_timer.stop()
         dlg.exec()
+        if was_active:
+            self.connection_timer.start()
+            self.start_connection_check()
 
     def keyPressEvent(self, event):
         """Manejar eventos de teclado"""
