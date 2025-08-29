@@ -172,6 +172,18 @@ class RobustApiClient:
         """Eliminar shipment"""
         return self.delete(f"/shipments/{shipment_id}")
 
+    def update_shipment_with_version(self, shipment_id: int, data: Dict, current_version: int) -> ApiResponse:
+        """Actualizar shipment con control de versión optimista"""
+        return self._make_request(
+            "PUT",
+            f"/shipments/{shipment_id}?current_version={current_version}",
+            json=data
+        )
+
+    def get_shipment_by_id(self, shipment_id: int) -> ApiResponse:
+        """Obtener un shipment específico"""
+        return self.get(f"/shipments/{shipment_id}")
+
     def login(self, username: str, password: str) -> ApiResponse:
         """Autenticar usuario"""
         return self.post("/login", data={"username": username, "password": password})
