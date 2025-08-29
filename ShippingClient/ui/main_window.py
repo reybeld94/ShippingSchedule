@@ -1029,11 +1029,11 @@ class ModernShippingMainWindow(QMainWindow):
             raw_status = shipment.get("status", "")
             status = str(raw_status).strip().lower().replace(" ", "_")
             if status == "partial_release":
-                job_item.setBackground(QColor("#FEF3C7"))  # Amarillo
+                job_item.setBackground(QColor("#FDE68A"))  # Amarillo más intenso
             elif status == "final_release":
-                job_item.setBackground(QColor("#DCFCE7"))   # Verde
+                job_item.setBackground(QColor("#BBF7D0"))   # Verde más intenso
             elif status == "rejected":
-                job_item.setBackground(QColor("#FFEDD5"))   # Soft Orange
+                job_item.setBackground(QColor("#FED7AA"))   # Soft Orange más intenso
 
         # La altura de las filas se ajusta al finalizar el poblado completo
 
