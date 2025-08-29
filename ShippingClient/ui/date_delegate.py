@@ -7,6 +7,8 @@ class ClearableDateEdit(QDateEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._blank = False
+        # Start each editor on today's date so the calendar popup is sensible
+        self.setDate(QDate.currentDate())
         self.dateChanged.connect(self._mark_filled)
 
     def _mark_filled(self, *args):
@@ -23,6 +25,8 @@ class ClearableDateEdit(QDateEdit):
             # Clear the line edit and mark the widget as blank
             self.lineEdit().clear()
             self._blank = True
+            # Reset the internal date to today so future selections start here
+            self.setDate(QDate.currentDate())
             self._ignore_next_date_change = True
             event.accept()
             return
@@ -48,9 +52,13 @@ class DateDelegate(QStyledItemDelegate):
             if date.isValid():
                 editor.setDate(date)
             else:
+                # If parsing fails, default to today's date but keep the field blank
+                editor.setDate(QDate.currentDate())
                 editor.lineEdit().clear()
                 editor._blank = True
         else:
+            # Start with today's date selected so the popup opens there
+            editor.setDate(QDate.currentDate())
             editor.lineEdit().clear()
             editor._blank = True
 
