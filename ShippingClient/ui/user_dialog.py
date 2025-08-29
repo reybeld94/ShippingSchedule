@@ -137,6 +137,8 @@ class UserManagementDialog(QDialog):
         padding: 8px 4px;
         border: none;
         border-right: 1px solid #D1D5DB;
+        font-size: 13px;
+        font-weight: 600;
     }
         """)
         layout.addWidget(self.table)

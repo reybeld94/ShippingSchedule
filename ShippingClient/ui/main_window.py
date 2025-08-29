@@ -530,7 +530,7 @@ class ModernShippingMainWindow(QMainWindow):
         border-bottom: 2px solid #E5E7EB;
         border-right: 1px solid #E5E7EB;
         font-weight: 600;
-        font-size: 11px;
+        font-size: 13px;
         text-transform: uppercase;
     }}
         """)
