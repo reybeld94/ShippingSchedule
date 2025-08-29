@@ -1,7 +1,7 @@
 ﻿# models.py - Estructura de la base de datos
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 from datetime import datetime
 
 Base = declarative_base()
@@ -46,9 +46,68 @@ class Shipment(Base):
     created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Control de concurrencia
+    version = Column(Integer, default=1, nullable=False)
+    last_modified_by = Column(Integer, ForeignKey("users.id"))
+    last_modified_user = relationship("User", foreign_keys=[last_modified_by])
     
     # Relaciones
     created_by_user = relationship("User", back_populates="created_shipments")
+
+    @validates('job_number')
+    def validate_job_number(self, key, value):
+        if not value or not str(value).strip():
+            raise ValueError("Job number is required")
+
+        # Limpiar y validar formato
+        cleaned = str(value).strip()
+        base_number = cleaned.split('.')[0]  # Remover sufijos
+
+        if not base_number.isdigit():
+            raise ValueError("Job number must be numeric")
+
+        if len(base_number) > 20:
+            raise ValueError("Job number too long")
+
+        return cleaned
+
+    @validates('job_name')
+    def validate_job_name(self, key, value):
+        if not value or not str(value).strip():
+            raise ValueError("Job name is required")
+
+        cleaned = str(value).strip()
+        if len(cleaned) > 200:
+            raise ValueError("Job name too long")
+
+        return cleaned
+
+    @validates('qc_release', 'created', 'ship_plan', 'shipped')
+    def validate_date_fields(self, key, value):
+        if not value:
+            return ""
+
+        date_str = str(value).strip()
+        if not date_str or date_str.upper() in ['N/A', 'NA', 'NULL', 'NONE']:
+            return ""
+
+        # Validar formato de fecha
+        for fmt in ('%m/%d/%y', '%m/%d/%Y'):
+            try:
+                datetime.strptime(date_str, fmt)
+                return date_str
+            except ValueError:
+                continue
+
+        raise ValueError(f"Invalid date format for {key}: {date_str}. Use MM/DD/YY or MM/DD/YYYY")
+
+    @validates('status')
+    def validate_status(self, key, value):
+        valid_statuses = ['final_release', 'partial_release', 'rejected', 'prod_updated']
+        if value not in valid_statuses:
+            raise ValueError(f"Invalid status: {value}. Must be one of {valid_statuses}")
+        return value
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

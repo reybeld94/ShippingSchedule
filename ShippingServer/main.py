@@ -3,10 +3,13 @@ from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocke
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import timedelta
+from datetime import timedelta, datetime
 import json
 import asyncio
 import logging
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm.exc import StaleDataError
+import time
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
@@ -280,42 +283,75 @@ async def create_shipment(
 ):
     if current_user.role not in ["write", "admin"]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-    # Generar job_number único (agregar sufijo si es necesario)
-    unique_job_number = generate_unique_job_number(shipment.job_number, db)
 
-    shipment_data = shipment.dict()
-    shipment_data["job_number"] = unique_job_number
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with db.begin():  # Transacción explícita
+                # Generar job_number único
+                unique_job_number = generate_unique_job_number(shipment.job_number, db)
 
-    new_shipment = Shipment(
-        **shipment_data,
-        created_by=current_user.id
-    )
-    
-    db.add(new_shipment)
-    db.commit()
+                # Crear shipment con validación
+                shipment_data = shipment.dict()
+                shipment_data["job_number"] = unique_job_number
+
+                try:
+                    new_shipment = Shipment(
+                        **shipment_data,
+                        created_by=current_user.id,
+                        last_modified_by=current_user.id,
+                        version=1
+                    )
+                except ValueError as e:
+                    raise HTTPException(status_code=400, detail=str(e))
+
+                db.add(new_shipment)
+                db.flush()  # Para obtener el ID sin commit
+
+                # Crear audit log en la misma transacción
+                log = AuditLog(
+                    user_id=current_user.id,
+                    action="create",
+                    table_name="shipments",
+                    record_id=new_shipment.id,
+                    changes=json.dumps(shipment_data)
+                )
+                db.add(log)
+
+                # Commit automático al salir del with
+                break  # Salir del retry loop si fue exitoso
+
+        except IntegrityError as e:
+            db.rollback()
+            if "duplicate key" in str(e).lower() and attempt < max_retries - 1:
+                time.sleep(0.1 * (attempt + 1))  # Backoff
+                continue
+            raise HTTPException(status_code=400, detail="Job number already exists")
+        except SQLAlchemyError as e:
+            db.rollback()
+            logger.error(f"Database error creating shipment: {e}")
+            raise HTTPException(status_code=500, detail="Database error")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Unexpected error creating shipment: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    # Refrescar para obtener datos completos
     db.refresh(new_shipment)
 
-    # 🔐 Guardar log de creación
-    log = AuditLog(
-        user_id=current_user.id,
-        action="create",
-        table_name="shipments",
-        record_id=new_shipment.id,
-        changes=json.dumps(shipment_data)
-    )
-    db.add(log)
-    db.commit()
-    
-    # 🔔 Notificar a todos los clientes conectados
-    await manager.broadcast(json.dumps({
-        "type": "shipment_created",
-        "data": {
-            "id": new_shipment.id,
-            "job_number": new_shipment.job_number,
-            "action_by": current_user.username
-        }
-    }))
-    
+    # Notificar después del commit exitoso
+    try:
+        await manager.broadcast(json.dumps({
+            "type": "shipment_created",
+            "data": {
+                "id": new_shipment.id,
+                "job_number": new_shipment.job_number,
+                "action_by": current_user.username
+            }
+        }))
+    except Exception as e:
+        logger.warning(f"Failed to broadcast creation: {e}")
+
     return new_shipment
 
 
@@ -323,48 +359,96 @@ async def create_shipment(
 async def update_shipment(
     shipment_id: int,
     shipment_update: ShipmentUpdate,
+    current_version: int = Query(..., description="Current version for optimistic locking"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     if current_user.role not in ["write", "admin"]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-    shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
-    if not shipment:
-        raise HTTPException(status_code=404, detail="Shipment not found")
-    
-    # Actualizar solo campos que no son None
-    update_data = shipment_update.dict(exclude_unset=True)
-    if "job_number" in update_data:
-        update_data["job_number"] = generate_unique_job_number(update_data["job_number"], db)
 
-    for field, value in update_data.items():
-        setattr(shipment, field, value)
-    
-    db.commit()
+    try:
+        with db.begin():  # Transacción explícita
+            # Verificar versión para control de concurrencia
+            shipment = db.query(Shipment).filter(
+                Shipment.id == shipment_id,
+                Shipment.version == current_version
+            ).first()
+
+            if not shipment:
+                existing = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+                if not existing:
+                    raise HTTPException(status_code=404, detail="Shipment not found")
+                else:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Shipment was modified by another user. Current version: {existing.version}"
+                    )
+
+            # Aplicar cambios con validación
+            update_data = shipment_update.dict(exclude_unset=True)
+            changes_made = {}
+
+            for field, value in update_data.items():
+                if field == "job_number" and value:
+                    value = generate_unique_job_number(value, db)
+
+                old_value = getattr(shipment, field)
+                if old_value != value:
+                    changes_made[field] = {"old": old_value, "new": value}
+                    try:
+                        setattr(shipment, field, value)
+                    except ValueError as e:
+                        raise HTTPException(status_code=400, detail=str(e))
+
+            if not changes_made:
+                return shipment  # No hay cambios
+
+            # Actualizar metadatos
+            shipment.version += 1
+            shipment.last_modified_by = current_user.id
+            shipment.updated_at = datetime.utcnow()
+
+            # Crear audit log en la misma transacción
+            log = AuditLog(
+                user_id=current_user.id,
+                action="update",
+                table_name="shipments",
+                record_id=shipment.id,
+                changes=json.dumps(changes_made)
+            )
+            db.add(log)
+
+            # Commit automático al salir del with
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Database error updating shipment: {e}")
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Unexpected error updating shipment: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    # Refrescar datos
     db.refresh(shipment)
-    
-    # 🔐 Registrar log de actualización
-    log = AuditLog(
-        user_id=current_user.id,
-        action="update",
-        table_name="shipments",
-        record_id=shipment.id,
-        changes=json.dumps(update_data)
-    )
-    db.add(log)
-    db.commit()
-    
-    # 🔔 Notificar cambios
-    await manager.broadcast(json.dumps({
-        "type": "shipment_updated",
-        "data": {
-            "id": shipment.id,
-            "job_number": shipment.job_number,
-            "changes": update_data,
-            "action_by": current_user.username
-        }
-    }))
-    
+
+    # Notificar cambios
+    try:
+        await manager.broadcast(json.dumps({
+            "type": "shipment_updated",
+            "data": {
+                "id": shipment.id,
+                "job_number": shipment.job_number,
+                "version": shipment.version,
+                "changes": changes_made,
+                "action_by": current_user.username
+            }
+        }))
+    except Exception as e:
+        logger.warning(f"Failed to broadcast update: {e}")
+
     return shipment
 
 
