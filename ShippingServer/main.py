@@ -276,49 +276,42 @@ async def create_shipment(
 
     for attempt in range(max_retries):
         try:
-            # Usar transacción explícita
-            with db.begin():
-                logger.info(f"Creating shipment attempt {attempt + 1}: {shipment.job_number}")
+            logger.info(f"Creating shipment attempt {attempt + 1}: {shipment.job_number}")
 
-                # Limpiar job_number (permitir duplicados)
-                clean_job_number_value = clean_job_number(shipment.job_number)
+            # Limpiar job_number (permitir duplicados)
+            clean_job_number_value = clean_job_number(shipment.job_number)
 
-                # Preparar datos con validación
-                shipment_data = shipment.dict()
-                shipment_data["job_number"] = clean_job_number_value
+            # Preparar datos con validación
+            shipment_data = shipment.dict()
+            shipment_data["job_number"] = clean_job_number_value
 
-                try:
-                    # Crear shipment - las validaciones se ejecutan automáticamente
-                    new_shipment = Shipment(
-                        **shipment_data,
-                        created_by=current_user.id,
-                        last_modified_by=current_user.id,
-                        version=1  # Versión inicial
-                    )
+            # Crear shipment - las validaciones se ejecutan automáticamente
+            try:
+                new_shipment = Shipment(
+                    **shipment_data,
+                    created_by=current_user.id,
+                    last_modified_by=current_user.id,
+                    version=1  # Versión inicial
+                )
+                db.add(new_shipment)
+                db.flush()  # Flush para obtener ID y detectar errores antes del commit
 
-                    db.add(new_shipment)
-                    db.flush()  # Flush para obtener ID y detectar errores antes del commit
+                # Crear audit log
+                audit_changes = {k: v for k, v in shipment_data.items() if v}
+                log = AuditLog(
+                    user_id=current_user.id,
+                    action="create",
+                    table_name="shipments",
+                    record_id=new_shipment.id,
+                    changes=json.dumps(audit_changes)
+                )
+                db.add(log)
+            except ValueError as e:
+                db.rollback()
+                logger.warning(f"Validation error creating shipment: {e}")
+                raise HTTPException(status_code=400, detail=str(e))
 
-                    # Crear audit log en la misma transacción
-                    audit_changes = {k: v for k, v in shipment_data.items() if v}
-                    log = AuditLog(
-                        user_id=current_user.id,
-                        action="create",
-                        table_name="shipments",
-                        record_id=new_shipment.id,
-                        changes=json.dumps(audit_changes)
-                    )
-                    db.add(log)
-
-                    logger.info(f"Successfully created shipment ID {new_shipment.id}")
-                    # Commit automático al salir del with
-
-                except ValueError as e:
-                    # Error de validación de modelo
-                    logger.warning(f"Validation error creating shipment: {e}")
-                    raise HTTPException(status_code=400, detail=str(e))
-
-            # Si llegamos aquí, la transacción fue exitosa
+            db.commit()
             db.refresh(new_shipment)
 
             # Notificar via WebSocket (fuera de la transacción)
@@ -393,74 +386,74 @@ async def update_shipment(
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:
-        # Transacción explícita
-        with db.begin():
-            logger.info(f"Updating shipment {shipment_id}, version {current_version}")
+        logger.info(f"Updating shipment {shipment_id}, version {current_version}")
 
-            # Buscar con version lock
-            shipment = db.query(Shipment).filter(
-                Shipment.id == shipment_id,
-                Shipment.version == current_version
-            ).first()
+        # Buscar con version lock
+        shipment = db.query(Shipment).filter(
+            Shipment.id == shipment_id,
+            Shipment.version == current_version
+        ).first()
 
-            if not shipment:
-                # Verificar si existe pero con versión diferente
-                existing = db.query(Shipment).filter(Shipment.id == shipment_id).first()
-                if not existing:
-                    raise HTTPException(status_code=404, detail="Shipment not found")
-                else:
-                    logger.warning(f"Version conflict: expected {current_version}, found {existing.version}")
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"Shipment was modified by another user. Current version is {existing.version}, please refresh and try again."
-                    )
+        if not shipment:
+            # Verificar si existe pero con versión diferente
+            existing = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+            if not existing:
+                raise HTTPException(status_code=404, detail="Shipment not found")
+            else:
+                logger.warning(f"Version conflict: expected {current_version}, found {existing.version}")
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Shipment was modified by another user. Current version is {existing.version}, please refresh and try again."
+                )
 
-            # Aplicar cambios con validación
-            update_data = shipment_update.dict(exclude_unset=True)
-            changes_made = {}
+        # Aplicar cambios con validación
+        update_data = shipment_update.dict(exclude_unset=True)
+        changes_made = {}
 
-            for field, new_value in update_data.items():
-                if field == "job_number" and new_value:
-                    # Limpiar job number (permitir duplicados)
-                    new_value = clean_job_number(new_value)
+        for field, new_value in update_data.items():
+            if field == "job_number" and new_value:
+                # Limpiar job number (permitir duplicados)
+                new_value = clean_job_number(new_value)
 
-                old_value = getattr(shipment, field, None)
+            old_value = getattr(shipment, field, None)
 
-                # Solo actualizar si el valor cambió
-                if old_value != new_value:
-                    changes_made[field] = {
-                        "old": old_value,
-                        "new": new_value
-                    }
+            # Solo actualizar si el valor cambió
+            if old_value != new_value:
+                changes_made[field] = {
+                    "old": old_value,
+                    "new": new_value
+                }
 
-                    try:
-                        # Aplicar cambio - validadores se ejecutan automáticamente
-                        setattr(shipment, field, new_value)
-                    except ValueError as e:
-                        raise HTTPException(status_code=400, detail=f"Validation error in {field}: {str(e)}")
+                try:
+                    # Aplicar cambio - validadores se ejecutan automáticamente
+                    setattr(shipment, field, new_value)
+                except ValueError as e:
+                    db.rollback()
+                    raise HTTPException(status_code=400, detail=f"Validation error in {field}: {str(e)}")
 
-            # Si no hay cambios, no hacer nada
-            if not changes_made:
-                logger.info(f"No changes detected for shipment {shipment_id}")
-                return shipment
+        # Si no hay cambios, no hacer nada
+        if not changes_made:
+            logger.info(f"No changes detected for shipment {shipment_id}")
+            db.rollback()
+            return shipment
 
-            # Actualizar metadatos de versión
-            shipment.version += 1
-            shipment.last_modified_by = current_user.id
-            shipment.updated_at = datetime.utcnow()
+        # Actualizar metadatos de versión
+        shipment.version += 1
+        shipment.last_modified_by = current_user.id
+        shipment.updated_at = datetime.utcnow()
 
-            # Crear audit log
-            log = AuditLog(
-                user_id=current_user.id,
-                action="update",
-                table_name="shipments",
-                record_id=shipment.id,
-                changes=json.dumps(changes_made)
-            )
-            db.add(log)
+        # Crear audit log
+        log = AuditLog(
+            user_id=current_user.id,
+            action="update",
+            table_name="shipments",
+            record_id=shipment.id,
+            changes=json.dumps(changes_made)
+        )
+        db.add(log)
 
-            logger.info(f"Successfully updated shipment {shipment_id} to version {shipment.version}")
-            # Commit automático
+        logger.info(f"Successfully updated shipment {shipment_id} to version {shipment.version}")
+        db.commit()
 
     except IntegrityError as e:
         db.rollback()
