@@ -98,7 +98,9 @@ class ShipmentResponse(BaseModel):
     invoice_number: str
     shipping_notes: str
     created_by: int
-    
+    version: int
+    last_modified_by: int | None = None
+
     class Config:
         from_attributes = True
 
