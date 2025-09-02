@@ -635,18 +635,33 @@ class ModernShippingMainWindow(QMainWindow):
             self.change_status(table, row, status_actions[action])
 
     def change_status(self, table, row, new_status):
-        """Change shipment status and update visuals"""
+        """Change shipment status with version control"""
         if self.read_only:
             return
+
         job_item = table.item(row, 0)
         shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
         if not shipment or shipment.get("status") == new_status:
             return
+
         try:
-            api_response = self.api_client.update_shipment(shipment['id'], {"status": new_status})
+            # Usar versión actual para control de concurrencia
+            current_version = shipment.get('version', 1)
+
+            api_response = self.api_client.update_shipment_with_version(
+                shipment['id'],
+                {"status": new_status},
+                current_version
+            )
+
             if api_response.is_success():
+                # Actualizar datos locales
+                updated_shipment = api_response.get_data()
                 shipment["status"] = new_status
+                shipment['version'] = updated_shipment.get('version', current_version + 1)
                 job_item.setData(Qt.ItemDataRole.UserRole, shipment)
+
+                # Actualizar color visual
                 if new_status == "partial_release":
                     job_item.setBackground(QColor("#FEF3C7"))
                 elif new_status == "final_release":
@@ -655,11 +670,18 @@ class ModernShippingMainWindow(QMainWindow):
                     job_item.setBackground(QColor("#FFEDD5"))
                 else:
                     job_item.setBackground(QColor("transparent"))
-                self.show_toast("Changes saved successfully", color="#16A34A")
+
+                self.show_toast("Status updated successfully", color="#16A34A")
+
+            elif api_response.status_code == 409:
+                # Conflicto de versión
+                self.show_error("Another user modified this shipment. Refreshing data...")
+                self.load_shipments_async()
             else:
-                self.show_error(f"Failed to save changes: {api_response.get_error()}")
+                self.show_error(f"Failed to update status: {api_response.get_error()}")
+
         except Exception as e:
-            self.show_error(f"Failed to save changes: {str(e)}")
+            self.show_error(f"Failed to update status: {str(e)}")
 
     def show_mie_trak_address(self, job_number: str):
         """Fetch and display Mie Trak address for a job directly from DB"""
@@ -1013,6 +1035,9 @@ class ModernShippingMainWindow(QMainWindow):
                 job_item = item
                 # store full shipment data for easy retrieval even after sorting
                 item.setData(Qt.ItemDataRole.UserRole, shipment)
+                # Asegurar que version esté disponible (valor por defecto si no existe)
+                if 'version' not in shipment:
+                    shipment['version'] = 1
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             # store original flags to avoid calling item.flags() during edits
@@ -1146,7 +1171,7 @@ class ModernShippingMainWindow(QMainWindow):
             current_table.editItem(item)
 
     def on_item_changed(self, item):
-        """Guardar cambios de celda editada"""
+        """Guardar cambios de celda editada con control de versión"""
         if self.updating_table or self.read_only:
             return
 
@@ -1170,13 +1195,36 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         try:
-            api_response = self.api_client.update_shipment(shipment['id'], {field: new_value})
+            # Usar versión actual del shipment para control de concurrencia
+            current_version = shipment.get('version', 1)
+
+            api_response = self.api_client.update_shipment_with_version(
+                shipment['id'],
+                {field: new_value},
+                current_version
+            )
+
             if api_response.is_success():
+                # Actualizar datos locales con la nueva versión
+                updated_shipment = api_response.get_data()
                 shipment[field] = new_value
+                shipment['version'] = updated_shipment.get('version', current_version + 1)
+                shipment['last_modified_by'] = self.user_info.get('id')
+
+                job_item.setData(Qt.ItemDataRole.UserRole, shipment)
                 self.show_toast("Changes saved successfully", color="#16A34A")
+            elif api_response.status_code == 409:
+                # Conflicto de versión - recargar datos
+                self.show_error("Another user modified this shipment. Refreshing data...")
+                self.load_shipments_async()
             else:
+                # Revertir cambio en la UI
+                item.setText(str(old_value))
                 self.show_error(f"Failed to save changes: {api_response.get_error()}")
+
         except Exception as e:
+            # Revertir cambio en la UI
+            item.setText(str(old_value))
             self.show_error(f"Failed to save changes: {str(e)}")
     
     def delete_shipment(self):
