@@ -46,9 +46,12 @@ class DateDelegate(QStyledItemDelegate):
     def setEditorData(self, editor, index):
         text = index.data(Qt.ItemDataRole.EditRole)
         if text:
-            date = QDate.fromString(text, "MM/dd/yy")
+            date = QDate.fromString(text, "MM/dd/yyyy")
             if not date.isValid():
-                date = QDate.fromString(text, "MM/dd/yyyy")
+                date = QDate.fromString(text, "MM/dd/yy")
+                if date.isValid() and date.year() < 2000:
+                    # QDate assumes 1900s for two-digit years; shift to 2000s
+                    date = date.addYears(100)
             if date.isValid():
                 editor.setDate(date)
             else:
