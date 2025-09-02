@@ -26,8 +26,8 @@ class Shipment(Base):
 
     # Índices optimizados para integridad y performance
     __table_args__ = (
-        # Índice único compuesto para prevenir duplicados
-        Index('ix_shipment_job_number_unique', 'job_number', unique=True),
+        # Índice para performance (sin restricción única)
+        Index('ix_shipment_job_number', 'job_number'),
         
         # Índices para control de concurrencia
         Index('ix_shipment_id_version', 'id', 'version'),
@@ -40,7 +40,7 @@ class Shipment(Base):
     )
     
     id = Column(Integer, primary_key=True, index=True)
-    job_number = Column(String(20), unique=True, index=True, nullable=False)
+    job_number = Column(String(20), index=True, nullable=False)
     job_name = Column(String(200), nullable=False)
     week = Column(String(20))
     description = Column(Text)
