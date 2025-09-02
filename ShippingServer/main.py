@@ -255,25 +255,49 @@ async def get_shipments(db: Session = Depends(get_db), current_user: User = Depe
 from models import AuditLog  # asegúrate de importar AuditLog arriba
 
 # Utilidad para generar un job_number único con sufijo incremental
-def generate_unique_job_number(base_job_number: str, db: Session) -> str:
-    """Devuelve un job number único agregando sufijos numéricos si es necesario."""
-    # Obtener todos los job_numbers que comiencen con el job ingresado
-    pattern = f"{base_job_number}%"
-    existing_numbers = [r[0] for r in db.query(Shipment.job_number).filter(Shipment.job_number.like(pattern)).all()]
+def generate_unique_job_number(base_job_number: str, db: Session, exclude_id: int = None) -> str:
+    """
+    Generar job number único con sufijo incremental si es necesario.
+    Incluye exclude_id para updates.
+    """
+    base_job_number = str(base_job_number).strip()
 
-    # Si no existe exactamente, usar el número ingresado
+    # Construir query base
+    query = db.query(Shipment.job_number).filter(Shipment.job_number.like(f"{base_job_number}%"))
+
+    # Excluir el shipment actual si es un update
+    if exclude_id:
+        query = query.filter(Shipment.id != exclude_id)
+
+    existing_numbers = [row[0] for row in query.all()]
+
+    # Si no existe exactamente el número base, usarlo
     if base_job_number not in existing_numbers:
         return base_job_number
 
-    suffixes = [0]
+    # Encontrar sufijos existentes
+    suffixes = []
+    pattern_len = len(base_job_number)
+
     for number in existing_numbers:
-        if number.startswith(f"{base_job_number}."):
-            suffix = number[len(base_job_number) + 1 :]
-            if suffix.isdigit():
-                suffixes.append(int(suffix))
+        if number == base_job_number:
+            suffixes.append(0)  # El número base sin sufijo
+        elif number.startswith(f"{base_job_number}."):
+            suffix_part = number[pattern_len + 1:]  # +1 para el punto
+            try:
+                suffix = int(suffix_part)
+                suffixes.append(suffix)
+            except ValueError:
+                # Sufijo no numérico, ignorar
+                continue
+
+    # Encontrar el siguiente sufijo disponible
+    if not suffixes:
+        return base_job_number
 
     next_suffix = max(suffixes) + 1
     return f"{base_job_number}.{next_suffix}"
+
 
 @app.post("/shipments", response_model=ShipmentResponse)
 async def create_shipment(
@@ -281,78 +305,118 @@ async def create_shipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    """Crear nuevo shipment con validación robusta y manejo de duplicados"""
     if current_user.role not in ["write", "admin"]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    # Retry para manejar conflictos de concurrencia
     max_retries = 3
+    last_error = None
+
     for attempt in range(max_retries):
         try:
-            with db.begin():  # Transacción explícita
+            # Usar transacción explícita
+            with db.begin():
+                logger.info(f"Creating shipment attempt {attempt + 1}: {shipment.job_number}")
+
                 # Generar job_number único
                 unique_job_number = generate_unique_job_number(shipment.job_number, db)
 
-                # Crear shipment con validación
+                # Preparar datos con validación
                 shipment_data = shipment.dict()
                 shipment_data["job_number"] = unique_job_number
 
                 try:
+                    # Crear shipment - las validaciones se ejecutan automáticamente
                     new_shipment = Shipment(
                         **shipment_data,
                         created_by=current_user.id,
                         last_modified_by=current_user.id,
-                        version=1
+                        version=1  # Versión inicial
                     )
+
+                    db.add(new_shipment)
+                    db.flush()  # Flush para obtener ID y detectar errores antes del commit
+
+                    # Crear audit log en la misma transacción
+                    audit_changes = {k: v for k, v in shipment_data.items() if v}
+                    log = AuditLog(
+                        user_id=current_user.id,
+                        action="create",
+                        table_name="shipments",
+                        record_id=new_shipment.id,
+                        changes=json.dumps(audit_changes)
+                    )
+                    db.add(log)
+
+                    logger.info(f"Successfully created shipment ID {new_shipment.id}")
+                    # Commit automático al salir del with
+
                 except ValueError as e:
+                    # Error de validación de modelo
+                    logger.warning(f"Validation error creating shipment: {e}")
                     raise HTTPException(status_code=400, detail=str(e))
 
-                db.add(new_shipment)
-                db.flush()  # Para obtener el ID sin commit
+            # Si llegamos aquí, la transacción fue exitosa
+            db.refresh(new_shipment)
 
-                # Crear audit log en la misma transacción
-                log = AuditLog(
-                    user_id=current_user.id,
-                    action="create",
-                    table_name="shipments",
-                    record_id=new_shipment.id,
-                    changes=json.dumps(shipment_data)
-                )
-                db.add(log)
+            # Notificar via WebSocket (fuera de la transacción)
+            try:
+                await manager.broadcast(json.dumps({
+                    "type": "shipment_created",
+                    "data": {
+                        "id": new_shipment.id,
+                        "job_number": new_shipment.job_number,
+                        "action_by": current_user.username
+                    }
+                }))
+            except Exception as e:
+                logger.warning(f"Failed to broadcast shipment creation: {e}")
 
-                # Commit automático al salir del with
-                break  # Salir del retry loop si fue exitoso
+            return new_shipment
 
         except IntegrityError as e:
+            # Error de integridad (duplicados, constraints)
             db.rollback()
-            if "duplicate key" in str(e).lower() and attempt < max_retries - 1:
-                time.sleep(0.1 * (attempt + 1))  # Backoff
-                continue
-            raise HTTPException(status_code=400, detail="Job number already exists")
+            error_msg = str(e).lower()
+
+            if "duplicate key" in error_msg or "unique constraint" in error_msg:
+                if attempt < max_retries - 1:
+                    # Esperar un poco antes de reintentar
+                    time.sleep(0.1 * (attempt + 1))
+                    logger.warning(f"Duplicate key on attempt {attempt + 1}, retrying...")
+                    continue
+                else:
+                    logger.error(f"Duplicate key after {max_retries} attempts: {shipment.job_number}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Job number conflict after multiple attempts. Please try with a different number."
+                    )
+            else:
+                logger.error(f"Integrity error creating shipment: {e}")
+                raise HTTPException(status_code=400, detail="Data integrity error")
+
         except SQLAlchemyError as e:
+            # Error general de base de datos
             db.rollback()
-            logger.error(f"Database error creating shipment: {e}")
-            raise HTTPException(status_code=500, detail="Database error")
+            last_error = e
+            logger.error(f"Database error on attempt {attempt + 1}: {e}")
+
+            if attempt < max_retries - 1:
+                time.sleep(0.2 * (attempt + 1))
+                continue
+            else:
+                break
+
         except Exception as e:
+            # Error inesperado
             db.rollback()
             logger.error(f"Unexpected error creating shipment: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
 
-    # Refrescar para obtener datos completos
-    db.refresh(new_shipment)
-
-    # Notificar después del commit exitoso
-    try:
-        await manager.broadcast(json.dumps({
-            "type": "shipment_created",
-            "data": {
-                "id": new_shipment.id,
-                "job_number": new_shipment.job_number,
-                "action_by": current_user.username
-            }
-        }))
-    except Exception as e:
-        logger.warning(f"Failed to broadcast creation: {e}")
-
-    return new_shipment
+    # Si salimos del loop sin return, hubo un error persistente
+    logger.error(f"Failed to create shipment after {max_retries} attempts. Last error: {last_error}")
+    raise HTTPException(status_code=500, detail="Unable to create shipment due to persistent database issues")
 
 
 @app.put("/shipments/{shipment_id}", response_model=ShipmentResponse)
@@ -390,7 +454,7 @@ async def update_shipment(
 
             for field, value in update_data.items():
                 if field == "job_number" and value:
-                    value = generate_unique_job_number(value, db)
+                    value = generate_unique_job_number(value, db, exclude_id=shipment_id)
 
                 old_value = getattr(shipment, field)
                 if old_value != value:
