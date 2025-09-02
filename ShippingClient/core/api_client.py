@@ -164,13 +164,15 @@ class RobustApiClient:
         """Crear nuevo shipment"""
         return self.post("/shipments", data=shipment_data)
 
-    def update_shipment(self, shipment_id: int, data: Dict) -> ApiResponse:
-        """Actualizar shipment existente"""
-        return self.put(f"/shipments/{shipment_id}", data=data)
+    def update_shipment(self, shipment_id: int, data: Dict, current_version: int = None) -> ApiResponse:
+        """Actualizar shipment con control de versión opcional"""
+        if current_version is not None:
+            # Usar parámetro de query para la versión
+            endpoint = f"/shipments/{shipment_id}?current_version={current_version}"
+        else:
+            endpoint = f"/shipments/{shipment_id}"
 
-    def delete_shipment(self, shipment_id: int) -> ApiResponse:
-        """Eliminar shipment"""
-        return self.delete(f"/shipments/{shipment_id}")
+        return self.put(endpoint, data=data)
 
     def update_shipment_with_version(self, shipment_id: int, data: Dict, current_version: int) -> ApiResponse:
         """Actualizar shipment con control de versión optimista"""
@@ -183,6 +185,10 @@ class RobustApiClient:
     def get_shipment_by_id(self, shipment_id: int) -> ApiResponse:
         """Obtener un shipment específico"""
         return self.get(f"/shipments/{shipment_id}")
+
+    def delete_shipment(self, shipment_id: int) -> ApiResponse:
+        """Eliminar shipment"""
+        return self.delete(f"/shipments/{shipment_id}")
 
     def login(self, username: str, password: str) -> ApiResponse:
         """Autenticar usuario"""
