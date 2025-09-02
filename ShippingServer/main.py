@@ -427,52 +427,68 @@ async def update_shipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    """Actualizar shipment con control de concurrencia optimista"""
     if current_user.role not in ["write", "admin"]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     try:
-        with db.begin():  # Transacción explícita
-            # Verificar versión para control de concurrencia
+        # Transacción explícita
+        with db.begin():
+            logger.info(f"Updating shipment {shipment_id}, version {current_version}")
+
+            # Buscar con version lock
             shipment = db.query(Shipment).filter(
                 Shipment.id == shipment_id,
                 Shipment.version == current_version
             ).first()
 
             if not shipment:
+                # Verificar si existe pero con versión diferente
                 existing = db.query(Shipment).filter(Shipment.id == shipment_id).first()
                 if not existing:
                     raise HTTPException(status_code=404, detail="Shipment not found")
                 else:
+                    logger.warning(f"Version conflict: expected {current_version}, found {existing.version}")
                     raise HTTPException(
                         status_code=409,
-                        detail=f"Shipment was modified by another user. Current version: {existing.version}"
+                        detail=f"Shipment was modified by another user. Current version is {existing.version}, please refresh and try again."
                     )
 
             # Aplicar cambios con validación
             update_data = shipment_update.dict(exclude_unset=True)
             changes_made = {}
 
-            for field, value in update_data.items():
-                if field == "job_number" and value:
-                    value = generate_unique_job_number(value, db, exclude_id=shipment_id)
+            for field, new_value in update_data.items():
+                if field == "job_number" and new_value:
+                    # Manejar cambio de job number (generar único si es necesario)
+                    new_value = generate_unique_job_number(new_value, db, exclude_id=shipment_id)
 
-                old_value = getattr(shipment, field)
-                if old_value != value:
-                    changes_made[field] = {"old": old_value, "new": value}
+                old_value = getattr(shipment, field, None)
+
+                # Solo actualizar si el valor cambió
+                if old_value != new_value:
+                    changes_made[field] = {
+                        "old": old_value,
+                        "new": new_value
+                    }
+
                     try:
-                        setattr(shipment, field, value)
+                        # Aplicar cambio - validadores se ejecutan automáticamente
+                        setattr(shipment, field, new_value)
                     except ValueError as e:
-                        raise HTTPException(status_code=400, detail=str(e))
+                        raise HTTPException(status_code=400, detail=f"Validation error in {field}: {str(e)}")
 
+            # Si no hay cambios, no hacer nada
             if not changes_made:
-                return shipment  # No hay cambios
+                logger.info(f"No changes detected for shipment {shipment_id}")
+                return shipment
 
-            # Actualizar metadatos
+            # Actualizar metadatos de versión
             shipment.version += 1
             shipment.last_modified_by = current_user.id
             shipment.updated_at = datetime.utcnow()
 
-            # Crear audit log en la misma transacción
+            # Crear audit log
             log = AuditLog(
                 user_id=current_user.id,
                 action="update",
@@ -482,20 +498,32 @@ async def update_shipment(
             )
             db.add(log)
 
-            # Commit automático al salir del with
+            logger.info(f"Successfully updated shipment {shipment_id} to version {shipment.version}")
+            # Commit automático
 
-    except HTTPException:
-        raise  # Re-raise HTTP exceptions
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"Integrity error updating shipment {shipment_id}: {e}")
+        if "duplicate key" in str(e).lower():
+            raise HTTPException(status_code=400, detail="Job number already exists")
+        else:
+            raise HTTPException(status_code=400, detail="Data integrity error")
+
     except SQLAlchemyError as e:
         db.rollback()
-        logger.error(f"Database error updating shipment: {e}")
+        logger.error(f"Database error updating shipment {shipment_id}: {e}")
         raise HTTPException(status_code=500, detail="Database error")
+
+    except HTTPException:
+        db.rollback()
+        raise  # Re-raise HTTP exceptions
+
     except Exception as e:
         db.rollback()
-        logger.error(f"Unexpected error updating shipment: {e}")
+        logger.error(f"Unexpected error updating shipment {shipment_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-    # Refrescar datos
+    # Refresh datos después del commit
     db.refresh(shipment)
 
     # Notificar cambios
@@ -506,12 +534,12 @@ async def update_shipment(
                 "id": shipment.id,
                 "job_number": shipment.job_number,
                 "version": shipment.version,
-                "changes": changes_made,
+                "changes": list(changes_made.keys()),
                 "action_by": current_user.username
             }
         }))
     except Exception as e:
-        logger.warning(f"Failed to broadcast update: {e}")
+        logger.warning(f"Failed to broadcast shipment update: {e}")
 
     return shipment
 
