@@ -9,7 +9,6 @@ import asyncio
 import logging
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm.exc import StaleDataError
-import time
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
@@ -337,7 +336,7 @@ async def create_shipment(
             if "duplicate key" in error_msg or "unique constraint" in error_msg:
                 if attempt < max_retries - 1:
                     # Esperar un poco antes de reintentar
-                    time.sleep(0.1 * (attempt + 1))
+                    await asyncio.sleep(0.1 * (attempt + 1))
                     logger.warning(f"Duplicate key on attempt {attempt + 1}, retrying...")
                     continue
                 else:
@@ -357,7 +356,7 @@ async def create_shipment(
             logger.error(f"Database error on attempt {attempt + 1}: {e}")
 
             if attempt < max_retries - 1:
-                time.sleep(0.2 * (attempt + 1))
+                await asyncio.sleep(0.2 * (attempt + 1))
                 continue
             else:
                 break
