@@ -254,49 +254,10 @@ async def get_shipments(db: Session = Depends(get_db), current_user: User = Depe
 
 from models import AuditLog  # asegúrate de importar AuditLog arriba
 
-# Utilidad para generar un job_number único con sufijo incremental
-def generate_unique_job_number(base_job_number: str, db: Session, exclude_id: int = None) -> str:
-    """
-    Generar job number único con sufijo incremental si es necesario.
-    Incluye exclude_id para updates.
-    """
-    base_job_number = str(base_job_number).strip()
-
-    # Construir query base
-    query = db.query(Shipment.job_number).filter(Shipment.job_number.like(f"{base_job_number}%"))
-
-    # Excluir el shipment actual si es un update
-    if exclude_id:
-        query = query.filter(Shipment.id != exclude_id)
-
-    existing_numbers = [row[0] for row in query.all()]
-
-    # Si no existe exactamente el número base, usarlo
-    if base_job_number not in existing_numbers:
-        return base_job_number
-
-    # Encontrar sufijos existentes
-    suffixes = []
-    pattern_len = len(base_job_number)
-
-    for number in existing_numbers:
-        if number == base_job_number:
-            suffixes.append(0)  # El número base sin sufijo
-        elif number.startswith(f"{base_job_number}."):
-            suffix_part = number[pattern_len + 1:]  # +1 para el punto
-            try:
-                suffix = int(suffix_part)
-                suffixes.append(suffix)
-            except ValueError:
-                # Sufijo no numérico, ignorar
-                continue
-
-    # Encontrar el siguiente sufijo disponible
-    if not suffixes:
-        return base_job_number
-
-    next_suffix = max(suffixes) + 1
-    return f"{base_job_number}.{next_suffix}"
+# Utilidad para limpiar un job_number sin generar sufijos únicos
+def clean_job_number(job_number: str) -> str:
+    """Limpiar job number sin generar únicos"""
+    return str(job_number).strip()
 
 
 @app.post("/shipments", response_model=ShipmentResponse)
@@ -319,12 +280,12 @@ async def create_shipment(
             with db.begin():
                 logger.info(f"Creating shipment attempt {attempt + 1}: {shipment.job_number}")
 
-                # Generar job_number único
-                unique_job_number = generate_unique_job_number(shipment.job_number, db)
+                # Limpiar job_number (permitir duplicados)
+                clean_job_number_value = clean_job_number(shipment.job_number)
 
                 # Preparar datos con validación
                 shipment_data = shipment.dict()
-                shipment_data["job_number"] = unique_job_number
+                shipment_data["job_number"] = clean_job_number_value
 
                 try:
                     # Crear shipment - las validaciones se ejecutan automáticamente
@@ -460,8 +421,8 @@ async def update_shipment(
 
             for field, new_value in update_data.items():
                 if field == "job_number" and new_value:
-                    # Manejar cambio de job number (generar único si es necesario)
-                    new_value = generate_unique_job_number(new_value, db, exclude_id=shipment_id)
+                    # Limpiar job number (permitir duplicados)
+                    new_value = clean_job_number(new_value)
 
                 old_value = getattr(shipment, field, None)
 
