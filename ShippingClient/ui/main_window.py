@@ -646,7 +646,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         try:
             # Usar versión actual para control de concurrencia
-            current_version = shipment.get('version', 1)
+            current_version = int(shipment.get('version', 1) or 1)
 
             api_response = self.api_client.update_shipment_with_version(
                 shipment['id'],
@@ -674,7 +674,31 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_toast("Status updated successfully", color="#16A34A")
 
             elif api_response.status_code == 409:
-                # Conflicto de versión
+                # Conflicto de versión - intentar una vez con la versión más reciente
+                latest_resp = self.api_client.get_shipment_by_id(shipment['id'])
+                if latest_resp.is_success():
+                    latest = latest_resp.get_data()
+                    shipment['version'] = int(latest.get('version', current_version))
+                    retry = self.api_client.update_shipment_with_version(
+                        shipment['id'], {"status": new_status}, shipment['version']
+                    )
+                    if retry.is_success():
+                        updated = retry.get_data()
+                        shipment["status"] = new_status
+                        shipment['version'] = updated.get('version', shipment['version'] + 1)
+                        job_item.setData(Qt.ItemDataRole.UserRole, shipment)
+                        if new_status == "partial_release":
+                            job_item.setBackground(QColor("#FEF3C7"))
+                        elif new_status == "final_release":
+                            job_item.setBackground(QColor("#DCFCE7"))
+                        elif new_status == "rejected":
+                            job_item.setBackground(QColor("#FFEDD5"))
+                        else:
+                            job_item.setBackground(QColor("transparent"))
+                        self.show_toast("Status updated successfully", color="#16A34A")
+                        return
+
+                # Si falla el retry o no se pudo obtener versión actual
                 self.show_error("Another user modified this shipment. Refreshing data...")
                 self.load_shipments_async()
             else:
@@ -1196,7 +1220,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         try:
             # Usar versión actual del shipment para control de concurrencia
-            current_version = shipment.get('version', 1)
+            current_version = int(shipment.get('version', 1) or 1)
 
             api_response = self.api_client.update_shipment_with_version(
                 shipment['id'],
@@ -1214,7 +1238,25 @@ class ModernShippingMainWindow(QMainWindow):
                 job_item.setData(Qt.ItemDataRole.UserRole, shipment)
                 self.show_toast("Changes saved successfully", color="#16A34A")
             elif api_response.status_code == 409:
-                # Conflicto de versión - recargar datos
+                # Conflicto de versión: obtener versión actual y reintentar una vez
+                latest_resp = self.api_client.get_shipment_by_id(shipment['id'])
+                if latest_resp.is_success():
+                    latest = latest_resp.get_data()
+                    shipment['version'] = int(latest.get('version', current_version))
+                    retry = self.api_client.update_shipment_with_version(
+                        shipment['id'], {field: new_value}, shipment['version']
+                    )
+                    if retry.is_success():
+                        updated = retry.get_data()
+                        shipment[field] = new_value
+                        shipment['version'] = updated.get('version', shipment['version'] + 1)
+                        shipment['last_modified_by'] = self.user_info.get('id')
+                        job_item.setData(Qt.ItemDataRole.UserRole, shipment)
+                        self.show_toast("Changes saved successfully", color="#16A34A")
+                        return
+
+                # Si falla el retry o no se puede obtener la versión actual
+                item.setText(str(old_value))
                 self.show_error("Another user modified this shipment. Refreshing data...")
                 self.load_shipments_async()
             else:
