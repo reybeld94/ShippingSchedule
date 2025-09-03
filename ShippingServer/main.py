@@ -253,6 +253,18 @@ async def get_shipments(db: Session = Depends(get_db), current_user: User = Depe
     shipments = db.query(Shipment).all()
     return shipments
 
+@app.get("/shipments/{shipment_id}", response_model=ShipmentResponse)
+async def get_shipment_by_id(
+    shipment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Obtener un shipment específico por ID"""
+    shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return shipment
+
 from models import AuditLog  # asegúrate de importar AuditLog arriba
 
 # Utilidad para limpiar un job_number sin generar sufijos únicos
