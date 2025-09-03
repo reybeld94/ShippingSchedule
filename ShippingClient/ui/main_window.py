@@ -653,11 +653,11 @@ class ModernShippingMainWindow(QMainWindow):
             
             # Update visual status
             if new_status == "partial_release":
-                job_item.setBackground(QColor("#FEF3C7"))
+                job_item.setBackground(QColor("#FDE68A"))  # Amarillo más intenso - mismo que inicial
             elif new_status == "final_release":
-                job_item.setBackground(QColor("#DCFCE7"))
+                job_item.setBackground(QColor("#BBF7D0"))   # Verde más intenso - mismo que inicial
             elif new_status == "rejected":
-                job_item.setBackground(QColor("#FFEDD5"))
+                job_item.setBackground(QColor("#FED7AA"))   # Soft Orange más intenso - mismo que inicial
             else:
                 job_item.setBackground(QColor("transparent"))
             
