@@ -182,10 +182,6 @@ class RobustApiClient:
             json=data
         )
 
-    def get_shipment_by_id(self, shipment_id: int) -> ApiResponse:
-        """Obtener un shipment específico"""
-        return self.get(f"/shipments/{shipment_id}")
-
     def delete_shipment(self, shipment_id: int) -> ApiResponse:
         """Eliminar shipment"""
         return self.delete(f"/shipments/{shipment_id}")
@@ -193,3 +189,7 @@ class RobustApiClient:
     def login(self, username: str, password: str) -> ApiResponse:
         """Autenticar usuario"""
         return self.post("/login", data={"username": username, "password": password})
+
+    def get_shipment_by_id(self, shipment_id: int) -> ApiResponse:
+        """Obtener un shipment específico por ID"""
+        return self.get(f"/shipments/{shipment_id}")
