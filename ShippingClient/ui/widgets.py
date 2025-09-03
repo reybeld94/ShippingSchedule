@@ -273,36 +273,36 @@ class StatusBadge(QLabel):
         if self.status_type == "success":
             style = base_style + """
                 QLabel {
-                    background-color: #DCFCE7;
-                    color: #166534;
+                    background-color: #10B981;
+                    color: white;
                 }
             """
         elif self.status_type == "warning":
             style = base_style + """
                 QLabel {
-                    background-color: #FEF3C7;
-                    color: #92400E;
+                    background-color: #F59E0B;
+                    color: white;
                 }
             """
         elif self.status_type == "error":
             style = base_style + """
                 QLabel {
-                    background-color: #FEE2E2;
-                    color: #991B1B;
+                    background-color: #EF4444;
+                    color: white;
                 }
             """
         elif self.status_type == "info":
             style = base_style + """
                 QLabel {
-                    background-color: #DBEAFE;
-                    color: #1E40AF;
+                    background-color: #3B82F6;
+                    color: white;
                 }
             """
         else:  # default
             style = base_style + """
                 QLabel {
-                    background-color: #F3F4F6;
-                    color: #374151;
+                    background-color: #6B7280;
+                    color: white;
                 }
             """
         
