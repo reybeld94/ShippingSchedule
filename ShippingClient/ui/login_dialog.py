@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QStyle,
     QCheckBox,
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QIcon
 
 from .widgets import ModernButton, ModernLineEdit
@@ -23,7 +23,6 @@ from core.config import (
     LOGIN_WIDTH,
     LOGIN_HEIGHT,
     MODERN_FONT,
-    CONNECTION_RETRY_INTERVAL,
     ICON_PATH,
 )
 
@@ -46,13 +45,8 @@ class ModernLoginDialog(QDialog):
         self.token = None
         self.user_info = None
 
-        # Periodically check server connection
-        self.connection_timer = QTimer(self)
-        self.connection_timer.setInterval(CONNECTION_RETRY_INTERVAL)
-        self.connection_timer.timeout.connect(self.check_server_connection)
-        self.connection_timer.start()
-        # Initial check
-        self.check_server_connection()
+        # Check connection only once at startup, no periodic timer
+        self.check_server_connection_once()
     
     def setup_professional_ui(self):
         """Configurar interfaz profesional"""
@@ -245,10 +239,11 @@ class ModernLoginDialog(QDialog):
             self.username_edit.setText(self.settings_mgr.get_last_username())
             self.remember_checkbox.setChecked(True)
 
-    def check_server_connection(self):
-        """Check server connectivity and update footer indicator."""
+    def check_server_connection_once(self):
+        """Check server connectivity once without blocking UI."""
         try:
-            response = RobustApiClient(get_server_url()).get("/")
+            # CAMBIAR: crear cliente con timeout MUY corto
+            response = RobustApiClient(get_server_url(), timeout=2, max_retries=1).get("/")
             if response.is_success():
                 self.connection_indicator.setStyleSheet("color: #10B981;")
                 self.connection_text.setText("Connected")
@@ -356,6 +351,4 @@ class ModernLoginDialog(QDialog):
     
     def closeEvent(self, event):
         """Manejar evento de cierre"""
-        if hasattr(self, "connection_timer"):
-            self.connection_timer.stop()
         self.reject()
