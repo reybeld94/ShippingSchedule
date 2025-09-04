@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QMenu,
     QProgressDialog,
+    QCheckBox,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -402,6 +403,13 @@ class ModernShippingMainWindow(QMainWindow):
 
         filter_layout.addWidget(week_label)
         filter_layout.addWidget(self.week_filter)
+
+        # Filtro para elementos sin fecha de crated
+        self.uncrated_checkbox = QCheckBox("Not Crated")
+        self.uncrated_checkbox.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
+        self.uncrated_checkbox.setStyleSheet("color: #374151;")
+        self.uncrated_checkbox.stateChanged.connect(self.perform_filter)
+        filter_layout.addWidget(self.uncrated_checkbox)
         
         # Refresh button
         self.refresh_btn = ModernButton("Refresh", "secondary")
@@ -1137,7 +1145,13 @@ class ModernShippingMainWindow(QMainWindow):
                     return self.get_week_friday(ship_date.date()).strftime("%m/%d/%Y") == week_value
 
                 filtered = [s for s in filtered if match_week(s)]
-        
+
+            # Filtro para mostrar solo elementos sin crated
+            if self.uncrated_checkbox.isChecked():
+                filtered = [
+                    s for s in filtered if not (s.get("created") or "").strip()
+                ]
+
         return filtered
     
     def perform_filter(self):
