@@ -26,7 +26,7 @@ LOGIN_HEIGHT = 380
 
 # Timeouts
 REQUEST_TIMEOUT = 10
-CONNECTION_RETRY_INTERVAL = 5000  # 5 segundos
+# CONNECTION_RETRY_INTERVAL = 5000  # 5 segundos
 
 # Estilos
 # Fuente principal para la interfaz. Se puede cambiar para ajustar el estilo
