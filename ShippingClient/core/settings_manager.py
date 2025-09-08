@@ -24,12 +24,12 @@ class SettingsManager:
         self._settings.setValue("ws_url", url)
 
     def save_cell_colors(self, table_name: str, colors: dict[tuple[int, int], str]):
-        """Persist background colors for table cells."""
+        """DEPRECATED: persist colors by (row, column) for legacy support."""
         serialized = {f"{r},{c}": color for (r, c), color in colors.items()}
         self._settings.setValue(f"{table_name}_cell_colors", json.dumps(serialized))
 
     def load_cell_colors(self, table_name: str) -> dict[tuple[int, int], str]:
-        """Retrieve stored background colors for table cells."""
+        """DEPRECATED: retrieve colors stored by (row, column)."""
         data = self._settings.value(f"{table_name}_cell_colors", "{}")
         try:
             raw = json.loads(data)
@@ -40,6 +40,27 @@ class SettingsManager:
             try:
                 r_str, c_str = key.split(",")
                 result[(int(r_str), int(c_str))] = color
+            except Exception:
+                continue
+        return result
+
+    def save_shipment_colors(self, table_name: str, colors: dict[tuple[int, str], str]):
+        """Persist background colors for shipment cells by (shipment_id, field_name)."""
+        serialized = {f"{sid},{field}": color for (sid, field), color in colors.items()}
+        self._settings.setValue(f"{table_name}_shipment_colors", json.dumps(serialized))
+
+    def load_shipment_colors(self, table_name: str) -> dict[tuple[int, str], str]:
+        """Retrieve stored background colors for shipment cells."""
+        data = self._settings.value(f"{table_name}_shipment_colors", "{}")
+        try:
+            raw = json.loads(data)
+        except Exception:
+            return {}
+        result: dict[tuple[int, str], str] = {}
+        for key, color in raw.items():
+            try:
+                sid_str, field = key.split(",", 1)
+                result[(int(sid_str), field)] = color
             except Exception:
                 continue
         return result
