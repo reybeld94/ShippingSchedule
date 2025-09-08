@@ -118,10 +118,10 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Manage persistent UI settings
         self.settings_mgr = SettingsManager()
-        # Loaded cell color mappings for persistence
-        self.cell_colors = {
-            "active": self.settings_mgr.load_cell_colors("active"),
-            "history": self.settings_mgr.load_cell_colors("history"),
+        # Loaded shipment color mappings for persistence
+        self.shipment_colors = {
+            "active": self.settings_mgr.load_shipment_colors("active"),
+            "history": self.settings_mgr.load_shipment_colors("history"),
         }
 
         # Cache para optimización
@@ -133,6 +133,20 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
+            1: "job_name",
+            2: "description",
+            3: "qc_release",
+            4: "qc_notes",
+            5: "created",
+            6: "ship_plan",
+            7: "shipped",
+            8: "invoice_number",
+            9: "shipping_notes",
+        }
+
+        # Mapeo de índice de columna a nombre de campo para colores
+        self.column_to_field_name = {
+            0: "job_number",
             1: "job_name",
             2: "description",
             3: "qc_release",
@@ -597,6 +611,15 @@ class ModernShippingMainWindow(QMainWindow):
             if width is not None:
                 table.setColumnWidth(i, width)
 
+    def get_shipment_id_from_row(self, table, row):
+        """Obtener shipment_id de una fila de la tabla."""
+        job_item = table.item(row, 0)
+        if job_item:
+            shipment = job_item.data(Qt.ItemDataRole.UserRole)
+            if shipment:
+                return shipment.get('id')
+        return None
+
     def show_cell_menu(self, table, name, pos):
         item = table.itemAt(pos)
         if not item:
@@ -627,13 +650,19 @@ class ModernShippingMainWindow(QMainWindow):
 
         action = menu.exec(table.viewport().mapToGlobal(pos))
         if action == update_action:
-            item.setBackground(QColor("#1E90FF"))
-            self.cell_colors[name][(item.row(), item.column())] = "#1E90FF"
-            self.save_cell_colors(name)
+            shipment_id = self.get_shipment_id_from_row(table, item.row())
+            field_name = self.column_to_field_name.get(item.column())
+            if shipment_id and field_name:
+                item.setBackground(QColor("#1E90FF"))
+                self.shipment_colors[name][(shipment_id, field_name)] = "#1E90FF"
+                self.save_shipment_colors(name)
         elif action == clear_action:
-            item.setBackground(QColor("transparent"))
-            self.cell_colors[name].pop((item.row(), item.column()), None)
-            self.save_cell_colors(name)
+            shipment_id = self.get_shipment_id_from_row(table, item.row())
+            field_name = self.column_to_field_name.get(item.column())
+            if shipment_id and field_name:
+                item.setBackground(QColor("transparent"))
+                self.shipment_colors[name].pop((shipment_id, field_name), None)
+                self.save_shipment_colors(name)
         elif action == address_action:
             job_item = table.item(row, 0)
             job_number = job_item.text() if job_item else ""
@@ -735,15 +764,31 @@ class ModernShippingMainWindow(QMainWindow):
         except Exception as e:
             self.show_error(str(e))
 
+    def save_shipment_colors(self, name):
+        """Guardar colores de shipments."""
+        self.settings_mgr.save_shipment_colors(name, self.shipment_colors[name])
+
     def save_cell_colors(self, name):
-        self.settings_mgr.save_cell_colors(name, self.cell_colors[name])
+        """DEPRECATED: Use save_shipment_colors instead."""
+        pass
 
     def apply_saved_cell_colors(self, table, name):
-        for (row, col), color in self.cell_colors.get(name, {}).items():
-            if row < table.rowCount() and col < table.columnCount():
-                item = table.item(row, col)
-                if item:
-                    item.setBackground(QColor(color))
+        """Aplicar colores guardados basados en shipment_id y field_name."""
+        for row in range(table.rowCount()):
+            shipment_id = self.get_shipment_id_from_row(table, row)
+            if not shipment_id:
+                continue
+
+            for col in range(table.columnCount()):
+                field_name = self.column_to_field_name.get(col)
+                if not field_name:
+                    continue
+
+                color = self.shipment_colors.get(name, {}).get((shipment_id, field_name))
+                if color:
+                    item = table.item(row, col)
+                    if item:
+                        item.setBackground(QColor(color))
     
     def create_professional_status_bar(self):
         """Crear status bar profesional"""
@@ -1751,6 +1796,10 @@ class ModernShippingMainWindow(QMainWindow):
     def closeEvent(self, event):
         """Manejar cierre de ventana"""
         try:
+            # Guardar colores de shipments
+            self.save_shipment_colors("active")
+            self.save_shipment_colors("history")
+
             # Guardar anchos de columnas antes de cerrar
             self.save_table_column_widths(self.active_table, "active")
             self.save_table_column_widths(self.history_table, "history")
