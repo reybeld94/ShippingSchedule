@@ -1293,6 +1293,12 @@ class ModernShippingMainWindow(QMainWindow):
             shipment['version'] = updated_data.get('version', shipment.get('version', 1) + 1)
             shipment['last_modified_by'] = self.user_info.get('id')
             job_item.setData(Qt.ItemDataRole.UserRole, shipment)
+            for dataset in (self.shipments, self._active_shipments, self._history_shipments):
+                for s in dataset:
+                    if s["id"] == shipment["id"]:
+                        s[field] = new_value
+                        s["version"] = shipment["version"]
+                        break
             self.show_toast("Changes saved successfully", color="#16A34A")
 
         try:
