@@ -61,7 +61,7 @@ class ShipmentCreate(BaseModel):
     job_name: str
     week: str = ""
     description: str = ""
-    status: str = "partial_release"
+    status: str = ""
     qc_release: str = ""
     qc_notes: str = ""
     created: str = ""
