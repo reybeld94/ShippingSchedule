@@ -129,12 +129,12 @@ class ModernLineEdit(QLineEdit):
         super().__init__()
         self.setPlaceholderText(placeholder)
         self.setMinimumHeight(40)
-        apply_scaled_font(self)
+        apply_scaled_font(self, offset=2)
         self.apply_professional_style()
 
     def apply_professional_style(self):
         """Aplicar estilo profesional al input"""
-        font_size = max(8, self.font().pointSize() + 3)
+        font_size = max(10, self.font().pointSize() + 4)
         placeholder_font_size = font_size + 2
         self.setStyleSheet(
             f"""
