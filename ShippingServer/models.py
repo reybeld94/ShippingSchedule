@@ -19,7 +19,11 @@ class User(Base):
     is_active = Column(String(10), default="active")
     
     # Relación con shipments
-    created_shipments = relationship("Shipment", back_populates="created_by_user")
+    created_shipments = relationship(
+        "Shipment",
+        back_populates="created_by_user",
+        foreign_keys="Shipment.created_by",
+    )
 
 class Shipment(Base):
     __tablename__ = "shipments"
@@ -69,7 +73,11 @@ class Shipment(Base):
     last_modified_user = relationship("User", foreign_keys=[last_modified_by])
     
     # Relaciones
-    created_by_user = relationship("User", back_populates="created_shipments")
+    created_by_user = relationship(
+        "User",
+        back_populates="created_shipments",
+        foreign_keys=[created_by],
+    )
 
     # ============ VALIDADORES DE DATOS ============
 
