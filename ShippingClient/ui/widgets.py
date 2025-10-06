@@ -135,6 +135,7 @@ class ModernLineEdit(QLineEdit):
     def apply_professional_style(self):
         """Aplicar estilo profesional al input"""
         font_size = max(8, self.font().pointSize() + 3)
+        placeholder_font_size = font_size + 2
         self.setStyleSheet(
             f"""
             QLineEdit {{
@@ -145,6 +146,10 @@ class ModernLineEdit(QLineEdit):
                 font-size: {font_size}px;
                 color: #1F2937;
                 selection-background-color: #DBEAFE;
+            }}
+            QLineEdit::placeholder {{
+                color: #9CA3AF;
+                font-size: {placeholder_font_size}px;
             }}
             QLineEdit:focus {{
                 border-color: #3B82F6;
