@@ -2,21 +2,23 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
-from typing import Iterable, Optional, Set
+from typing import Iterable, Optional, Set, Tuple
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
-    QDialog,
     QDialogButtonBox,
+    QMenu,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
+    QWidget,
+    QWidgetAction,
 )
 
 
-class DateFilterDialog(QDialog):
-    """Hierarchical date filter dialog similar to spreadsheet filters."""
+class DateFilterPopup(QMenu):
+    """Hierarchical date filter shown inline as a drop-down menu."""
 
     def __init__(
         self,
@@ -28,39 +30,47 @@ class DateFilterDialog(QDialog):
         include_blank: bool = True,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Filter Dates")
-        self.setModal(True)
-        self.resize(320, 420)
+        self.setObjectName("DateFilterPopup")
 
         self._dates = sorted(set(available_dates))
         self._has_blank = has_blank
         self._initial_selection = None if selected_dates is None else set(selected_dates)
         self._initial_blank = include_blank
+        self._accepted = False
 
-        layout = QVBoxLayout(self)
+        container = QWidget(self)
+        container.setMinimumWidth(280)
+        layout = QVBoxLayout(container)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        self.select_all_checkbox = QCheckBox("Select All")
+        self.select_all_checkbox = QCheckBox("Select All", container)
         self.select_all_checkbox.setTristate(True)
         layout.addWidget(self.select_all_checkbox)
 
-        self.tree = QTreeWidget()
+        self.tree = QTreeWidget(container)
         self.tree.setHeaderHidden(True)
         self.tree.setRootIsDecorated(True)
         self.tree.setUniformRowHeights(True)
         layout.addWidget(self.tree)
 
         if self._has_blank:
-            self.blank_checkbox = QCheckBox("Blanks")
+            self.blank_checkbox = QCheckBox("Blanks", container)
             layout.addWidget(self.blank_checkbox)
         else:
             self.blank_checkbox = None
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=container,
+        )
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self._reject)
         layout.addWidget(buttons)
+
+        action = QWidgetAction(self)
+        action.setDefaultWidget(container)
+        self.addAction(action)
 
         self._populate_tree()
         self._connect_signals()
@@ -252,3 +262,21 @@ class DateFilterDialog(QDialog):
 
         for idx in range(item.childCount()):
             self._collect_checked_dates(item.child(idx), result)
+
+    def exec_at(self, global_pos: QPoint) -> Optional[Tuple[Optional[Set[date]], bool]]:
+        """Show the popup at the requested position and return the selection."""
+
+        self._accepted = False
+        # Block until the menu is hidden
+        self.exec(global_pos)
+        if self._accepted:
+            return self.get_filter_result()
+        return None
+
+    def _accept(self) -> None:
+        self._accepted = True
+        self.close()
+
+    def _reject(self) -> None:
+        self._accepted = False
+        self.close()

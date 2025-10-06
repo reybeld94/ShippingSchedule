@@ -36,10 +36,10 @@ class DateFilterHeader(QHeaderView):
         if logical in self._filter_columns:
             section_rect = self._section_rect(logical)
             if event.button() == Qt.MouseButton.LeftButton:
-                if event.position().x() >= section_rect.right() - self._indicator_width:
-                    self.filter_requested.emit(logical, self.mapToGlobal(section_rect.bottomRight()))
-                    event.accept()
-                    return
+                super().mousePressEvent(event)
+                self.filter_requested.emit(logical, self.mapToGlobal(section_rect.bottomRight()))
+                event.accept()
+                return
             elif event.button() == Qt.MouseButton.RightButton:
                 self.filter_requested.emit(logical, self.mapToGlobal(event.pos()))
                 event.accept()
