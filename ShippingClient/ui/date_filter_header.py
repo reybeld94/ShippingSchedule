@@ -33,17 +33,10 @@ class DateFilterHeader(QHeaderView):
 
     def mousePressEvent(self, event):
         logical = self.logicalIndexAt(event.pos())
-        if logical in self._filter_columns:
-            section_rect = self._section_rect(logical)
-            if event.button() == Qt.MouseButton.LeftButton:
-                super().mousePressEvent(event)
-                self.filter_requested.emit(logical, self.mapToGlobal(section_rect.bottomRight()))
-                event.accept()
-                return
-            elif event.button() == Qt.MouseButton.RightButton:
-                self.filter_requested.emit(logical, self.mapToGlobal(event.pos()))
-                event.accept()
-                return
+        if logical in self._filter_columns and event.button() == Qt.MouseButton.RightButton:
+            self.filter_requested.emit(logical, self.mapToGlobal(event.pos()))
+            event.accept()
+            return
         super().mousePressEvent(event)
 
     def paintSection(self, painter: QPainter, rect: QRect, logicalIndex: int) -> None:
