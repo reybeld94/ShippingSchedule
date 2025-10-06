@@ -113,8 +113,15 @@ class ModernButton(QPushButton):
         from PyQt6.QtCore import QEvent
 
         if event.type() == QEvent.Type.FontChange:
-            apply_scaled_font(self, weight=QFont.Weight.Medium)
-            self.apply_professional_style()
+            if getattr(self, "_handling_font_change", False):
+                super().changeEvent(event)
+                return
+            self._handling_font_change = True
+            try:
+                apply_scaled_font(self, weight=QFont.Weight.Medium)
+                self.apply_professional_style()
+            finally:
+                self._handling_font_change = False
         super().changeEvent(event)
 
 class ModernLineEdit(QLineEdit):
@@ -160,8 +167,15 @@ class ModernLineEdit(QLineEdit):
         from PyQt6.QtCore import QEvent
 
         if event.type() == QEvent.Type.FontChange:
-            apply_scaled_font(self)
-            self.apply_professional_style()
+            if getattr(self, "_handling_font_change", False):
+                super().changeEvent(event)
+                return
+            self._handling_font_change = True
+            try:
+                apply_scaled_font(self)
+                self.apply_professional_style()
+            finally:
+                self._handling_font_change = False
         super().changeEvent(event)
 
 class ModernComboBox(QComboBox):
@@ -239,8 +253,15 @@ class ModernComboBox(QComboBox):
         from PyQt6.QtCore import QEvent
 
         if event.type() == QEvent.Type.FontChange:
-            apply_scaled_font(self)
-            self.apply_professional_style()
+            if getattr(self, "_handling_font_change", False):
+                super().changeEvent(event)
+                return
+            self._handling_font_change = True
+            try:
+                apply_scaled_font(self)
+                self.apply_professional_style()
+            finally:
+                self._handling_font_change = False
         super().changeEvent(event)
 
 class ProfessionalCard(QFrame):
