@@ -17,6 +17,23 @@ from PyQt6.QtWidgets import (
 )
 
 
+class SelectAllCheckBox(QCheckBox):
+    """Tri-state checkbox that only toggles between checked and unchecked."""
+
+    def __init__(self, label: str, parent: QWidget | None = None) -> None:
+        super().__init__(label, parent)
+        self.setTristate(True)
+
+    def nextCheckState(self) -> None:  # noqa: D401
+        """Toggle directly between checked and unchecked states."""
+
+        current = self.checkState()
+        if current == Qt.CheckState.Checked:
+            self.setCheckState(Qt.CheckState.Unchecked)
+        else:
+            self.setCheckState(Qt.CheckState.Checked)
+
+
 class DateFilterPopup(QMenu):
     """Hierarchical date filter shown inline as a drop-down menu."""
 
@@ -44,8 +61,7 @@ class DateFilterPopup(QMenu):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        self.select_all_checkbox = QCheckBox("Select All", container)
-        self.select_all_checkbox.setTristate(True)
+        self.select_all_checkbox = SelectAllCheckBox("Select All", container)
         layout.addWidget(self.select_all_checkbox)
 
         self.tree = QTreeWidget(container)
@@ -91,14 +107,16 @@ class DateFilterPopup(QMenu):
             year_item = QTreeWidgetItem(self.tree)
             year_item.setText(0, str(year))
             year_item.setFlags(
-                year_item.flags() | Qt.ItemFlag.ItemIsAutoTristate | Qt.ItemFlag.ItemIsUserCheckable
+                (year_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                & ~Qt.ItemFlag.ItemIsAutoTristate
             )
 
             for month in sorted(dates_by_year[year].keys(), reverse=True):
                 month_item = QTreeWidgetItem(year_item)
                 month_item.setText(0, date(year, month, 1).strftime("%B"))
                 month_item.setFlags(
-                    month_item.flags() | Qt.ItemFlag.ItemIsAutoTristate | Qt.ItemFlag.ItemIsUserCheckable
+                    (month_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    & ~Qt.ItemFlag.ItemIsAutoTristate
                 )
 
                 for dt in sorted(dates_by_year[year][month], reverse=True):

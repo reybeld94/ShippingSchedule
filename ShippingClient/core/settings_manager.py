@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, date
 from PyQt6.QtCore import QSettings
 
 
@@ -63,6 +64,56 @@ class SettingsManager:
                 result[(int(sid_str), field)] = color
             except Exception:
                 continue
+        return result
+
+    def save_date_filters(self, table_name: str, filters: dict[int, dict[str, object]]) -> None:
+        """Persist applied date filters for a table."""
+
+        serialized: dict[str, dict[str, object]] = {}
+        for column, data in filters.items():
+            dates = data.get("dates", set())
+            include_blank = bool(data.get("include_blank", True))
+            date_values = []
+            for dt in sorted(dates):
+                if isinstance(dt, date):
+                    date_values.append(dt.isoformat())
+            serialized[str(column)] = {
+                "dates": date_values,
+                "include_blank": include_blank,
+            }
+
+        self._settings.setValue(f"{table_name}_date_filters", json.dumps(serialized))
+
+    def load_date_filters(self, table_name: str) -> dict[int, dict[str, object]]:
+        """Retrieve previously applied date filters for a table."""
+
+        data = self._settings.value(f"{table_name}_date_filters", "{}")
+        try:
+            raw = json.loads(data)
+        except Exception:
+            return {}
+
+        result: dict[int, dict[str, object]] = {}
+        for column_str, payload in raw.items():
+            try:
+                column = int(column_str)
+            except (TypeError, ValueError):
+                continue
+
+            date_values = set()
+            for value in payload.get("dates", []):
+                try:
+                    parsed = datetime.strptime(value, "%Y-%m-%d").date()
+                except (TypeError, ValueError):
+                    continue
+                date_values.add(parsed)
+
+            include_blank = bool(payload.get("include_blank", True))
+            result[column] = {
+                "dates": date_values,
+                "include_blank": include_blank,
+            }
+
         return result
 
     def save_column_widths(self, table_name: str, widths: list[int]):

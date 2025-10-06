@@ -1,6 +1,6 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import json
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 import os
 import textwrap
 from html import escape
@@ -26,7 +26,6 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QMenu,
     QProgressDialog,
-    QCheckBox,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -40,7 +39,7 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
 
 # Imports locales
-from .widgets import ModernButton, ModernLineEdit, ModernComboBox
+from .widgets import ModernButton, ModernLineEdit
 from .date_delegate import DateDelegate
 from .date_filter_dialog import DateFilterPopup
 from .date_filter_header import DateFilterHeader
@@ -131,9 +130,11 @@ class ModernShippingMainWindow(QMainWindow):
         self._active_shipments = []
         self._history_shipments = []
         self._last_filter_text = ""
-        self._last_status_filter = "All Status"
         self._tables_populated = {"active": False, "history": False}
-        self.date_filters = {"active": {}, "history": {}}
+        self.date_filters = {
+            "active": self.settings_mgr.load_date_filters("active"),
+            "history": self.settings_mgr.load_date_filters("history"),
+        }
         self.date_filter_headers = {}
 
         # Mapa de columna a campo de API para ediciones inline
@@ -391,45 +392,6 @@ class ModernShippingMainWindow(QMainWindow):
         search_layout.addWidget(search_label)
         search_layout.addWidget(self.search_edit)
         
-        # Filtro por status
-        filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(8)
-        
-        filter_label = QLabel("Status:")
-        filter_label.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
-        filter_label.setStyleSheet("color: #374151;")
-        
-        self.status_filter = ModernComboBox()
-        self.status_filter.addItems([
-            "All Status",
-            "Final Release",
-            "Partial Release",
-            "Rejected"
-        ])
-        self.status_filter.currentTextChanged.connect(self.perform_filter)
-        
-        filter_layout.addWidget(filter_label)
-        filter_layout.addWidget(self.status_filter)
-
-        # Filtro por semana
-        week_label = QLabel("Week:")
-        week_label.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
-        week_label.setStyleSheet("color: #374151;")
-
-        self.week_filter = ModernComboBox()
-        self.populate_week_filter()
-        self.week_filter.currentTextChanged.connect(self.perform_filter)
-
-        filter_layout.addWidget(week_label)
-        filter_layout.addWidget(self.week_filter)
-
-        # Filtro para elementos sin fecha de crated
-        self.uncrated_checkbox = QCheckBox("Not Crated")
-        self.uncrated_checkbox.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
-        self.uncrated_checkbox.setStyleSheet("color: #374151;")
-        self.uncrated_checkbox.stateChanged.connect(self.perform_filter)
-        filter_layout.addWidget(self.uncrated_checkbox)
-        
         # Refresh button
         self.refresh_btn = ModernButton("Refresh", "secondary")
         self.refresh_btn.clicked.connect(self.load_shipments_async)
@@ -443,7 +405,6 @@ class ModernShippingMainWindow(QMainWindow):
         toolbar_layout.addWidget(self.delete_btn)
         toolbar_layout.addWidget(separator)
         toolbar_layout.addLayout(search_layout)
-        toolbar_layout.addLayout(filter_layout)
         toolbar_layout.addStretch()
         if self.is_admin:
             self.user_btn = ModernButton("Users", "secondary")
@@ -646,6 +607,8 @@ class ModernShippingMainWindow(QMainWindow):
             selected_dates = current_filter.get("dates")
             include_blank = current_filter.get("include_blank", True)
 
+        table_filters = self.date_filters.setdefault(name, {})
+
         popup = DateFilterPopup(
             self,
             available_dates=date_values,
@@ -664,24 +627,29 @@ class ModernShippingMainWindow(QMainWindow):
 
         header = self.date_filter_headers.get(name)
         if selected is None and include_blank_selection:
-            if column in self.date_filters.get(name, {}):
-                self.date_filters[name].pop(column, None)
+            if column in table_filters:
+                table_filters.pop(column, None)
             if header:
                 header.set_filter_active(column, False)
         else:
-            if name not in self.date_filters:
-                self.date_filters[name] = {}
             if selected is None:
                 # All dates selected but blanks filtered out
                 selected = set(date_values)
-            self.date_filters[name][column] = {
+            table_filters[column] = {
                 "dates": set(selected),
                 "include_blank": include_blank_selection,
             }
             if header:
                 header.set_filter_active(column, True)
 
+        self.persist_date_filters(name)
         self.apply_date_filters_to_table(table, name)
+
+    def persist_date_filters(self, name):
+        """Persist current date filter configuration for a table."""
+
+        filters = self.date_filters.get(name, {})
+        self.settings_mgr.save_date_filters(name, filters)
 
     def collect_column_dates(self, table, column):
         """Gather unique date values from a table column."""
@@ -965,33 +933,6 @@ class ModernShippingMainWindow(QMainWindow):
             }}
         """)
 
-    # ==== Week filter helpers ====
-    def populate_week_filter(self):
-        """Populate week dropdown with current and next 2 Fridays"""
-        self.week_filter.clear()
-        self.week_filter.addItem("All Weeks", None)
-        for friday in self.generate_week_options():
-            label = friday.strftime("Week: %m/%d/%Y")
-            self.week_filter.addItem(label, friday.strftime("%m/%d/%Y"))
-
-    def generate_week_options(self):
-        today = datetime.now().date()
-        days_until_friday = (4 - today.weekday()) % 7
-        current_friday = today + timedelta(days=days_until_friday)
-        return [current_friday + timedelta(days=7 * i) for i in range(3)]
-
-    def get_week_friday(self, date_obj):
-        days_until_friday = (4 - date_obj.weekday()) % 7
-        return date_obj + timedelta(days=days_until_friday)
-
-    def parse_date(self, date_str):
-        for fmt in ("%m/%d/%y", "%m/%d/%Y"):
-            try:
-                return datetime.strptime(date_str, fmt)
-            except (ValueError, TypeError):
-                continue
-        return None
-
     # Resto de métodos permanecen igual pero con ajustes menores para status
     def setup_websocket(self):
         """Configurar cliente WebSocket"""
@@ -1055,22 +996,19 @@ class ModernShippingMainWindow(QMainWindow):
         """Manejar cambio de tab optimizado"""
         print(f"Cambio de tab: {index}")
         if index == 0:  # Active tab
-            self.status_filter.setEnabled(True)
-            self.week_filter.setEnabled(True)
-            self.add_btn.setEnabled(True)
-            
             if not self._tables_populated["active"]:
                 self.populate_active_table()
                 self._tables_populated["active"] = True
+            if not self.read_only:
+                self.add_btn.setEnabled(True)
         else:  # History tab
-            self.status_filter.setEnabled(False)
-            self.week_filter.setEnabled(False)
-            
             print("Abriendo tab de historial")
             if not self._tables_populated["history"]:
                 self.populate_history_table()
                 self._tables_populated["history"] = True
-        
+            if not self.read_only:
+                self.add_btn.setEnabled(False)
+
         self.update_status()
         self.on_selection_changed()
     
@@ -1287,7 +1225,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         # La altura de las filas se ajusta al finalizar el poblado completo
 
-    def apply_filters_to_shipments(self, shipments, is_active=True):
+    def apply_filters_to_shipments(self, shipments, _is_active=True):
         """Aplicar filtros"""
         filtered = shipments
         
@@ -1305,36 +1243,6 @@ class ModernShippingMainWindow(QMainWindow):
                 or search_text in safe_lower(s.get("status"))
             ]
         
-        # Filtro de status (solo para active)
-        if is_active:
-            status_filter = self.status_filter.currentText()
-            if status_filter != "All Status":
-                # Mapear texto del combo a valor real
-                status_map = {
-                    "Final Release": "final_release",
-                    "Partial Release": "partial_release",
-                    "Rejected": "rejected"
-                }
-                actual_status = status_map.get(status_filter, status_filter)
-                filtered = [s for s in filtered if s.get("status") == actual_status]
-
-            # Filtro de semana
-            week_value = self.week_filter.currentData()
-            if week_value:
-                def match_week(ship):
-                    ship_date = self.parse_date(ship.get("ship_plan", ""))
-                    if not ship_date:
-                        return False
-                    return self.get_week_friday(ship_date.date()).strftime("%m/%d/%Y") == week_value
-
-                filtered = [s for s in filtered if match_week(s)]
-
-            # Filtro para mostrar solo elementos sin crated
-            if self.uncrated_checkbox.isChecked():
-                filtered = [
-                    s for s in filtered if not (s.get("created") or "").strip()
-                ]
-
         return filtered
     
     def perform_filter(self):
