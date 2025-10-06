@@ -135,6 +135,7 @@ class ModernShippingMainWindow(QMainWindow):
             "active": self.settings_mgr.load_date_filters("active"),
             "history": self.settings_mgr.load_date_filters("history"),
         }
+        self._base_header_labels: dict[str, list[str]] = {}
         self.date_filter_headers = {}
 
         # Mapa de columna a campo de API para ediciones inline
@@ -500,6 +501,7 @@ class ModernShippingMainWindow(QMainWindow):
         
         table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
+        self._base_header_labels[name] = list(columns)
 
         date_columns = self.get_date_filter_columns(name)
         header = DateFilterHeader(table, date_columns)
@@ -575,8 +577,9 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Restaurar estado visual de filtros si ya existen
         existing_filters = self.date_filters.get(name, {})
-        for column in existing_filters:
+        for column, data in existing_filters.items():
             header.set_filter_active(column, True)
+            self.update_header_filter_state(table, name, column, True, data)
 
     def save_table_column_widths(self, table, name):
         """Guardar anchos actuales de la tabla."""
@@ -589,6 +592,48 @@ class ModernShippingMainWindow(QMainWindow):
         for i, width in enumerate(widths):
             if width is not None:
                 table.setColumnWidth(i, width)
+
+    def update_header_filter_state(self, table, name, column, active, filter_data=None):
+        """Update the visual indicator of a column header when a filter is applied."""
+
+        base_labels = self._base_header_labels.get(name)
+        if not base_labels or column >= len(base_labels):
+            return
+
+        header_item = table.horizontalHeaderItem(column)
+        if header_item is None:
+            return
+
+        base_text = base_labels[column]
+        header_item.setText(f"{base_text} (Filtered)" if active else base_text)
+        header_item.setForeground(QBrush(QColor("#1D4ED8" if active else "#000000")))
+
+        if active:
+            tooltip = self._build_column_filter_tooltip(filter_data)
+            header_item.setToolTip(tooltip)
+        else:
+            header_item.setToolTip("")
+
+    def _build_column_filter_tooltip(self, filter_data):
+        if not filter_data:
+            return "Filter applied"
+
+        dates = filter_data.get("dates") if isinstance(filter_data, dict) else None
+        if not dates:
+            date_summary = "No specific dates selected"
+        else:
+            sorted_dates = sorted(dates)
+            preview = [dt.strftime("%b %d, %Y") for dt in sorted_dates[:5]]
+            if len(sorted_dates) > 5:
+                preview.append(f"(+{len(sorted_dates) - 5} more)")
+            date_summary = ", ".join(preview)
+
+        include_blank = True
+        if isinstance(filter_data, dict):
+            include_blank = bool(filter_data.get("include_blank", True))
+
+        blank_text = "Including blanks" if include_blank else "Excluding blanks"
+        return f"Dates: {date_summary}\n{blank_text}"
 
     def get_date_filter_columns(self, name):
         """Return the indices of columns that support the date filter."""
@@ -631,6 +676,7 @@ class ModernShippingMainWindow(QMainWindow):
                 table_filters.pop(column, None)
             if header:
                 header.set_filter_active(column, False)
+            self.update_header_filter_state(table, name, column, False)
         else:
             if selected is None:
                 # All dates selected but blanks filtered out
@@ -641,6 +687,7 @@ class ModernShippingMainWindow(QMainWindow):
             }
             if header:
                 header.set_filter_active(column, True)
+            self.update_header_filter_state(table, name, column, True, table_filters[column])
 
         self.persist_date_filters(name)
         self.apply_date_filters_to_table(table, name)
