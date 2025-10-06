@@ -1436,10 +1436,26 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         old_value = shipment.get(field, "") or ""
+        if isinstance(old_value, str):
+            old_value = old_value.strip()
+
         new_value = item.data(Qt.ItemDataRole.EditRole)
+        if new_value is None:
+            new_value = ""
+        if isinstance(new_value, str):
+            new_value = new_value.strip()
+
+        # Normalizar valores para campos de fecha (permitiendo marcador "-")
+        date_fields = {"qc_release", "created", "ship_plan", "shipped"}
+        if field in date_fields and isinstance(new_value, str) and new_value == "-":
+            new_value = ""
 
         if new_value == (old_value or ""):  # No real changes
             return
+
+        # Asegurar que el valor mostrado coincida con el guardado
+        if field in date_fields and not new_value:
+            item.setText("-")
 
         def update_local_data(updated_data):
             """Helper to update local data consistently"""
