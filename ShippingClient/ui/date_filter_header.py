@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QPoint, QRect, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter
+from PyQt6.QtCore import QPoint, QPointF, QRect, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QHeaderView
 
 
@@ -45,16 +45,26 @@ class DateFilterHeader(QHeaderView):
             return
 
         painter.save()
-        color = QColor("#1F2937" if logicalIndex in self._active_filters else "#6B7280")
-        painter.setPen(color)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        icon_text = "🔽"
-        text_rect = rect.adjusted(0, 0, -4, 0)
-        painter.drawText(
-            text_rect,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-            icon_text,
-        )
+        color = QColor("#1F2937" if logicalIndex in self._active_filters else "#6B7280")
+        painter.setBrush(color)
+        painter.setPen(QPen(Qt.PenStyle.NoPen))
+
+        indicator_width = min(self._indicator_width, rect.width())
+        indicator_height = max(4, rect.height() // 4)
+
+        right_margin = 6
+        left = rect.right() - indicator_width - right_margin
+        top = rect.center().y() - indicator_height / 2
+
+        points = [
+            QPointF(left, top),
+            QPointF(left + indicator_width, top),
+            QPointF(left + indicator_width / 2, top + indicator_height),
+        ]
+
+        painter.drawPolygon(points)
         painter.restore()
 
     def _section_rect(self, logical: int) -> QRect:
