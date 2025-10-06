@@ -1,6 +1,6 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import os
 import textwrap
 from html import escape
@@ -35,12 +35,15 @@ from PyQt6.QtCore import (
     pyqtSignal,
     QStandardPaths,
     QUrl,
+    QPoint,
 )
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
 from .date_delegate import DateDelegate
+from .date_filter_dialog import DateFilterDialog
+from .date_filter_header import DateFilterHeader
 from .settings_dialog import SettingsDialog
 from core.websocket_client import WebSocketClient
 from core.config import (
@@ -130,6 +133,8 @@ class ModernShippingMainWindow(QMainWindow):
         self._last_filter_text = ""
         self._last_status_filter = "All Status"
         self._tables_populated = {"active": False, "history": False}
+        self.date_filters = {"active": {}, "history": {}}
+        self.date_filter_headers = {}
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -534,6 +539,14 @@ class ModernShippingMainWindow(QMainWindow):
         
         table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
+
+        date_columns = self.get_date_filter_columns(name)
+        header = DateFilterHeader(table, date_columns)
+        table.setHorizontalHeader(header)
+        header.filter_requested.connect(
+            lambda column, pos, tbl=table, nm=name: self.open_date_filter_dialog(tbl, nm, column, pos)
+        )
+        self.date_filter_headers[name] = header
         
         # Estilo profesional para la tabla
         table.setStyleSheet(f"""
@@ -599,6 +612,11 @@ class ModernShippingMainWindow(QMainWindow):
         table.setSortingEnabled(True)
         header.setSortIndicatorShown(True)
 
+        # Restaurar estado visual de filtros si ya existen
+        existing_filters = self.date_filters.get(name, {})
+        for column in existing_filters:
+            header.set_filter_active(column, True)
+
     def save_table_column_widths(self, table, name):
         """Guardar anchos actuales de la tabla."""
         widths = [table.columnWidth(i) for i in range(table.columnCount())]
@@ -610,6 +628,123 @@ class ModernShippingMainWindow(QMainWindow):
         for i, width in enumerate(widths):
             if width is not None:
                 table.setColumnWidth(i, width)
+
+    def get_date_filter_columns(self, name):
+        """Return the indices of columns that support the date filter."""
+        return [3, 5, 6, 7]
+
+    def open_date_filter_dialog(self, table, name, column, global_pos):
+        """Open a hierarchical date filter dialog for the specified column."""
+        date_values, has_blank = self.collect_column_dates(table, column)
+        if not date_values and not has_blank:
+            return
+
+        current_filter = self.date_filters.get(name, {}).get(column)
+        selected_dates = None
+        include_blank = True
+        if current_filter:
+            selected_dates = current_filter.get("dates")
+            include_blank = current_filter.get("include_blank", True)
+
+        dialog = DateFilterDialog(
+            self,
+            available_dates=date_values,
+            has_blank=has_blank,
+            selected_dates=selected_dates,
+            include_blank=include_blank,
+        )
+
+        size_hint = dialog.sizeHint()
+        dialog.move(global_pos.x() - size_hint.width(), global_pos.y())
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            result, include_blank_selection = dialog.get_filter_result()
+
+            header = self.date_filter_headers.get(name)
+            if result is None and include_blank_selection:
+                if column in self.date_filters.get(name, {}):
+                    self.date_filters[name].pop(column, None)
+                if header:
+                    header.set_filter_active(column, False)
+            else:
+                if name not in self.date_filters:
+                    self.date_filters[name] = {}
+                if result is None:
+                    # All dates selected but blanks filtered out
+                    result = set(date_values)
+                self.date_filters[name][column] = {
+                    "dates": set(result),
+                    "include_blank": include_blank_selection,
+                }
+                if header:
+                    header.set_filter_active(column, True)
+
+            self.apply_date_filters_to_table(table, name)
+
+    def collect_column_dates(self, table, column):
+        """Gather unique date values from a table column."""
+        dates = set()
+        has_blank = False
+        for row in range(table.rowCount()):
+            item = table.item(row, column)
+            value = item.text().strip() if item and item.text() else ""
+            parsed = self.parse_table_date_value(value)
+            if parsed:
+                dates.add(parsed)
+            else:
+                if value:
+                    # Non-empty but unparsable values treated as blanks for filtering
+                    has_blank = True
+                else:
+                    has_blank = True
+        return sorted(dates), has_blank
+
+    def parse_table_date_value(self, value):
+        """Parse a date value from table text."""
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+
+        text = str(value).strip()
+        if not text or text in {"-", "--", "None", "null"}:
+            return None
+
+        for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(text, fmt).date()
+            except ValueError:
+                continue
+        return None
+
+    def apply_date_filters_to_table(self, table, name):
+        """Apply the configured date filters to the given table."""
+        active_filters = self.date_filters.get(name, {})
+        if not active_filters:
+            for row in range(table.rowCount()):
+                table.setRowHidden(row, False)
+            return
+
+        for row in range(table.rowCount()):
+            visible = True
+            for column, filter_data in active_filters.items():
+                if not self.row_matches_date_filter(table, row, column, filter_data):
+                    visible = False
+                    break
+            table.setRowHidden(row, not visible)
+
+    def row_matches_date_filter(self, table, row, column, filter_data):
+        item = table.item(row, column)
+        text = item.text().strip() if item and item.text() else ""
+        parsed = self.parse_table_date_value(text)
+
+        if parsed is None:
+            return filter_data.get("include_blank", True)
+
+        allowed_dates = filter_data.get("dates")
+        if not allowed_dates:
+            return False
+        return parsed in allowed_dates
 
     def get_shipment_id_from_row(self, table, row):
         """Obtener shipment_id de una fila de la tabla."""
@@ -1074,6 +1209,7 @@ class ModernShippingMainWindow(QMainWindow):
                 table.sortItems(sort_col, sort_order)
 
             self.apply_saved_cell_colors(table, "active" if is_active else "history")
+            self.apply_date_filters_to_table(table, "active" if is_active else "history")
 
             # El ajuste de filas a su contenido puede ser costoso para miles de
             # registros. Dejamos un tamaño fijo establecido en la configuración
@@ -1300,6 +1436,8 @@ class ModernShippingMainWindow(QMainWindow):
                         s["version"] = shipment["version"]
                         break
             self.show_toast("Changes saved successfully", color="#16A34A")
+            table_name = "active" if table is self.active_table else "history"
+            self.apply_date_filters_to_table(table, table_name)
 
         try:
             # Intentar con versión actual
