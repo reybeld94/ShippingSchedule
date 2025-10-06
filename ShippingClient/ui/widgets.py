@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 from core.config import MODERN_FONT
+from .utils import apply_scaled_font
 
 class ModernButton(QPushButton):
     def __init__(self, text, button_type="primary"):
@@ -17,9 +18,9 @@ class ModernButton(QPushButton):
         self.button_type = button_type
         self.setMinimumHeight(40)
         self.setMinimumWidth(100)
-        self.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
+        apply_scaled_font(self, weight=QFont.Weight.Medium)
         self.apply_professional_style()
-    
+
     def apply_professional_style(self):
         """Aplicar estilos profesionales según el tipo de botón"""
         base_style = """
@@ -105,91 +106,112 @@ class ModernButton(QPushButton):
                     background-color: #B45309;
                 }
             """
-        
+
         self.setStyleSheet(style)
+
+    def changeEvent(self, event):  # type: ignore[override]
+        from PyQt6.QtCore import QEvent
+
+        if event.type() == QEvent.Type.FontChange:
+            apply_scaled_font(self, weight=QFont.Weight.Medium)
+            self.apply_professional_style()
+        super().changeEvent(event)
 
 class ModernLineEdit(QLineEdit):
     def __init__(self, placeholder=""):
         super().__init__()
         self.setPlaceholderText(placeholder)
         self.setMinimumHeight(40)
-        self.setFont(QFont(MODERN_FONT, 10))
+        apply_scaled_font(self)
         self.apply_professional_style()
-    
+
     def apply_professional_style(self):
         """Aplicar estilo profesional al input"""
-        self.setStyleSheet("""
-            QLineEdit {
+        font_size = max(8, self.font().pointSize() + 3)
+        self.setStyleSheet(
+            f"""
+            QLineEdit {{
                 background: #FFFFFF;
                 border: 1px solid #D1D5DB;
                 border-radius: 6px;
                 padding: 10px 14px;
-                font-size: 13px;
+                font-size: {font_size}px;
                 color: #1F2937;
                 selection-background-color: #DBEAFE;
-            }
-            QLineEdit:focus {
+            }}
+            QLineEdit:focus {{
                 border-color: #3B82F6;
                 background: #FFFFFF;
                 outline: none;
-                
-            }
-            QLineEdit:hover {
+
+            }}
+            QLineEdit:hover {{
                 border-color: #9CA3AF;
-            }
-            QLineEdit:disabled {
+            }}
+            QLineEdit:disabled {{
                 background-color: #F9FAFB;
                 color: #6B7280;
                 border-color: #E5E7EB;
-            }
-        """)
+            }}
+        """
+        )
+
+    def changeEvent(self, event):  # type: ignore[override]
+        from PyQt6.QtCore import QEvent
+
+        if event.type() == QEvent.Type.FontChange:
+            apply_scaled_font(self)
+            self.apply_professional_style()
+        super().changeEvent(event)
 
 class ModernComboBox(QComboBox):
     def __init__(self):
         super().__init__()
         self.setMinimumHeight(40)
-        self.setFont(QFont(MODERN_FONT, 10))
+        apply_scaled_font(self)
         self.apply_professional_style()
-    
+
     def apply_professional_style(self):
         """Aplicar estilo profesional al combobox"""
-        self.setStyleSheet("""
-            QComboBox {
+        font_size = max(8, self.font().pointSize() + 3)
+        self.setStyleSheet(
+            f"""
+            QComboBox {{
                 background: #FFFFFF;
                 border: 1px solid #D1D5DB;
                 border-radius: 6px;
                 padding: 10px 14px;
-                font-size: 13px;
+                font-size: {font_size}px;
                 color: #1F2937;
                 min-width: 140px;
                 selection-background-color: #DBEAFE;
-            }
-            QComboBox:focus {
+            }}
+            QComboBox:focus {{
                 border-color: #3B82F6;
                 outline: none;
-            }
-            QComboBox:hover {
+            }}
+            QComboBox:hover {{
                 border-color: #9CA3AF;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox::drop-down {{
                 border: none;
                 width: 30px;
                 background: transparent;
-            }
-            QComboBox::down-arrow {
+            }}
+            QComboBox::down-arrow {{
                 image: none;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
                 border-top: 6px solid #6B7280;
                 margin-right: 8px;
-            }
-            QComboBox:on {
+            }}
+            QComboBox:on {{
                 border-color: #3B82F6;
-            }
-            QComboBox::down-arrow:on {
+            }}
+            QComboBox::down-arrow:on {{
                 border-top-color: #3B82F6;
-            }
-            QComboBox QAbstractItemView {
+            }}
+            QComboBox QAbstractItemView {{
                 border: 1px solid #D1D5DB;
                 border-radius: 6px;
                 background: #FFFFFF;
@@ -197,20 +219,29 @@ class ModernComboBox(QComboBox):
                 selection-color: #1F2937;
                 padding: 4px;
                 outline: none;
-            }
-            QComboBox QAbstractItemView::item {
+            }}
+            QComboBox QAbstractItemView::item {{
                 padding: 8px 12px;
                 border-radius: 4px;
                 margin: 1px;
-            }
-            QComboBox QAbstractItemView::item:selected {
+            }}
+            QComboBox QAbstractItemView::item:selected {{
                 background-color: #EFF6FF;
                 color: #1F2937;
-            }
-            QComboBox QAbstractItemView::item:hover {
+            }}
+            QComboBox QAbstractItemView::item:hover {{
                 background-color: #F3F4F6;
-            }
-        """)
+            }}
+        """
+        )
+
+    def changeEvent(self, event):  # type: ignore[override]
+        from PyQt6.QtCore import QEvent
+
+        if event.type() == QEvent.Type.FontChange:
+            apply_scaled_font(self)
+            self.apply_professional_style()
+        super().changeEvent(event)
 
 class ProfessionalCard(QFrame):
     """Widget de tarjeta profesional para agrupar contenido"""
@@ -227,7 +258,7 @@ class ProfessionalCard(QFrame):
         # Título si se proporciona
         if title:
             self.title_label = QLabel(title)
-            self.title_label.setFont(QFont(MODERN_FONT, 14, QFont.Weight.DemiBold))
+            apply_scaled_font(self.title_label, offset=4, weight=QFont.Weight.DemiBold)
             self.title_label.setStyleSheet("color: #1F2937; margin-bottom: 8px;")
             self.card_layout.addWidget(self.title_label)
     
@@ -255,7 +286,7 @@ class StatusBadge(QLabel):
         super().__init__(text)
         self.status_type = status_type
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setFont(QFont(MODERN_FONT, 9, QFont.Weight.Medium))
+        apply_scaled_font(self, offset=-1, weight=QFont.Weight.Medium)
         self.apply_badge_style()
     
     def apply_badge_style(self):
@@ -342,13 +373,16 @@ class ProfessionalSpinner(QLabel):
         
         # Crear animación simple con texto
         self.setText("●")
-        self.setStyleSheet(f"""
+        font_size = max(6, self.font().pointSize() - 2)
+        self.setStyleSheet(
+            f"""
             QLabel {{
                 color: #3B82F6;
-                font-size: {size-5}px;
+                font-size: {font_size}px;
                 font-weight: bold;
             }}
-        """)
+        """
+        )
     
     def start_animation(self):
         """Iniciar animación (simplificada)"""

@@ -136,6 +136,18 @@ class SettingsManager:
         self._settings.endGroup()
         return widths
 
+    def get_font_size(self) -> int:
+        """Return the preferred application font size or the default value."""
+        value = self._settings.value("font_size", 10)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 10
+
+    def set_font_size(self, size: int) -> None:
+        """Persist the preferred application font size."""
+        self._settings.setValue("font_size", int(size))
+
     def get_last_username(self) -> str:
         """Return the last used username or empty string."""
         return self._settings.value("last_username", "")

@@ -4,11 +4,12 @@ from datetime import datetime, date
 import os
 import textwrap
 from html import escape
-from .utils import show_popup_notification
+from .utils import show_popup_notification, apply_scaled_font, refresh_scaled_fonts, get_base_font_size
 from core.settings_manager import SettingsManager
 from core.api_client import RobustApiClient
 from core.mie_trak_client import get_mie_trak_address
 from PyQt6.QtWidgets import (
+    QApplication,
     QMainWindow,
     QWidget,
     QVBoxLayout,
@@ -177,8 +178,9 @@ class ModernShippingMainWindow(QMainWindow):
         self.showMaximized()
         try:
             self.setup_ui()
+            self.apply_global_font_preferences()
             self.setup_websocket()
-            
+
             # Cargar datos en background
             self.load_shipments_async()
             
@@ -224,6 +226,23 @@ class ModernShippingMainWindow(QMainWindow):
         except Exception as e:
             print(f"Error configurando UI: {e}")
             raise
+
+    def apply_global_font_preferences(self):
+        """Apply the persisted font size across the interface."""
+        app = QApplication.instance()
+        if app is not None:
+            base_size = self.settings_mgr.get_font_size()
+            font = app.font()
+            font.setFamily(MODERN_FONT)
+            font.setPointSize(base_size)
+            app.setFont(font)
+
+        refresh_scaled_fonts(self)
+
+        for table in getattr(self, "active_table", None), getattr(self, "history_table", None):
+            if table is not None:
+                self._apply_table_style(table)
+                self._refresh_table_item_fonts(table)
     
     def create_professional_header(self, layout):
         """Crear header profesional con logo"""
@@ -254,27 +273,30 @@ class ModernShippingMainWindow(QMainWindow):
         else:
             # Fallback: usar texto
             logo_label.setText("LOGO")
-            logo_label.setStyleSheet("""
+            fallback_size = max(8, get_base_font_size() + 2)
+            logo_label.setStyleSheet(
+                f"""
                 background-color: #374151;
                 color: white;
                 font-weight: bold;
                 padding: 15px;
                 border-radius: 4px;
-                font-size: 12px;
-            """)
+                font-size: {fallback_size}px;
+            """
+            )
             logo_label.setFixedSize(50, 50)
             logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         # Información de la aplicación
         title_layout = QVBoxLayout()
         title_layout.setSpacing(2)
-        
+
         title_label = QLabel("Shipping Schedule")
-        title_label.setFont(QFont(MODERN_FONT, 18, QFont.Weight.DemiBold))
+        apply_scaled_font(title_label, offset=8, weight=QFont.Weight.DemiBold)
         title_label.setStyleSheet("color: #1F2937; letter-spacing: -0.5px;")
-        
+
         subtitle_label = QLabel("Dashboard")
-        subtitle_label.setFont(QFont(MODERN_FONT, 11))
+        apply_scaled_font(subtitle_label, offset=1)
         subtitle_label.setStyleSheet("color: #6B7280;")
         
         title_layout.addWidget(title_label)
@@ -288,7 +310,7 @@ class ModernShippingMainWindow(QMainWindow):
         user_info_layout.setSpacing(3)
         
         user_name_label = QLabel(f"{self.user_info['username']}")
-        user_name_label.setFont(QFont(MODERN_FONT, 12, QFont.Weight.Medium))
+        apply_scaled_font(user_name_label, offset=2, weight=QFont.Weight.Medium)
         user_name_label.setStyleSheet("color: #1F2937;")
         user_name_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         
@@ -299,7 +321,7 @@ class ModernShippingMainWindow(QMainWindow):
         }
         role_text = role_map.get(self.user_info.get("role"), "Read Only")
         user_role_label = QLabel(role_text)
-        user_role_label.setFont(QFont(MODERN_FONT, 9))
+        apply_scaled_font(user_role_label, offset=-1)
         user_role_label.setStyleSheet("color: #6B7280;")
         user_role_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         
@@ -308,11 +330,11 @@ class ModernShippingMainWindow(QMainWindow):
         connection_layout.setSpacing(5)
         
         self.connection_indicator = QLabel("●")
-        self.connection_indicator.setFont(QFont("Arial", 12))
+        apply_scaled_font(self.connection_indicator, offset=2)
         self.connection_indicator.setStyleSheet("color: #10B981;")
-        
+
         connection_text = QLabel("Connected")
-        connection_text.setFont(QFont(MODERN_FONT, 9))
+        apply_scaled_font(connection_text, offset=-1)
         connection_text.setStyleSheet("color: #6B7280;")
 
         # Settings button
@@ -378,7 +400,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_layout.setSpacing(8)
         
         search_label = QLabel("Search:")
-        search_label.setFont(QFont(MODERN_FONT, 10, QFont.Weight.Medium))
+        apply_scaled_font(search_label, weight=QFont.Weight.Medium)
         search_label.setStyleSheet("color: #374151;")
         
         self.search_edit = ModernLineEdit("Search shipments...")
@@ -432,7 +454,9 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Widget de tabs
         self.tab_widget = QTabWidget()
-        self.tab_widget.setStyleSheet("""
+        tab_font_size = max(8, get_base_font_size() + 3)
+        self.tab_widget.setStyleSheet(
+            f"""
             QTabWidget::pane {
                 border: none;
                 background: #FFFFFF;
@@ -446,7 +470,7 @@ class ModernShippingMainWindow(QMainWindow):
                 border-top-left-radius: 6px;
                 border-top-right-radius: 6px;
                 font-weight: 500;
-                font-size: 13px;
+                font-size: {tab_font_size}px;
                 min-width: 120px;
                 border: 1px solid #E5E7EB;
                 border-bottom: none;
@@ -461,7 +485,8 @@ class ModernShippingMainWindow(QMainWindow):
                 background: #F3F4F6;
                 color: #374151;
             }
-        """)
+        """
+        )
         
         # Tab 1: Active Shipments
         self.active_widget = QWidget()
@@ -512,26 +537,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.date_filter_headers[name] = header
         
         # Estilo profesional para la tabla
-        table.setStyleSheet(f"""
-    QTableWidget {{
-        font-family: '{MODERN_FONT}';
-        font-size: 12px;
-        background: #FFFFFF;
-        gridline-color: #E5E7EB;
-        border: 1px solid #E5E7EB;
-    }}
-    QHeaderView::section {{
-        background-color: #E5E5E5;
-        color: #000000;
-        padding: 12px 8px;
-        border: none;
-        border-bottom: 2px solid #E5E7EB;
-        border-right: 1px solid #E5E7EB;
-        font-weight: 600;
-        font-size: 13px;
-        text-transform: uppercase;
-    }}
-        """)
+        self._apply_table_style(table)
         
         # Configuración
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -580,6 +586,52 @@ class ModernShippingMainWindow(QMainWindow):
         for column, data in existing_filters.items():
             header.set_filter_active(column, True)
             self.update_header_filter_state(table, name, column, True, data)
+
+    def _apply_table_style(self, table):
+        """Apply the dynamic table styling based on the global font size."""
+        table_font_size = max(8, get_base_font_size() + 2)
+        header_font_size = max(8, get_base_font_size() + 3)
+        table.setStyleSheet(
+            f"""
+    QTableWidget {{
+        font-family: '{MODERN_FONT}';
+        font-size: {table_font_size}px;
+        background: #FFFFFF;
+        gridline-color: #E5E7EB;
+        border: 1px solid #E5E7EB;
+    }}
+    QHeaderView::section {{
+        background-color: #E5E5E5;
+        color: #000000;
+        padding: 12px 8px;
+        border: none;
+        border-bottom: 2px solid #E5E7EB;
+        border-right: 1px solid #E5E7EB;
+        font-weight: 600;
+        font-size: {header_font_size}px;
+        text-transform: uppercase;
+    }}
+        """
+        )
+
+    def _refresh_table_item_fonts(self, table):
+        """Update table item fonts according to the active preference."""
+        base_size = get_base_font_size()
+        for row in range(table.rowCount()):
+            for col in range(table.columnCount()):
+                item = table.item(row, col)
+                if item is None:
+                    continue
+                offset = item.data(Qt.ItemDataRole.UserRole + 5)
+                try:
+                    offset_value = int(offset)
+                except (TypeError, ValueError):
+                    offset_value = 0
+
+                font = item.font()
+                font.setFamily(MODERN_FONT)
+                font.setPointSize(max(6, base_size + offset_value))
+                item.setFont(font)
 
     def save_table_column_widths(self, table, name):
         """Guardar anchos actuales de la tabla."""
@@ -949,13 +1001,16 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Widgets del status bar
         self.record_count_label = QLabel("Loading records...")
-        self.record_count_label.setStyleSheet("color: #6B7280; font-size: 11px; font-weight: 500;")
-        
+        apply_scaled_font(self.record_count_label, offset=1, weight=QFont.Weight.Medium)
+        self.record_count_label.setStyleSheet("color: #6B7280; font-weight: 500;")
+
         self.last_update_label = QLabel("Last updated: Never")
-        self.last_update_label.setStyleSheet("color: #6B7280; font-size: 11px;")
-        
+        apply_scaled_font(self.last_update_label, offset=1)
+        self.last_update_label.setStyleSheet("color: #6B7280;")
+
         self.connection_status_label = QLabel("Disconnected")
-        self.connection_status_label.setStyleSheet("color: #EF4444; font-size: 11px; font-weight: 600;")
+        apply_scaled_font(self.connection_status_label, offset=1, weight=QFont.Weight.DemiBold)
+        self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 600;")
         
         self.status_bar.addWidget(self.record_count_label)
         self.status_bar.addPermanentWidget(self.last_update_label)
@@ -998,12 +1053,12 @@ class ModernShippingMainWindow(QMainWindow):
             self.connection_indicator.setStyleSheet("color: #10B981;")
             self.connection_indicator.setToolTip("Connected - Real-time updates enabled")
             self.connection_status_label.setText("Connected")
-            self.connection_status_label.setStyleSheet("color: #10B981; font-size: 11px; font-weight: 600;")
+            self.connection_status_label.setStyleSheet("color: #10B981; font-weight: 600;")
         else:
             self.connection_indicator.setStyleSheet("color: #EF4444;")
             self.connection_indicator.setToolTip("Disconnected - Manual refresh required")
             self.connection_status_label.setText("Disconnected")
-            self.connection_status_label.setStyleSheet("color: #EF4444; font-size: 11px; font-weight: 600;")
+            self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 600;")
     
     def handle_websocket_message(self, message):
         """Manejar mensajes del WebSocket"""
@@ -1235,9 +1290,11 @@ class ModernShippingMainWindow(QMainWindow):
             else:
                 item = QTableWidgetItem(str(item_text))
                 if not is_active and col == 7 and item_text:  # Shipped en history
-                    item.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
+                    shipped_font = QFont(MODERN_FONT, max(6, get_base_font_size() + 1), QFont.Weight.Medium)
+                    item.setFont(shipped_font)
                     item.setForeground(QColor("#059669"))
-            
+                    item.setData(Qt.ItemDataRole.UserRole + 5, 1)
+
             # Alineación
             if col in [0, 8]:  # Job # e Invoice #
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1256,6 +1313,8 @@ class ModernShippingMainWindow(QMainWindow):
                 Qt.ItemDataRole.UserRole + 1,
                 item.flags().value,
             )
+            if item.data(Qt.ItemDataRole.UserRole + 5) is None:
+                item.setData(Qt.ItemDataRole.UserRole + 5, 0)
 
             table.setItem(row, col, item)
 
@@ -1582,6 +1641,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Open settings dialog to configure server URLs"""
         dlg = SettingsDialog(self.settings_mgr)
         if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.apply_global_font_preferences()
             if hasattr(self, "ws_client"):
                 self.ws_client.stop()
             self.setup_websocket()

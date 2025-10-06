@@ -6,7 +6,7 @@ from PyQt6.QtGui import QFont, QIcon
 
 # Imports locales
 from ui.login_dialog import ModernLoginDialog
-from core.config import MODERN_FONT, FONT_SIZE, ICON_PATH
+from core.config import MODERN_FONT, ICON_PATH, get_font_size
 
 def main():
     app = QApplication(sys.argv)
@@ -14,7 +14,7 @@ def main():
         app.setWindowIcon(QIcon(ICON_PATH))
 
     # Configurar fuente del sistema
-    font = QFont(MODERN_FONT, FONT_SIZE)
+    font = QFont(MODERN_FONT, get_font_size())
     app.setFont(font)
     
     # Estilo de aplicación moderno
