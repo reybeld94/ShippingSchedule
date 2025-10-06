@@ -80,17 +80,24 @@ class DateFilterDialog(QDialog):
         for year in sorted(dates_by_year.keys(), reverse=True):
             year_item = QTreeWidgetItem(self.tree)
             year_item.setText(0, str(year))
-            year_item.setFlags(year_item.flags() | Qt.ItemFlag.ItemIsTristate | Qt.ItemFlag.ItemIsUserCheckable)
+            year_item.setFlags(
+                year_item.flags() | Qt.ItemFlag.ItemIsAutoTristate | Qt.ItemFlag.ItemIsUserCheckable
+            )
 
             for month in sorted(dates_by_year[year].keys(), reverse=True):
                 month_item = QTreeWidgetItem(year_item)
                 month_item.setText(0, date(year, month, 1).strftime("%B"))
-                month_item.setFlags(month_item.flags() | Qt.ItemFlag.ItemIsTristate | Qt.ItemFlag.ItemIsUserCheckable)
+                month_item.setFlags(
+                    month_item.flags() | Qt.ItemFlag.ItemIsAutoTristate | Qt.ItemFlag.ItemIsUserCheckable
+                )
 
                 for dt in sorted(dates_by_year[year][month], reverse=True):
                     day_item = QTreeWidgetItem(month_item)
                     day_item.setText(0, dt.strftime("%b %d, %Y"))
-                    day_item.setFlags((day_item.flags() | Qt.ItemFlag.ItemIsUserCheckable) & ~Qt.ItemFlag.ItemIsTristate)
+                    day_item.setFlags(
+                        (day_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                        & ~Qt.ItemFlag.ItemIsAutoTristate
+                    )
                     day_item.setData(0, Qt.ItemDataRole.UserRole, dt)
 
     def _connect_signals(self) -> None:
