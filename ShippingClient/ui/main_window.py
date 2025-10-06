@@ -456,36 +456,38 @@ class ModernShippingMainWindow(QMainWindow):
         self.tab_widget = QTabWidget()
         tab_font_size = max(8, get_base_font_size() + 3)
         self.tab_widget.setStyleSheet(
-            f"""
-            QTabWidget::pane {
-                border: none;
-                background: #FFFFFF;
-                border-top: 1px solid #E5E7EB;
-            }
-            QTabBar::tab {
-                background: #F9FAFB;
-                color: #6B7280;
-                padding: 14px 28px;
-                margin-right: 1px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                font-weight: 500;
-                font-size: {tab_font_size}px;
-                min-width: 120px;
-                border: 1px solid #E5E7EB;
-                border-bottom: none;
-            }
-            QTabBar::tab:selected {
-                background: #FFFFFF;
-                color: #1F2937;
-                border-bottom: 2px solid #3B82F6;
-                font-weight: 600;
-            }
-            QTabBar::tab:hover:!selected {
-                background: #F3F4F6;
-                color: #374151;
-            }
-        """
+            textwrap.dedent(
+                f"""
+                QTabWidget::pane {{
+                    border: none;
+                    background: #FFFFFF;
+                    border-top: 1px solid #E5E7EB;
+                }}
+                QTabBar::tab {{
+                    background: #F9FAFB;
+                    color: #6B7280;
+                    padding: 14px 28px;
+                    margin-right: 1px;
+                    border-top-left-radius: 6px;
+                    border-top-right-radius: 6px;
+                    font-weight: 500;
+                    font-size: {tab_font_size}px;
+                    min-width: 120px;
+                    border: 1px solid #E5E7EB;
+                    border-bottom: none;
+                }}
+                QTabBar::tab:selected {{
+                    background: #FFFFFF;
+                    color: #1F2937;
+                    border-bottom: 2px solid #3B82F6;
+                    font-weight: 600;
+                }}
+                QTabBar::tab:hover:!selected {{
+                    background: #F3F4F6;
+                    color: #374151;
+                }}
+            """
+            )
         )
         
         # Tab 1: Active Shipments
