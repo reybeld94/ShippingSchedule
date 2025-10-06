@@ -1225,7 +1225,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         # La altura de las filas se ajusta al finalizar el poblado completo
 
-    def apply_filters_to_shipments(self, shipments, _is_active=True):
+    def apply_filters_to_shipments(self, shipments, is_active=True):
         """Aplicar filtros"""
         filtered = shipments
         
