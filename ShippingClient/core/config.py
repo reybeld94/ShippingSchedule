@@ -32,7 +32,11 @@ REQUEST_TIMEOUT = 10
 # Fuente principal para la interfaz. Se puede cambiar para ajustar el estilo
 # de toda la aplicación.
 MODERN_FONT = "Helvetica Neue"
-FONT_SIZE = 10
+
+
+def get_font_size() -> int:
+    """Return the preferred application font size."""
+    return SettingsManager().get_font_size()
 
 # Recursos
 # Directorio base considerando ejecución congelada con PyInstaller

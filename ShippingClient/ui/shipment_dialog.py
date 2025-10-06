@@ -24,6 +24,7 @@ from core.config import (
     MODERN_FONT,
     LOGO_PATH,
 )
+from .utils import apply_scaled_font, get_base_font_size
 
 class ModernShipmentDialog(QDialog):
     def __init__(self, shipment_data=None, api_client: RobustApiClient | None = None):
@@ -99,20 +100,21 @@ class ModernShipmentDialog(QDialog):
             icon_label.setPixmap(scaled_pixmap)
         else:
             icon_label.setText("📋")
-            icon_label.setStyleSheet("font-size: 24px;")
-        
+            icon_size = max(16, get_base_font_size() + 14)
+            icon_label.setStyleSheet(f"font-size: {icon_size}px;")
+
         # Información del título
         title_layout = QVBoxLayout()
         title_layout.setSpacing(2)
-        
+
         title_text = "Create New Shipment" if not self.shipment_data else "Edit Shipment"
         title_label = QLabel(title_text)
-        title_label.setFont(QFont(MODERN_FONT, 18, QFont.Weight.DemiBold))
+        apply_scaled_font(title_label, offset=8, weight=QFont.Weight.DemiBold)
         title_label.setStyleSheet("color: #1F2937;")
-        
+
         subtitle_text = "Enter shipment details below" if not self.shipment_data else f"Modifying Job #{self.shipment_data.get('job_number', '')}"
         subtitle_label = QLabel(subtitle_text)
-        subtitle_label.setFont(QFont(MODERN_FONT, 11))
+        apply_scaled_font(subtitle_label, offset=1)
         subtitle_label.setStyleSheet("color: #6B7280;")
         
         title_layout.addWidget(title_label)
@@ -286,8 +288,8 @@ class ModernShipmentDialog(QDialog):
     def create_field_label(self, text, required=False):
         """Crear label profesional para campo"""
         label = QLabel(text + (" *" if required else ""))
-        label.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
-        
+        apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
+
         if required:
             label.setStyleSheet("""
                 color: #1F2937;
@@ -303,14 +305,16 @@ class ModernShipmentDialog(QDialog):
         """Crear QTextEdit con estilo profesional"""
         text_edit = QTextEdit()
         text_edit.setMaximumHeight(height)
-        text_edit.setStyleSheet(f"""
+        text_size = max(8, get_base_font_size() + 3)
+        text_edit.setStyleSheet(
+            f"""
             QTextEdit {{
                 background: #FFFFFF;
                 border: 1px solid #D1D5DB;
                 border-radius: 6px;
                 padding: 10px;
                 font-family: '{MODERN_FONT}';
-                font-size: 13px;
+                font-size: {text_size}px;
                 color: #1F2937;
                 selection-background-color: #DBEAFE;
             }}
@@ -321,7 +325,8 @@ class ModernShipmentDialog(QDialog):
             QTextEdit:hover {{
                 border-color: #9CA3AF;
             }}
-        """)
+        """
+        )
         return text_edit
     
     def create_footer_buttons(self, layout):
@@ -491,16 +496,20 @@ class ModernShipmentDialog(QDialog):
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setWindowTitle("Validation Error")
         msg.setText(message)
-        
+
         # Estilo profesional
-        msg.setStyleSheet(f"""
+        base = get_base_font_size()
+        label_size = max(8, base + 3)
+        button_size = max(8, base + 2)
+        msg.setStyleSheet(
+            f"""
             QMessageBox {{
                 background: #FFFFFF;
                 font-family: '{MODERN_FONT}';
             }}
             QMessageBox QLabel {{
                 color: #374151;
-                font-size: 13px;
+                font-size: {label_size}px;
                 padding: 10px;
             }}
             QMessageBox QPushButton {{
@@ -510,12 +519,13 @@ class ModernShipmentDialog(QDialog):
                 padding: 8px 24px;
                 border-radius: 6px;
                 font-weight: 500;
-                font-size: 12px;
+                font-size: {button_size}px;
                 min-width: 80px;
             }}
             QMessageBox QPushButton:hover {{
                 background: #2563EB;
             }}
-        """)
-        
+        """
+        )
+
         msg.exec()

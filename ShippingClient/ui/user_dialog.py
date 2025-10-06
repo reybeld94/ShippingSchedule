@@ -9,12 +9,14 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
 )
+from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
 import requests
 
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox, ProfessionalCard
-from core.config import get_server_url, REQUEST_TIMEOUT
+from core.config import get_server_url, REQUEST_TIMEOUT, MODERN_FONT
+from .utils import apply_scaled_font, get_base_font_size
 
 
 class UserFormDialog(QDialog):
@@ -42,13 +44,13 @@ class UserFormDialog(QDialog):
         self.role_combo = ModernComboBox()
         self.role_combo.addItems(["read", "write", "admin"])
 
-        form_layout.addWidget(QLabel("Username"))
+        form_layout.addWidget(self._create_form_label("Username"))
         form_layout.addWidget(self.username_edit)
-        form_layout.addWidget(QLabel("Email"))
+        form_layout.addWidget(self._create_form_label("Email"))
         form_layout.addWidget(self.email_edit)
-        form_layout.addWidget(QLabel("Password"))
+        form_layout.addWidget(self._create_form_label("Password"))
         form_layout.addWidget(self.password_edit)
-        form_layout.addWidget(QLabel("Role"))
+        form_layout.addWidget(self._create_form_label("Role"))
         form_layout.addWidget(self.role_combo)
         card.add_layout(form_layout)
 
@@ -111,6 +113,35 @@ class UserFormDialog(QDialog):
         msg.setIcon(QMessageBox.Icon.Critical)
         msg.setWindowTitle("Error")
         msg.setText(message)
+        base = get_base_font_size()
+        label_size = max(8, base + 3)
+        button_size = max(8, base + 2)
+        msg.setStyleSheet(
+            f"""
+            QMessageBox {{
+                background: #FFFFFF;
+                font-family: '{MODERN_FONT}';
+            }}
+            QMessageBox QLabel {{
+                color: #374151;
+                font-size: {label_size}px;
+                padding: 8px;
+            }}
+            QMessageBox QPushButton {{
+                background: #3B82F6;
+                color: white;
+                border: none;
+                padding: 6px 20px;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: {button_size}px;
+                min-width: 80px;
+            }}
+            QMessageBox QPushButton:hover {{
+                background: #2563EB;
+            }}
+        """
+        )
         msg.exec()
 
 
@@ -130,17 +161,20 @@ class UserManagementDialog(QDialog):
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["ID", "Username", "Email", "Role"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.setStyleSheet("""
-    QHeaderView::section {
+        header_font = max(8, get_base_font_size() + 3)
+        self.table.setStyleSheet(
+            f"""
+    QHeaderView::section {{
         background-color: #E5E5E5;
         color: #000000;
         padding: 8px 4px;
         border: none;
         border-right: 1px solid #D1D5DB;
-        font-size: 13px;
+        font-size: {header_font}px;
         font-weight: 600;
-    }
-        """)
+    }}
+        """
+        )
         layout.addWidget(self.table)
 
         btn_layout = QHBoxLayout()
@@ -188,6 +222,12 @@ class UserManagementDialog(QDialog):
         dlg = UserFormDialog(self.token)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self.load_users()
+
+    def _create_form_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
+        label.setStyleSheet("color: #374151;")
+        return label
 
     def edit_user(self):
         user = self.get_selected_user()

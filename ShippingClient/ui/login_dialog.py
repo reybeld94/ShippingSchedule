@@ -25,6 +25,7 @@ from core.config import (
     MODERN_FONT,
     ICON_PATH,
 )
+from .utils import apply_scaled_font, get_base_font_size, refresh_scaled_fonts
 
 class ModernLoginDialog(QDialog):
     def __init__(self):
@@ -112,14 +113,14 @@ class ModernLoginDialog(QDialog):
     
         # Título principal
         title_label = QLabel("Shipping Schedule")
-        title_label.setFont(QFont(MODERN_FONT, 16, QFont.Weight.DemiBold))
+        apply_scaled_font(title_label, offset=6, weight=QFont.Weight.DemiBold)
         title_label.setStyleSheet("color: #1F2937; border: none; background: transparent;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-    
+
         # Texto de instrucción
         instruction_label = QLabel("Please sign in to continue")
-        instruction_label.setFont(QFont(MODERN_FONT, 9))
+        apply_scaled_font(instruction_label, offset=-1)
         instruction_label.setStyleSheet("color: #9CA3AF; border: none; background: transparent;")
         instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
@@ -138,9 +139,9 @@ class ModernLoginDialog(QDialog):
         username_layout.setSpacing(6)
         
         username_label = QLabel("Username")
-        username_label.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
+        apply_scaled_font(username_label, offset=1, weight=QFont.Weight.Medium)
         username_label.setStyleSheet("color: #374151;")
-        
+
         self.username_edit = ModernLineEdit("Enter your username")
         
         username_layout.addWidget(username_label)
@@ -151,9 +152,9 @@ class ModernLoginDialog(QDialog):
         password_layout.setSpacing(6)
         
         password_label = QLabel("Password")
-        password_label.setFont(QFont(MODERN_FONT, 11, QFont.Weight.Medium))
+        apply_scaled_font(password_label, offset=1, weight=QFont.Weight.Medium)
         password_label.setStyleSheet("color: #374151;")
-        
+
         self.password_edit = ModernLineEdit("Enter your password")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
 
@@ -162,6 +163,7 @@ class ModernLoginDialog(QDialog):
 
         # Remember me checkbox
         self.remember_checkbox = QCheckBox("Remember me")
+        apply_scaled_font(self.remember_checkbox)
         self.remember_checkbox.setChecked(False)
 
         form_layout.addLayout(username_layout)
@@ -209,11 +211,11 @@ class ModernLoginDialog(QDialog):
         connection_layout.setSpacing(6)
         
         self.connection_indicator = QLabel("●")
-        self.connection_indicator.setFont(QFont("Arial", 10))
+        apply_scaled_font(self.connection_indicator)
         self.connection_indicator.setStyleSheet("color: #10B981;")
 
         self.connection_text = QLabel("Server connection active")
-        self.connection_text.setFont(QFont(MODERN_FONT, 9))
+        apply_scaled_font(self.connection_text, offset=-1)
         self.connection_text.setStyleSheet("color: #6B7280;")
 
         # Botón para abrir la configuración de servidor
@@ -303,14 +305,18 @@ class ModernLoginDialog(QDialog):
         msg.setText(message)
         
         # Estilo profesional para el mensaje de error
-        msg.setStyleSheet(f"""
+        base = get_base_font_size()
+        label_size = max(8, base + 3)
+        button_size = max(8, base + 2)
+        msg.setStyleSheet(
+            f"""
             QMessageBox {{
                 background: #FFFFFF;
                 font-family: '{MODERN_FONT}';
             }}
             QMessageBox QLabel {{
                 color: #374151;
-                font-size: 13px;
+                font-size: {label_size}px;
                 padding: 10px;
             }}
             QMessageBox QPushButton {{
@@ -320,7 +326,7 @@ class ModernLoginDialog(QDialog):
                 padding: 8px 24px;
                 border-radius: 6px;
                 font-weight: 500;
-                font-size: 12px;
+                font-size: {button_size}px;
                 min-width: 80px;
             }}
             QMessageBox QPushButton:hover {{
@@ -329,14 +335,16 @@ class ModernLoginDialog(QDialog):
             QMessageBox QPushButton:pressed {{
                 background: #1D4ED8;
             }}
-        """)
+        """
+        )
         
         msg.exec()
 
     def open_settings_dialog(self):
         """Open settings dialog for server configuration"""
         dlg = SettingsDialog(self.settings_mgr)
-        dlg.exec()
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            refresh_scaled_fonts(self)
 
     def keyPressEvent(self, event):
         """Manejar eventos de teclado"""
