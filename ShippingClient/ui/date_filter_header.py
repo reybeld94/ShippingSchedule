@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QPoint, QRect, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPolygon
+from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QHeaderView
 
 
@@ -46,18 +46,15 @@ class DateFilterHeader(QHeaderView):
 
         painter.save()
         color = QColor("#1F2937" if logicalIndex in self._active_filters else "#6B7280")
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(color)
-        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setPen(color)
 
-        center_y = rect.center().y()
-        right = rect.right() - 8
-        triangle = QPolygon([
-            QPoint(right - 6, center_y - 2),
-            QPoint(right + 1, center_y - 2),
-            QPoint(right - 2, center_y + 3),
-        ])
-        painter.drawPolygon(triangle)
+        icon_text = "🔽"
+        text_rect = rect.adjusted(0, 0, -4, 0)
+        painter.drawText(
+            text_rect,
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+            icon_text,
+        )
         painter.restore()
 
     def _section_rect(self, logical: int) -> QRect:
