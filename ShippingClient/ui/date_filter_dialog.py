@@ -54,6 +54,7 @@ class DateFilterPopup(QMenu):
         self._initial_selection = None if selected_dates is None else set(selected_dates)
         self._initial_blank = include_blank
         self._accepted = False
+        self._date_items: dict[date, QTreeWidgetItem] = {}
 
         container = QWidget(self)
         container.setMinimumWidth(280)
@@ -127,6 +128,7 @@ class DateFilterPopup(QMenu):
                         & ~Qt.ItemFlag.ItemIsAutoTristate
                     )
                     day_item.setData(0, Qt.ItemDataRole.UserRole, dt)
+                    self._date_items[dt] = day_item
 
     def _connect_signals(self) -> None:
         self.tree.itemChanged.connect(self._on_tree_item_changed)
@@ -146,6 +148,7 @@ class DateFilterPopup(QMenu):
 
         self._update_parent_states()
         self._update_select_all_state()
+        self._expand_initial_selection()
 
     def _apply_initial_state(self, item: QTreeWidgetItem, default_state: Optional[Qt.CheckState]) -> None:
         if item.childCount() == 0:
@@ -280,6 +283,31 @@ class DateFilterPopup(QMenu):
 
         for idx in range(item.childCount()):
             self._collect_checked_dates(item.child(idx), result)
+
+    def _expand_initial_selection(self) -> None:
+        if self._initial_selection is None or not self._date_items:
+            return
+
+        if len(self._initial_selection) == 0:
+            return
+
+        if len(self._initial_selection) == len(self._dates):
+            return
+
+        first_item = None
+        for dt in sorted(self._initial_selection, reverse=True):
+            item = self._date_items.get(dt)
+            if item is None:
+                continue
+            parent = item.parent()
+            while parent is not None:
+                parent.setExpanded(True)
+                parent = parent.parent()
+            if first_item is None:
+                first_item = item
+
+        if first_item is not None:
+            self.tree.scrollToItem(first_item)
 
     def exec_at(self, global_pos: QPoint) -> Optional[Tuple[Optional[Set[date]], bool]]:
         """Show the popup at the requested position and return the selection."""
