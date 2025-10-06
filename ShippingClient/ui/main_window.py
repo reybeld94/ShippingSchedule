@@ -605,7 +605,7 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         base_text = base_labels[column]
-        header_item.setText(f"{base_text} (Filtered)" if active else base_text)
+        header_item.setText(f"{base_text} 🔍" if active else base_text)
         header_item.setForeground(QBrush(QColor("#1D4ED8" if active else "#000000")))
 
         if active:
