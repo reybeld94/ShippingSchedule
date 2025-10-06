@@ -46,7 +46,7 @@ class Shipment(Base):
     description = Column(Text)
     
     # Estados: final_release, partial_release, rejected, prod_updated
-    status = Column(String(20), default="partial_release")
+    status = Column(String(20), default="")
     
     # Fechas
     qc_release = Column(String(20))  # Formato: MM/DD/YY
@@ -146,15 +146,19 @@ class Shipment(Base):
     @validates('status')
     def validate_status(self, key, value):
         """Validar status"""
-        if not value:
-            return "partial_release"  # Valor por defecto
-        
+        if value is None:
+            return ""
+
+        cleaned = str(value).strip()
+        if not cleaned:
+            return ""
+
         valid_statuses = ['final_release', 'partial_release', 'rejected', 'prod_updated']
-        
-        if value not in valid_statuses:
+
+        if cleaned not in valid_statuses:
             raise ValueError(f"Invalid status: '{value}'. Must be one of: {', '.join(valid_statuses)}")
-        
-        return value
+
+        return cleaned
 
     @validates('description', 'qc_notes', 'shipping_notes')
     def validate_text_fields(self, key, value):
