@@ -210,12 +210,13 @@ class ModernShipmentDialog(QDialog):
         # Fila 3: Status
         grid_layout.addWidget(self.create_field_label("Status"), 2, 0)
         self.status_combo = ModernComboBox()
-        self.status_combo.addItems([
+        status_options = [
+            "",
             "Partial Release",
             "Final Release",
             "Rejected",
-            "Production Updated"
-        ])
+        ]
+        self.status_combo.addItems(status_options)
         grid_layout.addWidget(self.status_combo, 2, 1)
 
         # Fila 4: Description (span completo)
@@ -388,17 +389,23 @@ class ModernShipmentDialog(QDialog):
             self.description_edit.setPlainText(safe_str(data.get("description")))
             
             # Mapear status del servidor al combo
-            status = data.get("status", "partial_release")
+            status = data.get("status") or ""
             status_map = {
+                "": "",
                 "partial_release": "Partial Release",
                 "final_release": "Final Release",
                 "rejected": "Rejected",
                 "prod_updated": "Production Updated"
             }
-            combo_text = status_map.get(status, "Partial Release")
+            combo_text = status_map.get(status, "")
+            if combo_text and self.status_combo.findText(combo_text) == -1:
+                # Permitir mostrar estados heredados que ya no están disponibles para nuevos shipments
+                self.status_combo.addItem(combo_text)
             index = self.status_combo.findText(combo_text)
             if index >= 0:
                 self.status_combo.setCurrentIndex(index)
+            else:
+                self.status_combo.setCurrentIndex(0)
             
             self.qc_release_edit.setText(safe_str(data.get("qc_release")))
             self.qc_notes_edit.setPlainText(safe_str(data.get("qc_notes")))
@@ -431,12 +438,13 @@ class ModernShipmentDialog(QDialog):
             # Mapear status del combo al servidor
             combo_status = self.status_combo.currentText()
             status_map = {
+                "": "",
                 "Partial Release": "partial_release",
                 "Final Release": "final_release",
                 "Rejected": "rejected",
                 "Production Updated": "prod_updated"
             }
-            actual_status = status_map.get(combo_status, "partial_release")
+            actual_status = status_map.get(combo_status, "")
             
             # Preparar datos
             data = {
