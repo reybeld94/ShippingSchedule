@@ -42,7 +42,7 @@ from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopService
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox
 from .date_delegate import DateDelegate
-from .date_filter_dialog import DateFilterDialog
+from .date_filter_dialog import DateFilterPopup
 from .date_filter_header import DateFilterHeader
 from .settings_dialog import SettingsDialog
 from core.websocket_client import WebSocketClient
@@ -544,7 +544,7 @@ class ModernShippingMainWindow(QMainWindow):
         header = DateFilterHeader(table, date_columns)
         table.setHorizontalHeader(header)
         header.filter_requested.connect(
-            lambda column, pos, tbl=table, nm=name: self.open_date_filter_dialog(tbl, nm, column, pos)
+            lambda column, pos, tbl=table, nm=name: self.open_date_filter_popup(tbl, nm, column, pos)
         )
         self.date_filter_headers[name] = header
         
@@ -633,8 +633,8 @@ class ModernShippingMainWindow(QMainWindow):
         """Return the indices of columns that support the date filter."""
         return [3, 5, 6, 7]
 
-    def open_date_filter_dialog(self, table, name, column, global_pos):
-        """Open a hierarchical date filter dialog for the specified column."""
+    def open_date_filter_popup(self, table, name, column, global_pos):
+        """Open an inline hierarchical date filter for the specified column."""
         date_values, has_blank = self.collect_column_dates(table, column)
         if not date_values and not has_blank:
             return
@@ -646,7 +646,7 @@ class ModernShippingMainWindow(QMainWindow):
             selected_dates = current_filter.get("dates")
             include_blank = current_filter.get("include_blank", True)
 
-        dialog = DateFilterDialog(
+        popup = DateFilterPopup(
             self,
             available_dates=date_values,
             has_blank=has_blank,
@@ -654,32 +654,34 @@ class ModernShippingMainWindow(QMainWindow):
             include_blank=include_blank,
         )
 
-        size_hint = dialog.sizeHint()
-        dialog.move(global_pos.x() - size_hint.width(), global_pos.y())
+        popup_size = popup.sizeHint()
+        result = popup.exec_at(QPoint(global_pos.x() - popup_size.width(), global_pos.y()))
 
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            result, include_blank_selection = dialog.get_filter_result()
+        if result is None:
+            return
 
-            header = self.date_filter_headers.get(name)
-            if result is None and include_blank_selection:
-                if column in self.date_filters.get(name, {}):
-                    self.date_filters[name].pop(column, None)
-                if header:
-                    header.set_filter_active(column, False)
-            else:
-                if name not in self.date_filters:
-                    self.date_filters[name] = {}
-                if result is None:
-                    # All dates selected but blanks filtered out
-                    result = set(date_values)
-                self.date_filters[name][column] = {
-                    "dates": set(result),
-                    "include_blank": include_blank_selection,
-                }
-                if header:
-                    header.set_filter_active(column, True)
+        selected, include_blank_selection = result
 
-            self.apply_date_filters_to_table(table, name)
+        header = self.date_filter_headers.get(name)
+        if selected is None and include_blank_selection:
+            if column in self.date_filters.get(name, {}):
+                self.date_filters[name].pop(column, None)
+            if header:
+                header.set_filter_active(column, False)
+        else:
+            if name not in self.date_filters:
+                self.date_filters[name] = {}
+            if selected is None:
+                # All dates selected but blanks filtered out
+                selected = set(date_values)
+            self.date_filters[name][column] = {
+                "dates": set(selected),
+                "include_blank": include_blank_selection,
+            }
+            if header:
+                header.set_filter_active(column, True)
+
+        self.apply_date_filters_to_table(table, name)
 
     def collect_column_dates(self, table, column):
         """Gather unique date values from a table column."""
