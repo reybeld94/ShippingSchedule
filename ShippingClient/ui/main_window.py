@@ -172,6 +172,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._history_shipments = []
         self._last_filter_text = ""
         self._tables_populated = {"active": False, "history": False}
+        self._search_row_visibility = {"active": [], "history": []}
         self.date_filters = {
             "active": self.settings_mgr.load_date_filters("active"),
             "history": self.settings_mgr.load_date_filters("history"),
@@ -785,6 +786,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.persist_date_filters(name)
         self.apply_date_filters_to_table(table, name)
+        self.update_status()
 
     def persist_date_filters(self, name):
         """Persist current date filter configuration for a table."""
@@ -829,20 +831,8 @@ class ModernShippingMainWindow(QMainWindow):
         return None
 
     def apply_date_filters_to_table(self, table, name):
-        """Apply the configured date filters to the given table."""
-        active_filters = self.date_filters.get(name, {})
-        if not active_filters:
-            for row in range(table.rowCount()):
-                table.setRowHidden(row, False)
-            return
-
-        for row in range(table.rowCount()):
-            visible = True
-            for column, filter_data in active_filters.items():
-                if not self.row_matches_date_filter(table, row, column, filter_data):
-                    visible = False
-                    break
-            table.setRowHidden(row, not visible)
+        """Aplicar los filtros de fecha respetando la búsqueda actual."""
+        return self.apply_row_filters(table, name)
 
     def row_matches_date_filter(self, table, row, column, filter_data):
         item = table.item(row, column)
@@ -1238,6 +1228,7 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Marcar tablas como no pobladas
         self._tables_populated = {"active": False, "history": False}
+        self._search_row_visibility = {"active": [], "history": []}
         
         # Poblar tabla actual
         current_tab = self.tab_widget.currentIndex()
@@ -1259,15 +1250,12 @@ class ModernShippingMainWindow(QMainWindow):
     
     def populate_active_table(self):
         """Poblar tabla activa"""
-        filtered_shipments = self.apply_filters_to_shipments(self._active_shipments, is_active=True)
-        self.populate_table_fast(self.active_table, filtered_shipments, is_active=True)
+        self.populate_table_fast(self.active_table, self._active_shipments, is_active=True)
     
     def populate_history_table(self):
         """Poblar tabla de historial"""
         print(f"Populando historial: {len(self._history_shipments)} shipments totales")
-        filtered_shipments = self.apply_filters_to_shipments(self._history_shipments, is_active=False)
-        print(f"Populando historial tras filtros: {len(filtered_shipments)} shipments")
-        self.populate_table_fast(self.history_table, filtered_shipments, is_active=False)
+        self.populate_table_fast(self.history_table, self._history_shipments, is_active=False)
     
     def populate_table_fast(self, table, shipments, is_active=True):
         """Poblar tabla de forma optimizada"""
@@ -1292,8 +1280,14 @@ class ModernShippingMainWindow(QMainWindow):
             if sort_col >= 0:
                 table.sortItems(sort_col, sort_order)
 
-            self.apply_saved_cell_colors(table, "active" if is_active else "history")
-            self.apply_date_filters_to_table(table, "active" if is_active else "history")
+            table_name = "active" if is_active else "history"
+            self.apply_saved_cell_colors(table, table_name)
+
+            # Inicializar estado de búsqueda y aplicar filtros combinados
+            self._search_row_visibility[table_name] = [True] * row_count
+            if self.search_edit.text().strip():
+                self.update_search_visibility(table, table_name)
+            self.apply_row_filters(table, table_name)
 
             # El ajuste de filas a su contenido puede ser costoso para miles de
             # registros. Dejamos un tamaño fijo establecido en la configuración
@@ -1375,54 +1369,86 @@ class ModernShippingMainWindow(QMainWindow):
 
         # La altura de las filas se ajusta al finalizar el poblado completo
 
-    def apply_filters_to_shipments(self, shipments, is_active=True):
-        """Aplicar filtros"""
-        filtered = shipments
-        
-        # Filtro de búsqueda
-        search_text = self.search_edit.text().lower().strip()
-        if search_text:
-            def safe_lower(value):
-                return str(value or "").lower()
+    def shipment_matches_search(self, shipment, search_text):
+        """Determinar si un shipment coincide con el texto de búsqueda."""
+        if not shipment:
+            return False
+        if not search_text:
+            return True
 
-            filtered = [
-                s
-                for s in filtered
-                if search_text in safe_lower(s.get("job_number"))
-                or search_text in safe_lower(s.get("job_name"))
-                or search_text in safe_lower(s.get("status"))
-            ]
-        
-        return filtered
+        def safe_lower(value):
+            return str(value or "").lower()
+
+        lowered = search_text.lower()
+        return (
+            lowered in safe_lower(shipment.get("job_number"))
+            or lowered in safe_lower(shipment.get("job_name"))
+            or lowered in safe_lower(shipment.get("status"))
+        )
+    
+    def update_search_visibility(self, table, name):
+        """Actualizar coincidencias de búsqueda por fila para una tabla."""
+        search_text = self.search_edit.text().lower().strip()
+        matches = []
+        for row in range(table.rowCount()):
+            job_item = table.item(row, 0)
+            shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
+            matches.append(self.shipment_matches_search(shipment, search_text))
+        self._search_row_visibility[name] = matches
+        return sum(1 for match in matches if match)
+    
+    def apply_row_filters(self, table, name):
+        """Aplicar filtros combinados de búsqueda y fecha a una tabla."""
+        search_matches = self._search_row_visibility.get(name)
+        if not search_matches or len(search_matches) != table.rowCount():
+            search_matches = [True] * table.rowCount()
+            self._search_row_visibility[name] = search_matches
+
+        active_filters = self.date_filters.get(name, {})
+        visible_count = 0
+
+        for row in range(table.rowCount()):
+            visible = search_matches[row]
+            if visible and active_filters:
+                for column, filter_data in active_filters.items():
+                    if not self.row_matches_date_filter(table, row, column, filter_data):
+                        visible = False
+                        break
+            table.setRowHidden(row, not visible)
+            if visible:
+                visible_count += 1
+
+        return visible_count
+    
+    def count_visible_rows(self, table):
+        """Contar filas visibles actuales en una tabla."""
+        return sum(1 for row in range(table.rowCount()) if not table.isRowHidden(row))
     
     def perform_filter(self):
         """Ejecutar filtrado optimizado"""
-        current_tab = self.tab_widget.currentIndex()
-        
-        if current_tab == 0:  # Active
-            self.populate_active_table()
-        else:  # History
-            self.populate_history_table()
-        
+        for table, name in ((self.active_table, "active"), (self.history_table, "history")):
+            if not self._tables_populated.get(name):
+                continue
+            self.update_search_visibility(table, name)
+            self.apply_row_filters(table, name)
         self.update_status()
     
     def update_status(self):
         """Actualizar información del status bar"""
-        total_count = len(self.shipments)
         active_count = len(self._active_shipments)
         history_count = len(self._history_shipments)
         
         current_tab = self.tab_widget.currentIndex()
         if current_tab == 0:  # Active tab
-            filtered_count = len(self.apply_filters_to_shipments(self._active_shipments, True))
-            if filtered_count != active_count:
-                self.record_count_label.setText(f"Showing {filtered_count} of {active_count} active shipments")
+            visible_count = self.count_visible_rows(self.active_table)
+            if visible_count != active_count:
+                self.record_count_label.setText(f"Showing {visible_count} of {active_count} active shipments")
             else:
                 self.record_count_label.setText(f"Active: {active_count} | History: {history_count}")
         else:  # History tab
-            filtered_count = len(self.apply_filters_to_shipments(self._history_shipments, False))
-            if filtered_count != history_count:
-                self.record_count_label.setText(f"Showing {filtered_count} of {history_count} historical shipments")
+            visible_count = self.count_visible_rows(self.history_table)
+            if visible_count != history_count:
+                self.record_count_label.setText(f"Showing {visible_count} of {history_count} historical shipments")
             else:
                 self.record_count_label.setText(f"History: {history_count} | Active: {active_count}")
         
@@ -1514,6 +1540,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_toast("Changes saved successfully", color="#16A34A")
             table_name = "active" if table is self.active_table else "history"
             self.apply_date_filters_to_table(table, table_name)
+            self.update_status()
 
         try:
             # Intentar con versión actual
