@@ -869,12 +869,18 @@ class ModernShippingMainWindow(QMainWindow):
         include_blank = filter_data.get("include_blank", True)
         allowed_dates = filter_data.get("dates")
 
-        if not allowed_dates:
+        if allowed_dates is None:
             # No explicit dates selected. Treat this as an "all dates" filter,
             # optionally excluding blanks if requested. Older versions saved
             # filters without date selections, which previously hid every row
             # in the History tab.
             return parsed is not None or include_blank
+
+        if len(allowed_dates) == 0:
+            # User explicitly requested only blank values. This happens when
+            # the "Blanks" checkbox is enabled and no concrete dates are
+            # selected in the popup.
+            return parsed is None and include_blank
 
         if parsed is None:
             return include_blank
