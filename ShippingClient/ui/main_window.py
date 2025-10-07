@@ -39,7 +39,16 @@ from PyQt6.QtCore import (
     QPoint,
     QEventLoop,
 )
-from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
+from PyQt6.QtGui import (
+    QFont,
+    QColor,
+    QPixmap,
+    QPalette,
+    QIcon,
+    QDesktopServices,
+    QBrush,
+    QFontMetrics,
+)
 
 # Imports locales
 from .widgets import ModernButton, ModernLineEdit
@@ -285,6 +294,7 @@ class ModernShippingMainWindow(QMainWindow):
             if table is not None:
                 self._apply_table_style(table)
                 self._refresh_table_item_fonts(table)
+                self._configure_table_row_metrics(table)
     
     def create_professional_header(self, layout):
         """Crear header profesional con logo"""
@@ -589,9 +599,8 @@ class ModernShippingMainWindow(QMainWindow):
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
         table.setWordWrap(True)
-        # Ajustar altura automáticamente para permitir que el texto se envuelva
-        # en múltiples líneas cuando sea necesario
-        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # Ajustar altura de filas en función del tamaño de fuente sin penalizar rendimiento
+        self._configure_table_row_metrics(table)
         
         # Optimización de performance
         table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
@@ -657,6 +666,23 @@ class ModernShippingMainWindow(QMainWindow):
     }}
         """
         )
+
+    def _configure_table_row_metrics(self, table):
+        """Ensure row heights stay performant while matching the active font size."""
+        vertical_header = table.verticalHeader()
+        if vertical_header is None:
+            return
+
+        base_size = get_base_font_size()
+        table_font_size = max(8, base_size + 2)
+        metrics = QFontMetrics(QFont(MODERN_FONT, table_font_size))
+
+        # Allow a little extra space so wrapped text remains readable without
+        # triggering the expensive ResizeToContents mode on large datasets.
+        default_height = max(36, int(metrics.lineSpacing() * 2.2))
+
+        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        vertical_header.setDefaultSectionSize(default_height)
 
     def _refresh_table_item_fonts(self, table):
         """Update table item fonts according to the active preference."""
