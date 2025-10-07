@@ -37,6 +37,7 @@ from PyQt6.QtCore import (
     QStandardPaths,
     QUrl,
     QPoint,
+    QEventLoop,
 )
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPalette, QIcon, QDesktopServices, QBrush
 
@@ -1275,6 +1276,10 @@ class ModernShippingMainWindow(QMainWindow):
 
             for row, shipment in enumerate(shipments):
                 self.populate_table_row(table, row, shipment, is_active)
+
+                # Procesar eventos periódicamente para mantener la UI receptiva
+                if row and row % 200 == 0:
+                    QApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents)
 
             table.setSortingEnabled(True)
             if sort_col >= 0:
