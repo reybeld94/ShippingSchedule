@@ -178,10 +178,10 @@ class DateFilterPopup(QMenu):
             self._update_parent_states(item)
         self._update_select_all_state()
 
-    def _on_select_all_state_changed(self, state: int) -> None:
-        if state == int(Qt.CheckState.PartiallyChecked):
-            return
+    def _on_select_all_state_changed(self, state: Qt.CheckState | int) -> None:
         qt_state = Qt.CheckState(state)
+        if qt_state == Qt.CheckState.PartiallyChecked:
+            return
         for i in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(i)
             item.setCheckState(0, qt_state)
