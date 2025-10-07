@@ -87,8 +87,14 @@ class DateSortableItem(QTableWidgetItem):
         display_text = cleaned_text if cleaned_text else (empty_display or "")
         super().__init__(display_text)
         self._empty_display = empty_display
+
+        # Guardar un valor precomputado para ordenar sin reprocesar cadenas
+        self._sort_value = self._parse(cleaned_text)
+
         if empty_display is not None and not cleaned_text:
             super().setData(Qt.ItemDataRole.EditRole, "")
+        else:
+            super().setData(Qt.ItemDataRole.EditRole, cleaned_text)
 
     @staticmethod
     def _parse(text: Optional[str]):
@@ -114,17 +120,19 @@ class DateSortableItem(QTableWidgetItem):
             if self._empty_display is not None and not cleaned_value:
                 super().setData(Qt.ItemDataRole.DisplayRole, self._empty_display)
                 super().setData(Qt.ItemDataRole.EditRole, "")
+                self._sort_value = None
+            else:
+                self._sort_value = self._parse(cleaned_value)
         return result
 
     def __lt__(self, other):  # type: ignore[override]
-        other_text = None
         if isinstance(other, DateSortableItem):
-            other_text = other.data(Qt.ItemDataRole.EditRole)
+            other_date = other._sort_value
         else:
             other_text = other.data(Qt.ItemDataRole.EditRole) if other else None
+            other_date = self._parse(other_text)
 
-        self_date = self._parse(self.data(Qt.ItemDataRole.EditRole))
-        other_date = self._parse(other_text)
+        self_date = self._sort_value
 
         if self_date and other_date:
             return self_date < other_date
