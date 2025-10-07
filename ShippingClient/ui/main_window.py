@@ -1,6 +1,7 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import json
 from datetime import datetime, date
+from typing import Optional
 import os
 import textwrap
 from html import escape
@@ -76,23 +77,54 @@ class ShipmentLoader(QThread):
             self.error_occurred.emit(f"Unexpected error: {str(e)}")
 
 
-class ShipPlanItem(QTableWidgetItem):
+class DateSortableItem(QTableWidgetItem):
     """Item de tabla que ordena fechas colocando los vacíos al final."""
 
-    def __lt__(self, other):  # type: ignore[override]
-        def parse(text: str):
-            text = text.strip()
-            if not text or text == "-":
-                return None
-            for fmt in ("%m/%d/%y", "%m/%d/%Y"):
-                try:
-                    return datetime.strptime(text, fmt)
-                except ValueError:
-                    continue
+    DATE_FORMATS = ("%m/%d/%Y", "%m/%d/%y")
+
+    def __init__(self, text: Optional[str], empty_display: Optional[str] = None):
+        cleaned_text = str(text or "").strip()
+        display_text = cleaned_text if cleaned_text else (empty_display or "")
+        super().__init__(display_text)
+        self._empty_display = empty_display
+        if empty_display is not None and not cleaned_text:
+            super().setData(Qt.ItemDataRole.EditRole, "")
+
+    @staticmethod
+    def _parse(text: Optional[str]):
+        text = (text or "").strip()
+        if not text or text == "-":
             return None
 
-        self_date = parse(self.text())
-        other_date = parse(other.text())
+        for fmt in DateSortableItem.DATE_FORMATS:
+            try:
+                return datetime.strptime(text, fmt)
+            except ValueError:
+                continue
+
+        try:
+            return datetime.fromisoformat(text)
+        except ValueError:
+            return None
+
+    def setData(self, role, value):  # type: ignore[override]
+        result = super().setData(role, value)
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            cleaned_value = str(value or "").strip()
+            if self._empty_display is not None and not cleaned_value:
+                super().setData(Qt.ItemDataRole.DisplayRole, self._empty_display)
+                super().setData(Qt.ItemDataRole.EditRole, "")
+        return result
+
+    def __lt__(self, other):  # type: ignore[override]
+        other_text = None
+        if isinstance(other, DateSortableItem):
+            other_text = other.data(Qt.ItemDataRole.EditRole)
+        else:
+            other_text = other.data(Qt.ItemDataRole.EditRole) if other else None
+
+        self_date = self._parse(self.data(Qt.ItemDataRole.EditRole))
+        other_date = self._parse(other_text)
 
         if self_date and other_date:
             return self_date < other_date
@@ -1287,15 +1319,17 @@ class ModernShippingMainWindow(QMainWindow):
         job_item = None
         for col, item_text in enumerate(items):
             if col == 6:  # Ship Plan
-                display_text = str(item_text).strip() if str(item_text).strip() else "-"
-                item = ShipPlanItem(display_text)
+                item = DateSortableItem(str(item_text) if item_text is not None else "", empty_display="-")
+            elif col in (5, 7):  # Created y Shipped
+                item = DateSortableItem(str(item_text) if item_text is not None else "")
             else:
                 item = QTableWidgetItem(str(item_text))
-                if not is_active and col == 7 and item_text:  # Shipped en history
-                    shipped_font = QFont(MODERN_FONT, max(6, get_base_font_size() + 1), QFont.Weight.Medium)
-                    item.setFont(shipped_font)
-                    item.setForeground(QColor("#059669"))
-                    item.setData(Qt.ItemDataRole.UserRole + 5, 1)
+
+            if not is_active and col == 7 and item_text:  # Shipped en history
+                shipped_font = QFont(MODERN_FONT, max(6, get_base_font_size() + 1), QFont.Weight.Medium)
+                item.setFont(shipped_font)
+                item.setForeground(QColor("#059669"))
+                item.setData(Qt.ItemDataRole.UserRole + 5, 1)
 
             # Alineación
             if col in [0, 8]:  # Job # e Invoice #
