@@ -840,12 +840,19 @@ class ModernShippingMainWindow(QMainWindow):
         text = item.text().strip() if item and item.text() else ""
         parsed = self.parse_table_date_value(text)
 
-        if parsed is None:
-            return filter_data.get("include_blank", True)
-
+        include_blank = filter_data.get("include_blank", True)
         allowed_dates = filter_data.get("dates")
+
         if not allowed_dates:
-            return False
+            # No explicit dates selected. Treat this as an "all dates" filter,
+            # optionally excluding blanks if requested. Older versions saved
+            # filters without date selections, which previously hid every row
+            # in the History tab.
+            return parsed is not None or include_blank
+
+        if parsed is None:
+            return include_blank
+
         return parsed in allowed_dates
 
     def get_shipment_id_from_row(self, table, row):
