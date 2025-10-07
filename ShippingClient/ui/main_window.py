@@ -1407,16 +1407,24 @@ class ModernShippingMainWindow(QMainWindow):
         active_filters = self.date_filters.get(name, {})
         visible_count = 0
 
-        for row in range(table.rowCount()):
-            visible = search_matches[row]
-            if visible and active_filters:
-                for column, filter_data in active_filters.items():
-                    if not self.row_matches_date_filter(table, row, column, filter_data):
-                        visible = False
-                        break
-            table.setRowHidden(row, not visible)
-            if visible:
-                visible_count += 1
+        table.setUpdatesEnabled(False)
+        try:
+            for row in range(table.rowCount()):
+                visible = search_matches[row]
+                if visible and active_filters:
+                    for column, filter_data in active_filters.items():
+                        if not self.row_matches_date_filter(table, row, column, filter_data):
+                            visible = False
+                            break
+
+                should_hide = not visible
+                if table.isRowHidden(row) != should_hide:
+                    table.setRowHidden(row, should_hide)
+
+                if visible:
+                    visible_count += 1
+        finally:
+            table.setUpdatesEnabled(True)
 
         return visible_count
     
