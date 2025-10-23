@@ -852,7 +852,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Crear toolbar profesional"""
         toolbar_frame = QFrame()
         toolbar_frame.setObjectName("actionBar")
-        toolbar_frame.setMinimumHeight(72)
+        toolbar_frame.setMinimumHeight(56)
         toolbar_frame.setStyleSheet(
             """
             QFrame#actionBar {
