@@ -865,7 +865,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
         toolbar_layout.setContentsMargins(28, 16, 28, 16)
-        toolbar_layout.setSpacing(16)
+        toolbar_layout.setSpacing(12)
 
         # Botones principales
         self.add_btn = ModernButton(
@@ -903,13 +903,13 @@ class ModernShippingMainWindow(QMainWindow):
 
         primary_layout = QHBoxLayout()
         primary_layout.setContentsMargins(0, 0, 0, 0)
-        primary_layout.setSpacing(12)
+        primary_layout.setSpacing(8)
         primary_layout.addWidget(self.add_btn)
         primary_layout.addWidget(self.delete_btn)
 
         secondary_layout = QHBoxLayout()
         secondary_layout.setContentsMargins(0, 0, 0, 0)
-        secondary_layout.setSpacing(12)
+        secondary_layout.setSpacing(8)
         secondary_layout.addWidget(self.columns_btn)
         secondary_layout.addWidget(self.filters_btn)
         secondary_layout.addWidget(self.export_btn)

@@ -34,7 +34,9 @@ class ModernButton(QPushButton):
         self._padding_horizontal = max(0, padding[1])
         self.setMinimumHeight(self._min_height)
         self.setMinimumWidth(self._min_width)
-        apply_scaled_font(self, offset=4, weight=QFont.Weight.Medium)
+        self._font_offset = font_offset if font_offset is not None else 0
+        self._font_weight = font_weight
+        apply_scaled_font(self, offset=self._font_offset, weight=self._font_weight)
         self.apply_professional_style()
 
     def apply_professional_style(self):
@@ -155,7 +157,11 @@ class ModernButton(QPushButton):
                 return
             self._handling_font_change = True
             try:
-                apply_scaled_font(self, offset=4, weight=QFont.Weight.Medium)
+                apply_scaled_font(
+                    self,
+                    offset=getattr(self, "_font_offset", 0),
+                    weight=getattr(self, "_font_weight", QFont.Weight.Medium),
+                )
                 self.apply_professional_style()
             finally:
                 self._handling_font_change = False
