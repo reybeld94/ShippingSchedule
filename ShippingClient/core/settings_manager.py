@@ -139,7 +139,10 @@ class SettingsManager:
     def save_sort_state(self, table_name: str, column: int, order: Qt.SortOrder) -> None:
         """Persist the last used sort column and order for a table."""
         self._settings.setValue(f"{table_name}_sort_column", int(column))
-        self._settings.setValue(f"{table_name}_sort_order", int(order))
+        # Qt.SortOrder is an enum in Qt6; casting directly to int raises TypeError.
+        # Use the enum's integer value to ensure the setting can be serialized.
+        order_value = int(order.value) if hasattr(order, "value") else int(order)
+        self._settings.setValue(f"{table_name}_sort_order", order_value)
 
     def load_sort_state(self, table_name: str) -> tuple[int, Qt.SortOrder] | None:
         """Retrieve the persisted sort configuration for a table."""
