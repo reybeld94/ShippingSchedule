@@ -1061,8 +1061,8 @@ class ModernShippingMainWindow(QMainWindow):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for fixed_column in (3, 4, 5, 6, 7, 8):
-            header.setSectionResizeMode(fixed_column, QHeaderView.ResizeMode.Fixed)
+        for adjustable_column in (3, 4, 5, 6, 7, 8):
+            header.setSectionResizeMode(adjustable_column, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
         header.setSectionsMovable(True)
         header.setHighlightSections(False)
