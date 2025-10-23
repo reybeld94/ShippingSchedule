@@ -1169,10 +1169,13 @@ class ModernShippingMainWindow(QMainWindow):
         if previous:
             view = previous.get("view")
             viewport = previous.get("viewport")
+            pinned_viewport = previous.get("pinned_viewport")
             if isinstance(view, QTableView):
                 view.deleteLater()
             if isinstance(viewport, QWidget):
                 viewport.removeEventFilter(self)
+            if isinstance(pinned_viewport, QWidget):
+                pinned_viewport.removeEventFilter(self)
 
         pinned_view = QTableView(table)
         pinned_view.setObjectName(f"pinnedView_{name}")
@@ -1216,6 +1219,8 @@ class ModernShippingMainWindow(QMainWindow):
 
         viewport = table.viewport()
         viewport.installEventFilter(self)
+        pinned_viewport = pinned_view.viewport()
+        pinned_viewport.installEventFilter(self)
 
         table.verticalScrollBar().valueChanged.connect(pinned_view.verticalScrollBar().setValue)
 
@@ -1224,6 +1229,7 @@ class ModernShippingMainWindow(QMainWindow):
             "count": pinned_count,
             "table": table,
             "viewport": viewport,
+            "pinned_viewport": pinned_viewport,
         }
 
         self.refresh_pinned_columns(table, name)
@@ -1363,6 +1369,14 @@ class ModernShippingMainWindow(QMainWindow):
                     table = info.get("table")
                     if isinstance(table, QTableWidget):
                         self.refresh_pinned_columns(table, name)
+                    break
+        if event.type() == QEvent.Type.Wheel:
+            for info in self._pinned_views.values():
+                if info.get("pinned_viewport") is obj:
+                    table = info.get("table")
+                    if isinstance(table, QTableWidget):
+                        QApplication.sendEvent(table.viewport(), event)
+                        return True
                     break
         return super().eventFilter(obj, event)
 
