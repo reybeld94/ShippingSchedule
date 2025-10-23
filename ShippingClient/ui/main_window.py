@@ -67,6 +67,7 @@ from PyQt6.QtGui import (
     QPainter,
     QShortcut,
     QTransform,
+    QCursor,
 )
 
 # Imports locales
@@ -176,12 +177,12 @@ class StatusChipDelegate(QStyledItemDelegate):
     """Render a status chip next to the job number without altering the model."""
 
     SUCCESS = (
-        "OK",
+        "Full",
         QColor("#0E5D34"),
         QColor(31, 140, 77, int(255 * 0.12)),
     )
     WARNING = (
-        "Hold",
+        "Partial",
         QColor("#8A5A00"),
         QColor(194, 122, 0, int(255 * 0.14)),
     )
@@ -892,11 +893,6 @@ class ModernShippingMainWindow(QMainWindow):
         )
         self.columns_btn.clicked.connect(self.open_columns_menu)
 
-        self.filters_btn = ModernButton(
-            "Filters", "outline", min_height=40, min_width=0, padding=(6, 10)
-        )
-        self.filters_btn.clicked.connect(self.open_filters_menu)
-
         self.export_btn = ModernButton(
             "Export", "outline", min_height=40, min_width=0, padding=(6, 10)
         )
@@ -911,7 +907,6 @@ class ModernShippingMainWindow(QMainWindow):
         secondary_layout.setContentsMargins(0, 0, 0, 0)
         secondary_layout.setSpacing(8)
         secondary_layout.addWidget(self.columns_btn)
-        secondary_layout.addWidget(self.filters_btn)
         secondary_layout.addWidget(self.export_btn)
 
         toolbar_layout.addLayout(primary_layout)
@@ -1012,7 +1007,7 @@ class ModernShippingMainWindow(QMainWindow):
     def setup_professional_table(self, table, name):
         """Configurar tabla con estilo profesional y restaurar ancho de columnas"""
         columns = [
-            "B NUMB",
+            "JOB NUMBER",
             "JOB NAME",
             "DESCRIPTION",
             "QC REL.",
@@ -1546,7 +1541,8 @@ class ModernShippingMainWindow(QMainWindow):
         """Mostrar menú de filtros rápidos."""
         table = self.get_current_table()
         name = self.get_table_key(table)
-        menu = QMenu(self.filters_btn)
+        anchor = getattr(self, "filters_btn", None)
+        menu = QMenu(anchor or self)
         base_labels = self._base_header_labels.get(name, [])
 
         date_columns = self.get_date_filter_columns(name)
@@ -1565,7 +1561,11 @@ class ModernShippingMainWindow(QMainWindow):
         clear_action.triggered.connect(lambda _, nm=name: self.clear_all_filters(nm))
         menu.addAction(clear_action)
 
-        menu.exec(self.filters_btn.mapToGlobal(QPoint(0, self.filters_btn.height())))
+        if anchor:
+            global_pos = anchor.mapToGlobal(QPoint(0, anchor.height()))
+        else:
+            global_pos = QCursor.pos()
+        menu.exec(global_pos)
 
     def trigger_filter_for_column(self, table, name, column):
         """Abrir el popup de filtro para una columna desde el menú."""
@@ -2357,7 +2357,6 @@ class ModernShippingMainWindow(QMainWindow):
             self.add_btn,
             self.delete_btn,
             self.columns_btn,
-            self.filters_btn,
             self.export_btn,
             self.refresh_top_btn,
             self.print_top_btn,
