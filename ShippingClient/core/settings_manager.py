@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, date
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QSettings, Qt
 
 
 class SettingsManager:
@@ -135,6 +135,29 @@ class SettingsManager:
                 widths.append(None)
         self._settings.endGroup()
         return widths
+
+    def save_sort_state(self, table_name: str, column: int, order: Qt.SortOrder) -> None:
+        """Persist the last used sort column and order for a table."""
+        self._settings.setValue(f"{table_name}_sort_column", int(column))
+        self._settings.setValue(f"{table_name}_sort_order", int(order))
+
+    def load_sort_state(self, table_name: str) -> tuple[int, Qt.SortOrder] | None:
+        """Retrieve the persisted sort configuration for a table."""
+        column_value = self._settings.value(f"{table_name}_sort_column")
+        order_value = self._settings.value(f"{table_name}_sort_order")
+
+        try:
+            column = int(column_value)
+        except (TypeError, ValueError):
+            return None
+
+        try:
+            order_int = int(order_value)
+            order = Qt.SortOrder(order_int)
+        except (TypeError, ValueError):
+            order = Qt.SortOrder.AscendingOrder
+
+        return column, order
 
     def get_font_size(self) -> int:
         """Return the preferred application font size or the default value."""
