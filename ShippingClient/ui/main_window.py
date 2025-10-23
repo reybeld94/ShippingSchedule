@@ -1058,12 +1058,9 @@ class ModernShippingMainWindow(QMainWindow):
         # Configurar columnas como ajustables por el usuario
         header = table.horizontalHeader()
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for adjustable_column in (3, 4, 5, 6, 7, 8):
-            header.setSectionResizeMode(adjustable_column, QHeaderView.ResizeMode.Interactive)
-        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Interactive)
         header.setSectionsMovable(True)
         header.setHighlightSections(False)
 
