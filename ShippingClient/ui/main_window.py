@@ -868,9 +868,10 @@ class ModernShippingMainWindow(QMainWindow):
         toolbar_layout.setSpacing(16)
 
         # Botones principales
-        self.add_btn = ModernButton("New Shipment", "primary", min_height=40)
+        self.add_btn = ModernButton(
+            "New Shipment", "primary", min_height=40, min_width=110
+        )
         apply_scaled_font(self.add_btn, offset=2, weight=QFont.Weight.Medium)
-        self.add_btn.setMinimumWidth(132)
         self.add_btn.clicked.connect(self.add_shipment)
 
         self.delete_btn = ModernButton(
