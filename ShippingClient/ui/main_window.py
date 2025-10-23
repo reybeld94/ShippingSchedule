@@ -733,9 +733,12 @@ class ModernShippingMainWindow(QMainWindow):
         self.print_top_btn = ModernButton(
             "Print", "outline", min_height=32, min_width=button_min_width
         )
-        self.print_top_btn.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogPrintButton)
+        print_icon_enum = getattr(
+            QStyle.StandardPixmap,
+            "SP_DialogPrintButton",
+            QStyle.StandardPixmap.SP_FileDialogDetailedView,
         )
+        self.print_top_btn.setIcon(self.style().standardIcon(print_icon_enum))
         self.print_top_btn.setIconSize(QSize(16, 16))
         self.print_top_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.print_top_btn.clicked.connect(self.print_table_to_pdf)
