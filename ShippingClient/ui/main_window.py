@@ -494,7 +494,7 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         header_layout = QGridLayout(header_frame)
-        header_layout.setContentsMargins(16, 0, 16, 0)
+        header_layout.setContentsMargins(0, 0, 16, 0)
         header_layout.setHorizontalSpacing(16)
         header_layout.setVerticalSpacing(0)
         header_layout.setColumnStretch(0, 0)
@@ -506,6 +506,7 @@ class ModernShippingMainWindow(QMainWindow):
         left_layout = QHBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(12)
+        left_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         logo_label = QLabel()
         if os.path.exists(LOGO_PATH):
@@ -534,7 +535,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         title_label = QLabel("Shipping Schedule")
         apply_scaled_font(title_label, offset=8, weight=QFont.Weight.DemiBold)
-        title_label.setStyleSheet("color: #1F2937;")
+        title_label.setStyleSheet("color: #1F2937; text-decoration: none;")
 
         left_layout.addWidget(logo_label)
         left_layout.addWidget(title_label)
@@ -652,16 +653,17 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Acciones a la derecha agrupadas
         right_container = QFrame()
-        right_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        right_container.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         right_layout = QHBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(8)
+        right_layout.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
 
-        actions_container = QFrame()
-        actions_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        actions_layout = QHBoxLayout(actions_container)
-        actions_layout.setContentsMargins(0, 0, 0, 0)
-        actions_layout.setSpacing(8)
+        actions_layout = right_layout
 
         if self.is_admin:
             self.user_btn = ModernButton(
@@ -711,13 +713,10 @@ class ModernShippingMainWindow(QMainWindow):
         self.print_top_btn.clicked.connect(self.print_table_to_pdf)
         actions_layout.addWidget(self.print_top_btn)
 
-        right_layout.addWidget(
-            actions_container, alignment=Qt.AlignmentFlag.AlignVCenter
-        )
-
         user_widget = QFrame()
         user_widget.setObjectName("userWidget")
         user_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        user_widget.setFixedHeight(36)
         user_widget.setStyleSheet(
             """
             QFrame#userWidget {
@@ -773,8 +772,27 @@ class ModernShippingMainWindow(QMainWindow):
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
         )
         self.settings_btn.setIconSize(QSize(16, 16))
-        self.settings_btn.setAutoRaise(True)
+        self.settings_btn.setAutoRaise(False)
+        self.settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.settings_btn.setFixedSize(36, 36)
         self.settings_btn.setToolTip("Settings")
+        self.settings_btn.setStyleSheet(
+            """
+            QToolButton {
+                border: 1px solid #CBD5E1;
+                background-color: #FFFFFF;
+                border-radius: 12px;
+            }
+            QToolButton:hover {
+                background-color: #E8F0F8;
+                border-color: #94A3B8;
+            }
+            QToolButton:pressed {
+                background-color: #DDE7F2;
+                border-color: #94A3B8;
+            }
+        """
+        )
         self.settings_btn.clicked.connect(self.open_settings_dialog)
 
         user_layout.addWidget(self.avatar_label)
@@ -784,16 +802,28 @@ class ModernShippingMainWindow(QMainWindow):
         )
         user_layout.addWidget(self.settings_btn)
 
-        right_layout.addWidget(user_widget, alignment=Qt.AlignmentFlag.AlignVCenter)
+        actions_layout.addWidget(user_widget)
 
         header_layout.addWidget(
-            left_container, 0, 0, alignment=Qt.AlignmentFlag.AlignVCenter
+            left_container,
+            0,
+            0,
+            alignment=Qt.AlignmentFlag.AlignVCenter
+            | Qt.AlignmentFlag.AlignLeft,
         )
         header_layout.addWidget(
-            search_container, 0, 1, alignment=Qt.AlignmentFlag.AlignVCenter
+            search_container,
+            0,
+            1,
+            alignment=Qt.AlignmentFlag.AlignVCenter
+            | Qt.AlignmentFlag.AlignHCenter,
         )
         header_layout.addWidget(
-            right_container, 0, 2, alignment=Qt.AlignmentFlag.AlignVCenter
+            right_container,
+            0,
+            2,
+            alignment=Qt.AlignmentFlag.AlignVCenter
+            | Qt.AlignmentFlag.AlignRight,
         )
 
         layout.addWidget(header_frame)
