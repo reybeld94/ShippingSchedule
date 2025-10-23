@@ -864,27 +864,21 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(28, 12, 28, 12)
+        toolbar_layout.setContentsMargins(28, 16, 28, 16)
         toolbar_layout.setSpacing(12)
 
         # Botones principales
-        compact_button_kwargs = dict(
-            min_height=26,
-            min_width=0,
-            padding=(2, 8),
-            font_offset=0,
-            font_weight=QFont.Weight.Medium,
-            border_radius=8,
-        )
-
         self.add_btn = ModernButton(
-            "New Shipment", "primary", **compact_button_kwargs
+            "New Shipment", "primary", min_height=40, min_width=110
         )
+        apply_scaled_font(self.add_btn, offset=2, weight=QFont.Weight.Medium)
         self.add_btn.clicked.connect(self.add_shipment)
 
         self.delete_btn = ModernButton(
-            "Delete", "danger-outline", **compact_button_kwargs
+            "Delete", "danger-outline", min_height=40, min_width=0, padding=(6, 10)
         )
+        apply_scaled_font(self.delete_btn, offset=1, weight=QFont.Weight.Medium)
+        self.delete_btn.setMinimumWidth(96)
         self.delete_btn.clicked.connect(self.delete_shipment)
         self.delete_btn.setEnabled(False)
 
@@ -894,17 +888,17 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Botones de utilidades de la tabla
         self.columns_btn = ModernButton(
-            "Columns", "outline", **compact_button_kwargs
+            "Columns", "outline", min_height=40, min_width=0, padding=(6, 10)
         )
         self.columns_btn.clicked.connect(self.open_columns_menu)
 
         self.filters_btn = ModernButton(
-            "Filters", "outline", **compact_button_kwargs
+            "Filters", "outline", min_height=40, min_width=0, padding=(6, 10)
         )
         self.filters_btn.clicked.connect(self.open_filters_menu)
 
         self.export_btn = ModernButton(
-            "Export", "outline", **compact_button_kwargs
+            "Export", "outline", min_height=40, min_width=0, padding=(6, 10)
         )
 
         primary_layout = QHBoxLayout()
