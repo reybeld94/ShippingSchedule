@@ -18,8 +18,8 @@ class ModernButton(QPushButton):
         text,
         button_type="primary",
         *,
-        min_height: int = 42,
-        min_width: int = 100,
+        min_height: int = 36,
+        min_width: int = 88,
     ):
         super().__init__(text)
         self.button_type = button_type
@@ -35,8 +35,8 @@ class ModernButton(QPushButton):
         base_style = f"""
             QPushButton {{
                 border: 1px solid transparent;
-                border-radius: 12px;
-                padding: 10px 14px;
+                border-radius: 10px;
+                padding: 8px 12px;
                 font-weight: 500;
                 letter-spacing: 0.3px;
                 text-align: center;
