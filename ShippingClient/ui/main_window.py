@@ -512,7 +512,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Logo y título
         left_container = QFrame()
-        left_container.setMinimumHeight(56)
+        left_container.setMinimumHeight(48)
         left_layout = QHBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(10)
@@ -556,8 +556,8 @@ class ModernShippingMainWindow(QMainWindow):
         # Buscador unificado en el centro
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
-        search_container.setMinimumHeight(56)
-        search_container.setMaximumWidth(820)
+        search_container.setMinimumHeight(48)
+        search_container.setMaximumWidth(680)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -583,7 +583,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_container.setGraphicsEffect(search_shadow)
 
         search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(20, 0, 20, 0)
+        search_layout.setContentsMargins(16, 0, 16, 0)
         search_layout.setSpacing(12)
 
         search_icon = QLabel("🔍")
@@ -592,7 +592,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.search_edit = QLineEdit()
-        apply_scaled_font(self.search_edit, offset=3)
+        apply_scaled_font(self.search_edit, offset=2)
         self.search_edit.setPlaceholderText("Search jobs, WO, notes…")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setFrame(False)
@@ -674,7 +674,7 @@ class ModernShippingMainWindow(QMainWindow):
         right_container.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        right_container.setMinimumHeight(56)
+        right_container.setMinimumHeight(48)
         right_layout = QHBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(20)
@@ -737,7 +737,7 @@ class ModernShippingMainWindow(QMainWindow):
         user_widget.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
         )
-        user_widget.setMinimumHeight(56)
+        user_widget.setMinimumHeight(48)
         user_layout = QHBoxLayout(user_widget)
         user_layout.setContentsMargins(0, 12, 0, 12)
         user_layout.setSpacing(12)
@@ -853,7 +853,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Crear toolbar profesional"""
         toolbar_frame = QFrame()
         toolbar_frame.setObjectName("actionBar")
-        toolbar_frame.setMinimumHeight(56)
+        toolbar_frame.setMinimumHeight(48)
         toolbar_frame.setStyleSheet(
             """
             QFrame#actionBar {
