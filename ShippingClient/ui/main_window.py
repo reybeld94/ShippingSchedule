@@ -36,6 +36,8 @@ from PyQt6.QtWidgets import (
     QToolButton,
     QSizePolicy,
     QLineEdit,
+    QStyleOptionViewItem,
+    QStyledItemDelegate,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -48,6 +50,7 @@ from PyQt6.QtCore import (
     QEventLoop,
     QEvent,
     QSize,
+    QRect,
 )
 from PyQt6.QtGui import (
     QFont,
@@ -60,6 +63,7 @@ from PyQt6.QtGui import (
     QFontMetrics,
     QKeySequence,
     QAction,
+    QPainter,
 )
 
 # Imports locales
@@ -164,6 +168,115 @@ class DateSortableItem(QTableWidgetItem):
             return False
         return QTableWidgetItem.__lt__(self, other)
 
+
+class StatusChipDelegate(QStyledItemDelegate):
+    """Render a status chip next to the job number without altering the model."""
+
+    SUCCESS = (
+        "OK",
+        QColor("#0E5D34"),
+        QColor(31, 140, 77, int(255 * 0.12)),
+    )
+    WARNING = (
+        "Hold",
+        QColor("#8A5A00"),
+        QColor(194, 122, 0, int(255 * 0.14)),
+    )
+    MUTED = (
+        "—",
+        QColor("#475569"),
+        QColor(71, 85, 105, int(255 * 0.12)),
+    )
+
+    STATUS_MAP = {
+        "final_release": SUCCESS,
+        "partial_release": WARNING,
+        "rejected": WARNING,
+        "prod_updated": MUTED,
+        "ok": SUCCESS,
+        "hold": WARNING,
+        "muted": MUTED,
+        "": MUTED,
+        None: MUTED,
+    }
+
+    CHIP_SPACING = 6
+    CHIP_RADIUS = 10
+    CHIP_PADDING_H = 10
+    CHIP_PADDING_V = 4
+
+    def _resolve_style(self, status):
+        normalized = str(status or "").strip().lower()
+        return self.STATUS_MAP.get(normalized, self.MUTED)
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+
+        job_number = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        if not job_number:
+            return
+
+        shipment = index.data(Qt.ItemDataRole.UserRole) or {}
+        status = shipment.get("status") if isinstance(shipment, dict) else None
+        label, text_color, background_color = self._resolve_style(status)
+
+        rect = opt.rect.adjusted(12, 0, -12, 0)
+        metrics = QFontMetrics(opt.font)
+        job_width = metrics.horizontalAdvance(job_number)
+        chip_text_width = metrics.horizontalAdvance(label) if label else 0
+        chip_width = chip_text_width + self.CHIP_PADDING_H * 2 if chip_text_width else 0
+        chip_height = min(rect.height(), metrics.height() + self.CHIP_PADDING_V * 2)
+        spacing = self.CHIP_SPACING if chip_width else 0
+
+        total_width = job_width + chip_width + spacing
+        x = max(rect.left(), rect.right() - total_width)
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        if chip_width:
+            chip_rect = QRect(
+                int(x),
+                int(rect.center().y() - chip_height / 2),
+                int(chip_width),
+                int(chip_height),
+            )
+            painter.setBrush(background_color)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(chip_rect, self.CHIP_RADIUS, self.CHIP_RADIUS)
+
+            painter.setPen(text_color)
+            painter.drawText(
+                chip_rect.adjusted(self.CHIP_PADDING_H, 0, -self.CHIP_PADDING_H, 0),
+                Qt.AlignmentFlag.AlignCenter,
+                label,
+            )
+            x += chip_width + spacing
+
+        job_rect = QRect(int(x), rect.top(), int(rect.right() - x), rect.height())
+        text_pen = (
+            opt.palette.highlightedText().color()
+            if opt.state & QStyle.StateFlag.State_Selected
+            else opt.palette.text().color()
+        )
+        painter.setPen(text_pen)
+        painter.drawText(
+            job_rect,
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+            job_number,
+        )
+        painter.restore()
+
+    def sizeHint(self, option, index):  # type: ignore[override]
+        hint = super().sizeHint(option, index)
+        return QSize(hint.width(), max(hint.height(), 40))
+
 class ModernShippingMainWindow(QMainWindow):
     def __init__(self, token, user_info):
         super().__init__()
@@ -210,6 +323,7 @@ class ModernShippingMainWindow(QMainWindow):
             "history": self.settings_mgr.load_sort_state("history"),
         }
         self._pinned_views: Dict[str, dict[str, object]] = {}
+        self.status_chip_delegate = StatusChipDelegate(self)
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -238,8 +352,20 @@ class ModernShippingMainWindow(QMainWindow):
             9: "shipping_notes",
         }
 
-        self._default_column_widths = [120, 280, 200, 110, 120, 110, 110, 110, 140, 220]
-        self._column_min_widths: Dict[int, int] = {3: 110, 6: 120, 7: 120, 8: 110}
+        self._default_column_widths = [120, 300, 220, 120, 160, 120, 140, 120, 140, 260]
+        self._column_min_widths: Dict[int, int] = {
+            0: 120,
+            1: 260,
+            2: 200,
+            3: 120,
+            4: 140,
+            5: 120,
+            6: 140,
+            7: 120,
+            8: 140,
+            9: 200,
+        }
+        self._column_max_widths: Dict[int, int] = {1: 360}
 
         # Flag para evitar disparar eventos al poblar tablas
         self.updating_table = False
@@ -780,17 +906,19 @@ class ModernShippingMainWindow(QMainWindow):
         table.setTextElideMode(Qt.TextElideMode.ElideRight)
         # Ajustar altura de filas en función del tamaño de fuente sin penalizar rendimiento
         self._configure_table_row_metrics(table)
-        
+
         # Optimización de performance
         table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
-        
+
         # Configurar columnas como ajustables por el usuario
         header = table.horizontalHeader()
         header.setStretchLastSection(False)
-        for i in range(len(columns)):
-            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        for fixed_column in (3, 4, 5, 6, 7, 8):
+            header.setSectionResizeMode(fixed_column, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
         header.setSectionsMovable(True)
         header.setHighlightSections(False)
@@ -799,7 +927,12 @@ class ModernShippingMainWindow(QMainWindow):
             min_width = self._column_min_widths.get(index)
             if min_width is not None:
                 width = max(width, min_width)
+            max_width = self._column_max_widths.get(index)
+            if max_width is not None:
+                width = min(width, max_width)
             table.setColumnWidth(index, width)
+
+        table.setItemDelegateForColumn(0, self.status_chip_delegate)
 
         # Delegates para campos de fecha
         date_delegate = DateDelegate(table)
@@ -903,19 +1036,24 @@ class ModernShippingMainWindow(QMainWindow):
         pinned_view.setEditTriggers(table.editTriggers())
         pinned_view.setSelectionBehavior(table.selectionBehavior())
         pinned_view.setSelectionMode(table.selectionMode())
+        pinned_view.setAlternatingRowColors(True)
         pinned_view.horizontalHeader().setVisible(False)
         pinned_view.verticalHeader().setVisible(False)
         pinned_view.setStyleSheet(
             """
             QTableView {
-                background: rgba(255, 255, 255, 0.98);
-                border-right: 1px solid #E5E7EB;
+                background: rgba(248, 250, 252, 0.98);
+                border-right: 1px solid #E5E9F2;
+            }
+            QTableView::item:!selected:alternate {
+                background: #F7FAFC;
             }
             QTableView::item:hover {
-                background: #E8F0F8;
+                background: #EEF5FB;
             }
         """
         )
+        pinned_view.setItemDelegateForColumn(0, self.status_chip_delegate)
         pinned_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         pinned_view.customContextMenuRequested.connect(
             lambda pos, nm=name: self.forward_pinned_context_menu(nm, pos)
@@ -994,20 +1132,38 @@ class ModernShippingMainWindow(QMainWindow):
         view.setColumnWidth(column, table.columnWidth(column))
         self.refresh_pinned_columns(table, name)
 
+    def refresh_status_chip_for_row(self, table, row):
+        if table is None or row < 0 or row >= table.rowCount():
+            return
+        index = table.model().index(row, 0)
+        table.viewport().update(table.visualRect(index))
+        name = self.get_table_key(table)
+        info = self._pinned_views.get(name)
+        if not info:
+            return
+        view = info.get("view")
+        if isinstance(view, QTableView):
+            view.viewport().update(view.visualRect(index))
+
     def on_header_section_resized(self, table, name, column, new_width=None):
         header = table.horizontalHeader()
         if column < table.columnCount():
             min_width = self._column_min_widths.get(column)
-            if min_width is not None:
-                current_width = new_width if new_width is not None else table.columnWidth(column)
-                if current_width < min_width:
+            max_width = self._column_max_widths.get(column)
+            current_width = new_width if new_width is not None else table.columnWidth(column)
+            desired_width = current_width
+            if min_width is not None and current_width < min_width:
+                desired_width = max(current_width, min_width)
+            if max_width is not None and desired_width > max_width:
+                desired_width = max_width
+            if desired_width != current_width:
+                if header is not None:
+                    header.blockSignals(True)
+                try:
+                    table.setColumnWidth(column, desired_width)
+                finally:
                     if header is not None:
-                        header.blockSignals(True)
-                    try:
-                        table.setColumnWidth(column, min_width)
-                    finally:
-                        if header is not None:
-                            header.blockSignals(False)
+                        header.blockSignals(False)
 
         self.save_table_column_widths(table, name)
         self.refresh_pinned_columns(table, name)
@@ -1088,6 +1244,9 @@ class ModernShippingMainWindow(QMainWindow):
             min_width = self._column_min_widths.get(index)
             if min_width is not None:
                 width = max(width, min_width)
+            max_width = self._column_max_widths.get(index)
+            if max_width is not None:
+                width = min(width, max_width)
             table.setColumnWidth(index, width)
         self.refresh_pinned_columns(table, name)
         self.save_table_column_widths(table, name)
@@ -1204,23 +1363,23 @@ class ModernShippingMainWindow(QMainWindow):
         font-family: '{MODERN_FONT}';
         font-size: {table_font_size}px;
         background: #FFFFFF;
-        gridline-color: #E5E7EB;
-        border: 1px solid #E5E7EB;
+        gridline-color: #E5E9F2;
+        border: 1px solid #E5E9F2;
     }}
     QHeaderView::section {{
         background-color: #F8FAFC;
         color: #475569;
         padding: 12px 14px;
         border: none;
-        border-bottom: 1px solid #E2E8F0;
-        border-right: 1px solid #E2E8F0;
+        border-bottom: 1px solid #E5E9F2;
+        border-right: 1px solid #E5E9F2;
         font-weight: 600;
         font-size: {header_font_size}px;
         text-transform: none;
     }}
     QTableWidget::item {{
         padding: 8px 14px;
-        border-bottom: 1px solid #E5E7EB;
+        border-bottom: 1px solid #E5E9F2;
     }}
     QTableWidget::item:!selected:alternate {{
         background: #F7FAFC;
@@ -1230,7 +1389,7 @@ class ModernShippingMainWindow(QMainWindow):
         color: #1E3A8A;
     }}
     QTableWidget::item:hover {{
-        background: #E8F0F8;
+        background: #EEF5FB;
     }}
         """
         )
@@ -1282,6 +1441,9 @@ class ModernShippingMainWindow(QMainWindow):
                 min_width = self._column_min_widths.get(i)
                 if min_width is not None:
                     width = max(width, min_width)
+                max_width = self._column_max_widths.get(i)
+                if max_width is not None:
+                    width = min(width, max_width)
                 table.setColumnWidth(i, width)
         self.refresh_pinned_columns(table, name)
 
@@ -1546,17 +1708,10 @@ class ModernShippingMainWindow(QMainWindow):
             shipment['version'] = updated_data.get('version', shipment.get('version', 1) + 1)
             shipment['last_modified_by'] = self.user_info.get('id')
             job_item.setData(Qt.ItemDataRole.UserRole, shipment)
-            
-            # Update visual status
-            if new_status == "partial_release":
-                job_item.setBackground(QColor("#FDE68A"))  # Amarillo más intenso - mismo que inicial
-            elif new_status == "final_release":
-                job_item.setBackground(QColor("#BBF7D0"))   # Verde más intenso - mismo que inicial
-            elif new_status == "rejected":
-                job_item.setBackground(QColor("#FED7AA"))   # Soft Orange más intenso - mismo que inicial
-            else:
-                job_item.setBackground(QColor("transparent"))
-            
+
+            job_item.setBackground(QColor("transparent"))
+            self.refresh_status_chip_for_row(table, row)
+
             self.show_toast("Status updated successfully", color="#16A34A")
 
         try:
@@ -1982,7 +2137,7 @@ class ModernShippingMainWindow(QMainWindow):
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-            elif col in (5, 6, 7):
+            elif col in (3, 5, 6, 7):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             elif col == 8:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
@@ -2001,16 +2156,8 @@ class ModernShippingMainWindow(QMainWindow):
 
             table.setItem(row, col, item)
 
-        # Color de la celda de Job Number según el status
         if job_item is not None:
-            raw_status = shipment.get("status", "")
-            status = str(raw_status).strip().lower().replace(" ", "_")
-            if status == "partial_release":
-                job_item.setBackground(QColor("#FDE68A"))  # Amarillo más intenso
-            elif status == "final_release":
-                job_item.setBackground(QColor("#BBF7D0"))   # Verde más intenso
-            elif status == "rejected":
-                job_item.setBackground(QColor("#FED7AA"))   # Soft Orange más intenso
+            self.refresh_status_chip_for_row(table, row)
 
         # La altura de las filas se ajusta al finalizar el poblado completo
 
