@@ -482,7 +482,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Crear header profesional con barra superior compacta"""
         header_frame = QFrame()
         header_frame.setObjectName("topHeaderBar")
-        header_frame.setMinimumHeight(104)
+        header_frame.setMinimumHeight(88)
         header_frame.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
@@ -503,8 +503,8 @@ class ModernShippingMainWindow(QMainWindow):
         header_frame.setGraphicsEffect(header_shadow)
 
         header_layout = QGridLayout(header_frame)
-        header_layout.setContentsMargins(28, 24, 28, 24)
-        header_layout.setHorizontalSpacing(32)
+        header_layout.setContentsMargins(24, 18, 24, 18)
+        header_layout.setHorizontalSpacing(24)
         header_layout.setVerticalSpacing(0)
         header_layout.setColumnStretch(0, 0)
         header_layout.setColumnStretch(1, 1)
@@ -512,10 +512,10 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Logo y título
         left_container = QFrame()
-        left_container.setMinimumHeight(56)
+        left_container.setMinimumHeight(44)
         left_layout = QHBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(10)
+        left_layout.setSpacing(8)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         logo_label = QLabel()
@@ -556,8 +556,8 @@ class ModernShippingMainWindow(QMainWindow):
         # Buscador unificado en el centro
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
-        search_container.setMinimumHeight(56)
-        search_container.setMaximumWidth(820)
+        search_container.setMinimumHeight(42)
+        search_container.setMaximumWidth(640)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -583,16 +583,16 @@ class ModernShippingMainWindow(QMainWindow):
         search_container.setGraphicsEffect(search_shadow)
 
         search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(20, 0, 20, 0)
-        search_layout.setSpacing(12)
+        search_layout.setContentsMargins(12, 0, 12, 0)
+        search_layout.setSpacing(10)
 
         search_icon = QLabel("🔍")
-        apply_scaled_font(search_icon, offset=1)
-        search_icon.setStyleSheet("color: #6B7280; font-size: 16px;")
+        apply_scaled_font(search_icon)
+        search_icon.setStyleSheet("color: #6B7280; font-size: 14px;")
         search_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.search_edit = QLineEdit()
-        apply_scaled_font(self.search_edit, offset=3)
+        apply_scaled_font(self.search_edit, offset=1)
         self.search_edit.setPlaceholderText("Search jobs, WO, notes…")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setFrame(False)
@@ -674,10 +674,10 @@ class ModernShippingMainWindow(QMainWindow):
         right_container.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        right_container.setMinimumHeight(56)
+        right_container.setMinimumHeight(44)
         right_layout = QHBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(20)
+        right_layout.setSpacing(16)
         right_layout.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
@@ -688,13 +688,13 @@ class ModernShippingMainWindow(QMainWindow):
         )
         button_group_layout = QHBoxLayout(button_group)
         button_group_layout.setContentsMargins(0, 0, 0, 0)
-        button_group_layout.setSpacing(12)
+        button_group_layout.setSpacing(10)
 
-        button_min_width = 92
+        button_min_width = 88
 
         if self.is_admin:
             self.user_btn = ModernButton(
-                "Users", "outline", min_height=36, min_width=button_min_width
+                "Users", "outline", min_height=34, min_width=button_min_width
             )
             apply_scaled_font(
                 self.user_btn, offset=2, weight=QFont.Weight.Medium
@@ -703,7 +703,7 @@ class ModernShippingMainWindow(QMainWindow):
             button_group_layout.addWidget(self.user_btn)
 
         self.refresh_top_btn = ModernButton(
-            "Refresh", "outline", min_height=36, min_width=button_min_width
+            "Refresh", "outline", min_height=34, min_width=button_min_width
         )
         self.refresh_top_btn.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
@@ -718,7 +718,7 @@ class ModernShippingMainWindow(QMainWindow):
         button_group_layout.addWidget(self.refresh_top_btn)
 
         self.print_top_btn = ModernButton(
-            "Print", "outline", min_height=36, min_width=button_min_width
+            "Print", "outline", min_height=34, min_width=button_min_width
         )
         print_icon_enum = getattr(
             QStyle.StandardPixmap,
@@ -737,17 +737,17 @@ class ModernShippingMainWindow(QMainWindow):
         user_widget.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
         )
-        user_widget.setMinimumHeight(56)
+        user_widget.setMinimumHeight(44)
         user_layout = QHBoxLayout(user_widget)
-        user_layout.setContentsMargins(0, 12, 0, 12)
-        user_layout.setSpacing(12)
+        user_layout.setContentsMargins(0, 8, 0, 8)
+        user_layout.setSpacing(10)
 
         initials = "".join(
             part[0].upper()
             for part in self.user_info.get("username", "?").split()
         ) or "U"
         self.avatar_label = QLabel(initials[:2])
-        self.avatar_label.setFixedSize(28, 28)
+        self.avatar_label.setFixedSize(26, 26)
         self.avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.avatar_label.setStyleSheet(
             """
@@ -795,7 +795,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.settings_btn.setIconSize(QSize(16, 16))
         self.settings_btn.setAutoRaise(False)
         self.settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.settings_btn.setFixedSize(32, 32)
+        self.settings_btn.setFixedSize(28, 28)
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.setStyleSheet(
             """
@@ -853,7 +853,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Crear toolbar profesional"""
         toolbar_frame = QFrame()
         toolbar_frame.setObjectName("actionBar")
-        toolbar_frame.setMinimumHeight(56)
+        toolbar_frame.setMinimumHeight(42)
         toolbar_frame.setStyleSheet(
             """
             QFrame#actionBar {
@@ -865,21 +865,21 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(28, 16, 28, 16)
-        toolbar_layout.setSpacing(12)
+        toolbar_layout.setContentsMargins(24, 12, 24, 12)
+        toolbar_layout.setSpacing(10)
 
         # Botones principales
         self.add_btn = ModernButton(
-            "New Shipment", "primary", min_height=40, min_width=110
+            "New Shipment", "primary", min_height=36, min_width=104
         )
         apply_scaled_font(self.add_btn, offset=2, weight=QFont.Weight.Medium)
         self.add_btn.clicked.connect(self.add_shipment)
 
         self.delete_btn = ModernButton(
-            "Delete", "danger-outline", min_height=40, min_width=0, padding=(6, 10)
+            "Delete", "danger-outline", min_height=36, min_width=0, padding=(6, 10)
         )
         apply_scaled_font(self.delete_btn, offset=1, weight=QFont.Weight.Medium)
-        self.delete_btn.setMinimumWidth(96)
+        self.delete_btn.setMinimumWidth(92)
         self.delete_btn.clicked.connect(self.delete_shipment)
         self.delete_btn.setEnabled(False)
 
@@ -889,12 +889,12 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Botones de utilidades de la tabla
         self.columns_btn = ModernButton(
-            "Columns", "outline", min_height=40, min_width=0, padding=(6, 10)
+            "Columns", "outline", min_height=36, min_width=0, padding=(6, 10)
         )
         self.columns_btn.clicked.connect(self.open_columns_menu)
 
         self.export_btn = ModernButton(
-            "Export", "outline", min_height=40, min_width=0, padding=(6, 10)
+            "Export", "outline", min_height=36, min_width=0, padding=(6, 10)
         )
 
         primary_layout = QHBoxLayout()
