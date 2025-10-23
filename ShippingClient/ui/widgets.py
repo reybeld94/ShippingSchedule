@@ -35,8 +35,8 @@ class ModernButton(QPushButton):
         base_style = f"""
             QPushButton {{
                 border: 1px solid transparent;
-                border-radius: 8px;
-                padding: 6px 10px;
+                border-radius: 12px;
+                padding: 6px 18px;
                 font-weight: 500;
                 letter-spacing: 0.3px;
                 text-align: center;
@@ -53,30 +53,30 @@ class ModernButton(QPushButton):
         if self.button_type == "primary":
             style = base_style + """
                 QPushButton {
-                    background-color: #2B68A2;
+                    background-color: #1E3A8A;
                     color: #FFFFFF;
                 }
                 QPushButton:hover {
-                    background-color: #255889;
+                    background-color: #1D4ED8;
                 }
                 QPushButton:pressed {
-                    background-color: #1E4770;
+                    background-color: #1E3A8A;
                 }
             """
         elif self.button_type in ("secondary", "outline"):
             style = base_style + """
                 QPushButton {
                     background-color: #FFFFFF;
-                    color: #24598A;
-                    border-color: #CBD5E1;
+                    color: #4B5563;
+                    border-color: #D1D5DB;
                 }
                 QPushButton:hover {
-                    background-color: #E8F0F8;
-                    border-color: #94A3B8;
+                    background-color: #F3F4F6;
+                    border-color: #9CA3AF;
                 }
                 QPushButton:pressed {
-                    background-color: #DDE7F2;
-                    border-color: #94A3B8;
+                    background-color: #E5E7EB;
+                    border-color: #9CA3AF;
                 }
             """
         elif self.button_type == "success":

@@ -434,8 +434,8 @@ class ModernShippingMainWindow(QMainWindow):
             
             # Layout principal
             main_layout = QVBoxLayout(central_widget)
-            main_layout.setContentsMargins(15, 15, 15, 15)
-            main_layout.setSpacing(12)
+            main_layout.setContentsMargins(24, 28, 24, 24)
+            main_layout.setSpacing(16)
             
             # Header profesional
             self.create_professional_header(main_layout)
@@ -480,7 +480,7 @@ class ModernShippingMainWindow(QMainWindow):
     def create_professional_header(self, layout):
         """Crear header profesional con barra superior compacta"""
         header_frame = QFrame()
-        header_frame.setFixedHeight(56)
+        header_frame.setMinimumHeight(76)
         header_frame.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
@@ -488,14 +488,20 @@ class ModernShippingMainWindow(QMainWindow):
             """
             QFrame {
                 background-color: #FFFFFF;
-                border-bottom: 1px solid #E5E9F2;
+                border-radius: 18px;
             }
         """
         )
 
+        header_shadow = QGraphicsDropShadowEffect(self)
+        header_shadow.setBlurRadius(28)
+        header_shadow.setOffset(0, 6)
+        header_shadow.setColor(QColor(22, 36, 64, 25))
+        header_frame.setGraphicsEffect(header_shadow)
+
         header_layout = QGridLayout(header_frame)
-        header_layout.setContentsMargins(0, 0, 16, 0)
-        header_layout.setHorizontalSpacing(16)
+        header_layout.setContentsMargins(24, 18, 24, 18)
+        header_layout.setHorizontalSpacing(20)
         header_layout.setVerticalSpacing(0)
         header_layout.setColumnStretch(0, 0)
         header_layout.setColumnStretch(1, 1)
@@ -505,15 +511,15 @@ class ModernShippingMainWindow(QMainWindow):
         left_container = QFrame()
         left_layout = QHBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(12)
+        left_layout.setSpacing(10)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         logo_label = QLabel()
         if os.path.exists(LOGO_PATH):
             pixmap = QPixmap(LOGO_PATH)
             scaled_pixmap = pixmap.scaled(
-                40,
-                40,
+                28,
+                28,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
@@ -523,19 +529,21 @@ class ModernShippingMainWindow(QMainWindow):
             fallback_size = max(8, get_base_font_size() + 3)
             logo_label.setStyleSheet(
                 f"""
-                background-color: #1F2937;
+                background-color: #1E3A8A;
                 color: #FFFFFF;
                 font-weight: 600;
-                border-radius: 8px;
-                padding: 8px 12px;
+                border-radius: 12px;
+                padding: 6px 10px;
                 font-size: {fallback_size}px;
             """
             )
             logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         title_label = QLabel("Shipping Schedule")
-        apply_scaled_font(title_label, offset=8, weight=QFont.Weight.DemiBold)
-        title_label.setStyleSheet("color: #1F2937; text-decoration: none;")
+        apply_scaled_font(title_label, offset=10, weight=QFont.Weight.Bold)
+        title_label.setStyleSheet(
+            "color: #102A56; text-decoration: none; letter-spacing: 0.3px;"
+        )
 
         left_layout.addWidget(logo_label)
         left_layout.addWidget(title_label)
@@ -544,7 +552,7 @@ class ModernShippingMainWindow(QMainWindow):
         # Buscador unificado en el centro
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
-        search_container.setMinimumHeight(40)
+        search_container.setMinimumHeight(44)
         search_container.setMaximumWidth(720)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -554,19 +562,25 @@ class ModernShippingMainWindow(QMainWindow):
         search_container.setStyleSheet(
             """
             QFrame#commandSearchContainer {
-                background-color: #F9FAFB;
-                border: 1px solid #D1D5DB;
-                border-radius: 12px;
+                background-color: #FFFFFF;
+                border: 1px solid #E2E8F0;
+                border-radius: 14px;
             }
             QFrame#commandSearchContainer[focused="true"] {
-                border: 1px solid #3B82F6;
+                border: 1px solid #1E40AF;
             }
         """
         )
 
+        search_shadow = QGraphicsDropShadowEffect(self)
+        search_shadow.setBlurRadius(18)
+        search_shadow.setOffset(0, 4)
+        search_shadow.setColor(QColor(22, 36, 64, 18))
+        search_container.setGraphicsEffect(search_shadow)
+
         search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(16, 0, 16, 0)
-        search_layout.setSpacing(8)
+        search_layout.setContentsMargins(18, 0, 18, 0)
+        search_layout.setSpacing(10)
 
         search_icon = QLabel("🔍")
         apply_scaled_font(search_icon, offset=4)
@@ -658,7 +672,7 @@ class ModernShippingMainWindow(QMainWindow):
         )
         right_layout = QHBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(8)
+        right_layout.setSpacing(12)
         right_layout.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
@@ -685,20 +699,20 @@ class ModernShippingMainWindow(QMainWindow):
         self.refresh_top_btn.setStyleSheet(
             """
             QToolButton#refreshButton {
-                border: 1px solid #CBD5E1;
+                border: 1px solid #D1D5DB;
                 background-color: #FFFFFF;
-                border-radius: 12px;
+                border-radius: 14px;
             }
             QToolButton#refreshButton:hover {
-                background-color: #E8F0F8;
-                border-color: #94A3B8;
+                background-color: #F3F4F6;
+                border-color: #9CA3AF;
             }
             QToolButton#refreshButton:pressed {
-                background-color: #DDE7F2;
-                border-color: #94A3B8;
+                background-color: #E5E7EB;
+                border-color: #9CA3AF;
             }
             QToolButton#refreshButton:disabled {
-                background-color: #F1F5F9;
+                background-color: #F8FAFC;
                 border-color: #E2E8F0;
             }
         """
@@ -720,22 +734,28 @@ class ModernShippingMainWindow(QMainWindow):
         user_widget.setStyleSheet(
             """
             QFrame#userWidget {
-                background-color: #F4F6FA;
-                border: none;
+                background-color: #FFFFFF;
+                border: 1px solid #E2E8F0;
                 border-radius: 999px;
             }
         """
         )
         user_layout = QHBoxLayout(user_widget)
-        user_layout.setContentsMargins(10, 4, 10, 4)
-        user_layout.setSpacing(8)
+        user_layout.setContentsMargins(12, 4, 12, 4)
+        user_layout.setSpacing(10)
 
         initials = "".join(part[0].upper() for part in self.user_info.get("username", "?").split()) or "U"
         self.avatar_label = QLabel(initials[:2])
         self.avatar_label.setFixedSize(28, 28)
         self.avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.avatar_label.setStyleSheet(
-            "background-color: #3B82F6; color: white; border-radius: 14px; font-weight: 600;"
+            """
+            background-color: #FFFFFF;
+            color: #1F2937;
+            border-radius: 14px;
+            border: 1px solid #E2E8F0;
+            font-weight: 600;
+            """
         )
 
         text_layout = QVBoxLayout()
@@ -2165,7 +2185,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Aplicar tema profesional"""
         self.setStyleSheet(f"""
             QMainWindow {{
-                background: #F3F4F6;
+                background: #F7F9FC;
             }}
             QWidget {{
                 font-family: '{MODERN_FONT}', 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
