@@ -1,5 +1,5 @@
 ﻿# ui/widgets.py - Widgets profesionales
-from typing import Tuple, Optional
+from typing import Tuple
 
 from PyQt6.QtWidgets import (
     QPushButton,
@@ -23,8 +23,6 @@ class ModernButton(QPushButton):
         min_height: int = 32,
         min_width: int = 80,
         padding: Tuple[int, int] | None = None,
-        font_offset: Optional[int] = 4,
-        font_weight: QFont.Weight | None = QFont.Weight.Medium,
     ):
         super().__init__(text)
         self.button_type = button_type
