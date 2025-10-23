@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
     QTableWidget,
     QTableWidgetItem,
     QTableView,
@@ -238,6 +239,7 @@ class ModernShippingMainWindow(QMainWindow):
         }
 
         self._default_column_widths = [120, 280, 200, 110, 120, 110, 110, 110, 140, 220]
+        self._column_min_widths: Dict[int, int] = {3: 110, 6: 120, 7: 120, 8: 110}
 
         # Flag para evitar disparar eventos al poblar tablas
         self.updating_table = False
@@ -333,9 +335,13 @@ class ModernShippingMainWindow(QMainWindow):
         """
         )
 
-        header_layout = QHBoxLayout(header_frame)
+        header_layout = QGridLayout(header_frame)
         header_layout.setContentsMargins(16, 0, 24, 0)
-        header_layout.setSpacing(16)
+        header_layout.setHorizontalSpacing(16)
+        header_layout.setVerticalSpacing(0)
+        header_layout.setColumnStretch(0, 0)
+        header_layout.setColumnStretch(1, 1)
+        header_layout.setColumnStretch(2, 0)
 
         # Logo y título
         left_container = QFrame()
@@ -380,6 +386,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
         search_container.setMinimumHeight(40)
+        search_container.setMaximumWidth(720)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -400,7 +407,7 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(14, 0, 14, 0)
+        search_layout.setContentsMargins(16, 0, 16, 0)
         search_layout.setSpacing(8)
 
         search_icon = QLabel("🔍")
@@ -413,7 +420,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.search_edit.setPlaceholderText("Search jobs, WO, notes…")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setFrame(False)
-        self.search_edit.setMinimumWidth(520)
+        self.search_edit.setMinimumWidth(0)
         self.search_edit.setStyleSheet(
             """
             QLineEdit {
@@ -457,39 +464,80 @@ class ModernShippingMainWindow(QMainWindow):
         self.search_timer.timeout.connect(self.perform_filter)
         self.search_edit.textChanged.connect(self.on_search_text_changed)
 
-        # Acciones a la derecha
+        # Acciones a la derecha agrupadas
         right_container = QFrame()
+        right_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         right_layout = QHBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(12)
+        right_layout.setSpacing(16)
+
+        actions_container = QFrame()
+        actions_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        actions_layout = QHBoxLayout(actions_container)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(10)
 
         if self.is_admin:
-            self.user_btn = ModernButton("Users", "secondary")
+            self.user_btn = ModernButton("Users", "outline")
             self.user_btn.clicked.connect(self.open_user_management)
-            right_layout.addWidget(self.user_btn)
+            actions_layout.addWidget(self.user_btn)
 
-        self.refresh_top_btn = ModernButton("Refresh", "secondary")
+        self.refresh_top_btn = QToolButton()
+        self.refresh_top_btn.setObjectName("refreshButton")
+        self.refresh_top_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+        )
+        self.refresh_top_btn.setIconSize(QSize(18, 18))
+        self.refresh_top_btn.setAutoRaise(False)
+        self.refresh_top_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.refresh_top_btn.setFixedSize(36, 36)
+        self.refresh_top_btn.setToolTip("Refresh shipments")
+        self.refresh_top_btn.setStyleSheet(
+            """
+            QToolButton#refreshButton {
+                border: 1px solid #CBD5E1;
+                background-color: #FFFFFF;
+                border-radius: 12px;
+            }
+            QToolButton#refreshButton:hover {
+                background-color: #E8F0F8;
+                border-color: #94A3B8;
+            }
+            QToolButton#refreshButton:pressed {
+                background-color: #DDE7F2;
+                border-color: #94A3B8;
+            }
+            QToolButton#refreshButton:disabled {
+                background-color: #F1F5F9;
+                border-color: #E2E8F0;
+            }
+        """
+        )
         self.refresh_top_btn.clicked.connect(self.load_shipments_async)
-        right_layout.addWidget(self.refresh_top_btn)
+        actions_layout.addWidget(self.refresh_top_btn)
 
-        self.print_top_btn = ModernButton("Print", "secondary")
+        self.print_top_btn = ModernButton("Print", "outline")
         self.print_top_btn.clicked.connect(self.print_table_to_pdf)
-        right_layout.addWidget(self.print_top_btn)
+        actions_layout.addWidget(self.print_top_btn)
+
+        right_layout.addWidget(
+            actions_container, alignment=Qt.AlignmentFlag.AlignVCenter
+        )
 
         user_widget = QFrame()
         user_widget.setObjectName("userWidget")
         user_widget.setStyleSheet(
             """
             QFrame#userWidget {
-                background-color: #F9FAFB;
-                border: 1px solid #E5E7EB;
-                border-radius: 10px;
+                background-color: #F1F5F9;
+                border: 1px solid #E2E8F0;
+                border-radius: 18px;
             }
         """
         )
         user_layout = QHBoxLayout(user_widget)
-        user_layout.setContentsMargins(10, 6, 10, 6)
-        user_layout.setSpacing(10)
+        user_layout.setContentsMargins(12, 8, 12, 8)
+        user_layout.setSpacing(12)
 
         initials = "".join(part[0].upper() for part in self.user_info.get("username", "?").split()) or "U"
         self.avatar_label = QLabel(initials[:2])
@@ -520,6 +568,13 @@ class ModernShippingMainWindow(QMainWindow):
         text_layout.addWidget(user_name_label)
         text_layout.addWidget(user_role_label)
 
+        self.connection_indicator = QLabel()
+        self.connection_indicator.setFixedSize(10, 10)
+        self.connection_indicator.setStyleSheet(
+            "background-color: #CBD5E1; border-radius: 5px;"
+        )
+        self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
+
         self.settings_btn = QToolButton()
         self.settings_btn.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
@@ -531,23 +586,22 @@ class ModernShippingMainWindow(QMainWindow):
 
         user_layout.addWidget(self.avatar_label)
         user_layout.addLayout(text_layout)
+        user_layout.addWidget(
+            self.connection_indicator, alignment=Qt.AlignmentFlag.AlignVCenter
+        )
         user_layout.addWidget(self.settings_btn)
 
-        right_layout.addWidget(user_widget)
+        right_layout.addWidget(user_widget, alignment=Qt.AlignmentFlag.AlignVCenter)
 
-        self.connection_indicator = QLabel()
-        self.connection_indicator.setFixedSize(14, 14)
-        self.connection_indicator.setStyleSheet(
-            "background-color: #9CA3AF; border-radius: 7px;"
+        header_layout.addWidget(
+            left_container, 0, 0, alignment=Qt.AlignmentFlag.AlignVCenter
         )
-        self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
-        right_layout.addWidget(self.connection_indicator, alignment=Qt.AlignmentFlag.AlignVCenter)
-
-        header_layout.addWidget(left_container)
-        header_layout.addStretch(1)
-        header_layout.addWidget(search_container, stretch=2)
-        header_layout.addStretch(1)
-        header_layout.addWidget(right_container)
+        header_layout.addWidget(
+            search_container, 0, 1, alignment=Qt.AlignmentFlag.AlignVCenter
+        )
+        header_layout.addWidget(
+            right_container, 0, 2, alignment=Qt.AlignmentFlag.AlignVCenter
+        )
 
         layout.addWidget(header_frame)
     
@@ -565,14 +619,14 @@ class ModernShippingMainWindow(QMainWindow):
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
         toolbar_layout.setContentsMargins(20, 10, 20, 10)
-        toolbar_layout.setSpacing(10)
+        toolbar_layout.setSpacing(12)
 
         # Botones principales
         self.add_btn = ModernButton("New Shipment", "primary")
         self.add_btn.clicked.connect(self.add_shipment)
 
 
-        self.delete_btn = ModernButton("Delete", "secondary")
+        self.delete_btn = ModernButton("Delete", "danger-outline")
         self.delete_btn.clicked.connect(self.delete_shipment)
         self.delete_btn.setEnabled(False)
 
@@ -581,13 +635,13 @@ class ModernShippingMainWindow(QMainWindow):
             self.delete_btn.setEnabled(False)
 
         # Botones de utilidades de la tabla
-        self.columns_btn = ModernButton("Columns", "secondary")
+        self.columns_btn = ModernButton("Columns", "outline")
         self.columns_btn.clicked.connect(self.open_columns_menu)
 
-        self.filters_btn = ModernButton("Filters", "secondary")
+        self.filters_btn = ModernButton("Filters", "outline")
         self.filters_btn.clicked.connect(self.open_filters_menu)
 
-        self.export_btn = ModernButton("Export", "secondary")
+        self.export_btn = ModernButton("Export", "outline")
         self.export_btn.clicked.connect(self.export_visible_rows_to_csv)
 
         # Agregar todo al toolbar
@@ -686,18 +740,24 @@ class ModernShippingMainWindow(QMainWindow):
             "B NUMB",
             "JOB NAME",
             "DESCRIPTION",
-            "QC RELEASE",
+            "QC REL.",
             "QC NOTES",
             "CRATED",
             "SHIP PLAN",
             "SHIPPED",
-            "INVOICE NUMBER",
+            "INVOICE",
             "NOTES",
         ]
-        
+
         table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
         self._base_header_labels[name] = list(columns)
+
+        tooltip_map = {3: "QC Release", 8: "Invoice Number"}
+        for index, tooltip in tooltip_map.items():
+            header_item = table.horizontalHeaderItem(index)
+            if header_item is not None:
+                header_item.setToolTip(tooltip)
 
         date_columns = self.get_date_filter_columns(name)
         header = DateFilterHeader(table, date_columns)
@@ -736,6 +796,9 @@ class ModernShippingMainWindow(QMainWindow):
         header.setHighlightSections(False)
 
         for index, width in enumerate(self._default_column_widths):
+            min_width = self._column_min_widths.get(index)
+            if min_width is not None:
+                width = max(width, min_width)
             table.setColumnWidth(index, width)
 
         # Delegates para campos de fecha
@@ -754,7 +817,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Guardar anchos cada vez que se ajusta alguna columna
         header.sectionResized.connect(
-            lambda logical, _old, _new, tbl=table, nm=name: self.on_header_section_resized(tbl, nm, logical)
+            lambda logical, _old, new, tbl=table, nm=name: self.on_header_section_resized(tbl, nm, logical, new)
         )
         header.sectionMoved.connect(
             lambda logical, old, new, tbl=table, nm=name: self.enforce_pinned_section_positions(tbl, nm, logical, new, pinned_count=2)
@@ -782,9 +845,9 @@ class ModernShippingMainWindow(QMainWindow):
             self.update_header_filter_state(table, name, column, True, data)
 
         shadow = QGraphicsDropShadowEffect(table)
-        shadow.setBlurRadius(18)
-        shadow.setOffset(0, 3)
-        shadow.setColor(QColor(17, 24, 39, 45))
+        shadow.setBlurRadius(20)
+        shadow.setOffset(0, 4)
+        shadow.setColor(QColor(15, 23, 42, 55))
         shadow.setEnabled(False)
         header.setGraphicsEffect(shadow)
         self._header_shadows[name] = shadow
@@ -931,7 +994,21 @@ class ModernShippingMainWindow(QMainWindow):
         view.setColumnWidth(column, table.columnWidth(column))
         self.refresh_pinned_columns(table, name)
 
-    def on_header_section_resized(self, table, name, column):
+    def on_header_section_resized(self, table, name, column, new_width=None):
+        header = table.horizontalHeader()
+        if column < table.columnCount():
+            min_width = self._column_min_widths.get(column)
+            if min_width is not None:
+                current_width = new_width if new_width is not None else table.columnWidth(column)
+                if current_width < min_width:
+                    if header is not None:
+                        header.blockSignals(True)
+                    try:
+                        table.setColumnWidth(column, min_width)
+                    finally:
+                        if header is not None:
+                            header.blockSignals(False)
+
         self.save_table_column_widths(table, name)
         self.refresh_pinned_columns(table, name)
         if column < table.columnCount():
@@ -1008,6 +1085,9 @@ class ModernShippingMainWindow(QMainWindow):
         for col in range(table.columnCount()):
             table.setColumnHidden(col, False)
         for index, width in enumerate(self._default_column_widths):
+            min_width = self._column_min_widths.get(index)
+            if min_width is not None:
+                width = max(width, min_width)
             table.setColumnWidth(index, width)
         self.refresh_pinned_columns(table, name)
         self.save_table_column_widths(table, name)
@@ -1115,8 +1195,9 @@ class ModernShippingMainWindow(QMainWindow):
 
     def _apply_table_style(self, table):
         """Apply the dynamic table styling based on the global font size."""
-        table_font_size = max(12, get_base_font_size() + 4)
-        header_font_size = table_font_size + 1
+        base_size = get_base_font_size()
+        table_font_size = max(12, base_size + 4)
+        header_font_size = max(14, base_size + 6)
         table.setStyleSheet(
             f"""
     QTableWidget {{
@@ -1127,18 +1208,18 @@ class ModernShippingMainWindow(QMainWindow):
         border: 1px solid #E5E7EB;
     }}
     QHeaderView::section {{
-        background-color: #F1F5F9;
-        color: #1F2937;
-        padding: 10px 12px;
+        background-color: #F8FAFC;
+        color: #475569;
+        padding: 12px 14px;
         border: none;
-        border-bottom: 1px solid #CBD5F5;
-        border-right: 1px solid #E5E7EB;
+        border-bottom: 1px solid #E2E8F0;
+        border-right: 1px solid #E2E8F0;
         font-weight: 600;
         font-size: {header_font_size}px;
-        text-transform: uppercase;
+        text-transform: none;
     }}
     QTableWidget::item {{
-        padding: 6px 12px;
+        padding: 8px 14px;
         border-bottom: 1px solid #E5E7EB;
     }}
     QTableWidget::item:!selected:alternate {{
@@ -1198,6 +1279,9 @@ class ModernShippingMainWindow(QMainWindow):
         widths = self.settings_mgr.load_column_widths(name, table.columnCount())
         for i, width in enumerate(widths):
             if width is not None:
+                min_width = self._column_min_widths.get(i)
+                if min_width is not None:
+                    width = max(width, min_width)
                 table.setColumnWidth(i, width)
         self.refresh_pinned_columns(table, name)
 
@@ -1621,12 +1705,16 @@ class ModernShippingMainWindow(QMainWindow):
     def update_connection_status(self, connected):
         """Actualizar status de conexión profesional"""
         if connected:
-            self.connection_indicator.setStyleSheet("background-color: #10B981; border-radius: 7px;")
+            self.connection_indicator.setStyleSheet(
+                "background-color: #10B981; border-radius: 5px;"
+            )
             self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
             self.connection_status_label.setText(f"Connected · {self.server_host}")
             self.connection_status_label.setStyleSheet("color: #10B981; font-weight: 600;")
         else:
-            self.connection_indicator.setStyleSheet("background-color: #EF4444; border-radius: 7px;")
+            self.connection_indicator.setStyleSheet(
+                "background-color: #EF4444; border-radius: 5px;"
+            )
             self.connection_indicator.setToolTip(f"Disconnected from {self.server_host}")
             self.connection_status_label.setText("Disconnected")
             self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 600;")
