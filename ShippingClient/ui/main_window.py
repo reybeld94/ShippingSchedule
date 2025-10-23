@@ -556,7 +556,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
         search_container.setMinimumHeight(56)
-        search_container.setMaximumWidth(720)
+        search_container.setMaximumWidth(820)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
