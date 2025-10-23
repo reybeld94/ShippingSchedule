@@ -487,8 +487,8 @@ class ModernShippingMainWindow(QMainWindow):
         header_frame.setStyleSheet(
             """
             QFrame {
-                background-color: #FFFFFF;
-                border-radius: 18px;
+                background-color: #F9FAFC;
+                border-radius: 16px;
             }
         """
         )
@@ -500,8 +500,8 @@ class ModernShippingMainWindow(QMainWindow):
         header_frame.setGraphicsEffect(header_shadow)
 
         header_layout = QGridLayout(header_frame)
-        header_layout.setContentsMargins(24, 18, 24, 18)
-        header_layout.setHorizontalSpacing(20)
+        header_layout.setContentsMargins(28, 16, 28, 16)
+        header_layout.setHorizontalSpacing(24)
         header_layout.setVerticalSpacing(0)
         header_layout.setColumnStretch(0, 0)
         header_layout.setColumnStretch(1, 1)
@@ -564,10 +564,10 @@ class ModernShippingMainWindow(QMainWindow):
             QFrame#commandSearchContainer {
                 background-color: #FFFFFF;
                 border: 1px solid #E2E8F0;
-                border-radius: 14px;
+                border-radius: 12px;
             }
             QFrame#commandSearchContainer[focused="true"] {
-                border: 1px solid #1E40AF;
+                border: 1px solid #94A3B8;
             }
         """
         )
@@ -579,16 +579,16 @@ class ModernShippingMainWindow(QMainWindow):
         search_container.setGraphicsEffect(search_shadow)
 
         search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(18, 0, 18, 0)
+        search_layout.setContentsMargins(16, 0, 16, 0)
         search_layout.setSpacing(10)
 
         search_icon = QLabel("🔍")
-        apply_scaled_font(search_icon, offset=4)
-        search_icon.setStyleSheet("color: #6B7280;")
+        apply_scaled_font(search_icon, offset=1)
+        search_icon.setStyleSheet("color: #6B7280; font-size: 16px;")
         search_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.search_edit = QLineEdit()
-        apply_scaled_font(self.search_edit, offset=4)
+        apply_scaled_font(self.search_edit, offset=3)
         self.search_edit.setPlaceholderText("Search jobs, WO, notes…")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setFrame(False)
@@ -667,84 +667,112 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Acciones a la derecha agrupadas
         right_container = QFrame()
+        right_container.setObjectName("headerActionsContainer")
         right_container.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
+        right_container.setFixedHeight(44)
         right_layout = QHBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(12)
+        right_layout.setSpacing(16)
         right_layout.setAlignment(
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
 
-        actions_layout = right_layout
-
-        if self.is_admin:
-            self.user_btn = ModernButton(
-                "Users", "outline", min_height=36, min_width=0
-            )
-            self.user_btn.clicked.connect(self.open_user_management)
-            actions_layout.addWidget(self.user_btn)
-
-        self.refresh_top_btn = QToolButton()
-        self.refresh_top_btn.setObjectName("refreshButton")
-        self.refresh_top_btn.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+        control_panel = QFrame()
+        control_panel.setObjectName("headerControlPanel")
+        control_panel.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
         )
-        self.refresh_top_btn.setIconSize(QSize(18, 18))
-        self.refresh_top_btn.setAutoRaise(False)
-        self.refresh_top_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.refresh_top_btn.setFixedSize(36, 36)
-        self.refresh_top_btn.setToolTip("Refresh shipments")
-        self.refresh_top_btn.setStyleSheet(
+        control_panel.setStyleSheet(
             """
-            QToolButton#refreshButton {
-                border: 1px solid #D1D5DB;
-                background-color: #FFFFFF;
-                border-radius: 14px;
-            }
-            QToolButton#refreshButton:hover {
-                background-color: #F3F4F6;
-                border-color: #9CA3AF;
-            }
-            QToolButton#refreshButton:pressed {
-                background-color: #E5E7EB;
-                border-color: #9CA3AF;
-            }
-            QToolButton#refreshButton:disabled {
-                background-color: #F8FAFC;
-                border-color: #E2E8F0;
+            QFrame#headerControlPanel {
+                background-color: #F8F9FC;
+                border: 1px solid #E2E8F0;
+                border-radius: 12px;
             }
         """
         )
+        control_panel_layout = QHBoxLayout(control_panel)
+        control_panel_layout.setContentsMargins(12, 4, 12, 4)
+        control_panel_layout.setSpacing(8)
+
+        control_shadow = QGraphicsDropShadowEffect(self)
+        control_shadow.setBlurRadius(16)
+        control_shadow.setOffset(0, 4)
+        control_shadow.setColor(QColor(15, 23, 42, 25))
+        control_panel.setGraphicsEffect(control_shadow)
+
+        button_min_width = 92
+
+        if self.is_admin:
+            self.user_btn = ModernButton(
+                "Users", "outline", min_height=32, min_width=button_min_width
+            )
+            apply_scaled_font(
+                self.user_btn, offset=2, weight=QFont.Weight.Medium
+            )
+            self.user_btn.clicked.connect(self.open_user_management)
+            control_panel_layout.addWidget(self.user_btn)
+
+        self.refresh_top_btn = ModernButton(
+            "Refresh", "outline", min_height=32, min_width=button_min_width
+        )
+        self.refresh_top_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+        )
+        self.refresh_top_btn.setIconSize(QSize(16, 16))
+        self.refresh_top_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.refresh_top_btn.setToolTip("Refresh shipments")
         self.refresh_top_btn.clicked.connect(self.on_refresh_clicked)
-        self._refresh_icon_base = self.refresh_top_btn.icon().pixmap(self.refresh_top_btn.iconSize())
-        actions_layout.addWidget(self.refresh_top_btn)
+        self._refresh_icon_base = self.refresh_top_btn.icon().pixmap(
+            self.refresh_top_btn.iconSize()
+        )
+        control_panel_layout.addWidget(self.refresh_top_btn)
 
         self.print_top_btn = ModernButton(
-            "Print", "outline", min_height=36, min_width=0
+            "Print", "outline", min_height=32, min_width=button_min_width
         )
+        self.print_top_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogPrintButton)
+        )
+        self.print_top_btn.setIconSize(QSize(16, 16))
+        self.print_top_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.print_top_btn.clicked.connect(self.print_table_to_pdf)
-        actions_layout.addWidget(self.print_top_btn)
+        control_panel_layout.addWidget(self.print_top_btn)
+
+        right_layout.addWidget(control_panel)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.VLine)
+        divider.setFrameShadow(QFrame.Shadow.Plain)
+        divider.setLineWidth(1)
+        divider.setFixedWidth(1)
+        divider.setFixedHeight(32)
+        divider.setStyleSheet("background-color: #E2E8F0;")
+        right_layout.addWidget(divider)
 
         user_widget = QFrame()
         user_widget.setObjectName("userWidget")
         user_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        user_widget.setFixedHeight(36)
+        user_widget.setFixedHeight(44)
         user_widget.setStyleSheet(
             """
             QFrame#userWidget {
                 background-color: #FFFFFF;
                 border: 1px solid #E2E8F0;
-                border-radius: 999px;
+                border-radius: 12px;
             }
         """
         )
         user_layout = QHBoxLayout(user_widget)
-        user_layout.setContentsMargins(12, 4, 12, 4)
-        user_layout.setSpacing(10)
+        user_layout.setContentsMargins(12, 6, 12, 6)
+        user_layout.setSpacing(8)
 
-        initials = "".join(part[0].upper() for part in self.user_info.get("username", "?").split()) or "U"
+        initials = "".join(
+            part[0].upper()
+            for part in self.user_info.get("username", "?").split()
+        ) or "U"
         self.avatar_label = QLabel(initials[:2])
         self.avatar_label.setFixedSize(28, 28)
         self.avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -760,11 +788,11 @@ class ModernShippingMainWindow(QMainWindow):
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(0)
+        text_layout.setSpacing(2)
         text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         user_name_label = QLabel(self.user_info.get("username", ""))
-        apply_scaled_font(user_name_label, offset=2, weight=QFont.Weight.Medium)
+        apply_scaled_font(user_name_label, offset=1, weight=QFont.Weight.Medium)
         user_name_label.setStyleSheet("color: #1F2937;")
 
         role_map = {
@@ -774,16 +802,16 @@ class ModernShippingMainWindow(QMainWindow):
         }
         role_text = role_map.get(self.user_info.get("role"), "Read Only")
         user_role_label = QLabel(role_text)
-        apply_scaled_font(user_role_label, offset=-1)
+        apply_scaled_font(user_role_label, offset=-2)
         user_role_label.setStyleSheet("color: #6B7280;")
 
         text_layout.addWidget(user_name_label)
         text_layout.addWidget(user_role_label)
 
         self.connection_indicator = QLabel()
-        self.connection_indicator.setFixedSize(10, 10)
+        self.connection_indicator.setFixedSize(8, 8)
         self.connection_indicator.setStyleSheet(
-            "background-color: #16A34A; border-radius: 5px;"
+            "background-color: #22C55E; border: 1px solid #FFFFFF; border-radius: 4px;"
         )
         self.connection_indicator.setToolTip(f"Connected · {self.server_host}")
 
@@ -794,22 +822,22 @@ class ModernShippingMainWindow(QMainWindow):
         self.settings_btn.setIconSize(QSize(16, 16))
         self.settings_btn.setAutoRaise(False)
         self.settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.settings_btn.setFixedSize(36, 36)
+        self.settings_btn.setFixedSize(32, 32)
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.setStyleSheet(
             """
             QToolButton {
-                border: 1px solid #CBD5E1;
+                border: 1px solid #E2E8F0;
                 background-color: #FFFFFF;
-                border-radius: 12px;
+                border-radius: 10px;
             }
             QToolButton:hover {
-                background-color: #E8F0F8;
-                border-color: #94A3B8;
+                background-color: #F8FAFC;
+                border-color: #CBD5E1;
             }
             QToolButton:pressed {
-                background-color: #DDE7F2;
-                border-color: #94A3B8;
+                background-color: #E2E8F0;
+                border-color: #CBD5E1;
             }
         """
         )
@@ -822,7 +850,7 @@ class ModernShippingMainWindow(QMainWindow):
         )
         user_layout.addWidget(self.settings_btn)
 
-        actions_layout.addWidget(user_widget)
+        right_layout.addWidget(user_widget)
 
         header_layout.addWidget(
             left_container,
@@ -867,12 +895,16 @@ class ModernShippingMainWindow(QMainWindow):
         toolbar_layout.setSpacing(12)
 
         # Botones principales
-        self.add_btn = ModernButton("New Shipment", "primary", min_height=36)
+        self.add_btn = ModernButton("New Shipment", "primary", min_height=34)
+        apply_scaled_font(self.add_btn, offset=2, weight=QFont.Weight.Medium)
+        self.add_btn.setMinimumWidth(132)
         self.add_btn.clicked.connect(self.add_shipment)
 
         self.delete_btn = ModernButton(
-            "Delete", "danger-outline", min_height=36, min_width=0
+            "Delete", "danger-outline", min_height=34, min_width=0
         )
+        apply_scaled_font(self.delete_btn, offset=1, weight=QFont.Weight.Medium)
+        self.delete_btn.setMinimumWidth(100)
         self.delete_btn.clicked.connect(self.delete_shipment)
         self.delete_btn.setEnabled(False)
 
@@ -896,14 +928,30 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         primary_actions = QFrame()
+        primary_actions.setObjectName("primaryActionGroup")
         primary_actions.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
+        primary_actions.setStyleSheet(
+            """
+            QFrame#primaryActionGroup {
+                background-color: #F8F9FC;
+                border: 1px solid #E2E8F0;
+                border-radius: 12px;
+            }
+        """
+        )
         primary_layout = QHBoxLayout(primary_actions)
-        primary_layout.setContentsMargins(0, 0, 0, 0)
+        primary_layout.setContentsMargins(14, 8, 14, 8)
         primary_layout.setSpacing(8)
         primary_layout.addWidget(self.add_btn)
         primary_layout.addWidget(self.delete_btn)
+
+        primary_shadow = QGraphicsDropShadowEffect(self)
+        primary_shadow.setBlurRadius(18)
+        primary_shadow.setOffset(0, 4)
+        primary_shadow.setColor(QColor(15, 23, 42, 20))
+        primary_actions.setGraphicsEffect(primary_shadow)
 
         secondary_actions = QFrame()
         secondary_actions.setSizePolicy(
