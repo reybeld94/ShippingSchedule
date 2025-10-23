@@ -869,7 +869,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Botones principales
         self.add_btn = ModernButton(
-            "New Shipment", "primary", min_height=40, min_width=0, padding=(6, 10)
+            "New Shipment", "primary", min_height=40, min_width=110
         )
         apply_scaled_font(self.add_btn, offset=2, weight=QFont.Weight.Medium)
         self.add_btn.clicked.connect(self.add_shipment)
