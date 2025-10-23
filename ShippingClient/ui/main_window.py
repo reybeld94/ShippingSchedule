@@ -852,7 +852,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Crear toolbar profesional"""
         toolbar_frame = QFrame()
         toolbar_frame.setObjectName("actionBar")
-        toolbar_frame.setMinimumHeight(72)
+        toolbar_frame.setMinimumHeight(56)
         toolbar_frame.setStyleSheet(
             """
             QFrame#actionBar {
@@ -864,20 +864,27 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(28, 16, 28, 16)
-        toolbar_layout.setSpacing(16)
+        toolbar_layout.setContentsMargins(28, 12, 28, 12)
+        toolbar_layout.setSpacing(12)
 
         # Botones principales
-        self.add_btn = ModernButton("New Shipment", "primary", min_height=40)
-        apply_scaled_font(self.add_btn, offset=2, weight=QFont.Weight.Medium)
-        self.add_btn.setMinimumWidth(132)
+        compact_button_kwargs = dict(
+            min_height=26,
+            min_width=0,
+            padding=(2, 8),
+            font_offset=0,
+            font_weight=QFont.Weight.Medium,
+            border_radius=8,
+        )
+
+        self.add_btn = ModernButton(
+            "New Shipment", "primary", **compact_button_kwargs
+        )
         self.add_btn.clicked.connect(self.add_shipment)
 
         self.delete_btn = ModernButton(
-            "Delete", "danger-outline", min_height=40, min_width=0
+            "Delete", "danger-outline", **compact_button_kwargs
         )
-        apply_scaled_font(self.delete_btn, offset=1, weight=QFont.Weight.Medium)
-        self.delete_btn.setMinimumWidth(100)
         self.delete_btn.clicked.connect(self.delete_shipment)
         self.delete_btn.setEnabled(False)
 
@@ -886,23 +893,29 @@ class ModernShippingMainWindow(QMainWindow):
             self.delete_btn.setEnabled(False)
 
         # Botones de utilidades de la tabla
-        self.columns_btn = ModernButton("Columns", "outline", min_height=40, min_width=0)
+        self.columns_btn = ModernButton(
+            "Columns", "outline", **compact_button_kwargs
+        )
         self.columns_btn.clicked.connect(self.open_columns_menu)
 
-        self.filters_btn = ModernButton("Filters", "outline", min_height=40, min_width=0)
+        self.filters_btn = ModernButton(
+            "Filters", "outline", **compact_button_kwargs
+        )
         self.filters_btn.clicked.connect(self.open_filters_menu)
 
-        self.export_btn = ModernButton("Export", "outline", min_height=40, min_width=0)
+        self.export_btn = ModernButton(
+            "Export", "outline", **compact_button_kwargs
+        )
 
         primary_layout = QHBoxLayout()
         primary_layout.setContentsMargins(0, 0, 0, 0)
-        primary_layout.setSpacing(12)
+        primary_layout.setSpacing(8)
         primary_layout.addWidget(self.add_btn)
         primary_layout.addWidget(self.delete_btn)
 
         secondary_layout = QHBoxLayout()
         secondary_layout.setContentsMargins(0, 0, 0, 0)
-        secondary_layout.setSpacing(12)
+        secondary_layout.setSpacing(8)
         secondary_layout.addWidget(self.columns_btn)
         secondary_layout.addWidget(self.filters_btn)
         secondary_layout.addWidget(self.export_btn)

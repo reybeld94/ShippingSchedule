@@ -1,4 +1,6 @@
 ﻿# ui/widgets.py - Widgets profesionales
+from typing import Tuple, Optional
+
 from PyQt6.QtWidgets import (
     QPushButton,
     QLineEdit,
@@ -20,14 +22,25 @@ class ModernButton(QPushButton):
         *,
         min_height: int = 32,
         min_width: int = 80,
+        padding: Tuple[int, int] | None = None,
+        font_offset: Optional[int] = 4,
+        font_weight: QFont.Weight | None = QFont.Weight.Medium,
+        border_radius: int = 10,
     ):
         super().__init__(text)
         self.button_type = button_type
         self._min_height = max(0, min_height)
         self._min_width = max(0, min_width)
+        if padding is None:
+            padding = (6, 16)
+        self._padding_vertical = max(0, padding[0])
+        self._padding_horizontal = max(0, padding[1])
+        self._border_radius = max(0, border_radius)
         self.setMinimumHeight(self._min_height)
         self.setMinimumWidth(self._min_width)
-        apply_scaled_font(self, offset=4, weight=QFont.Weight.Medium)
+        self._font_offset = font_offset if font_offset is not None else 0
+        self._font_weight = font_weight
+        apply_scaled_font(self, offset=self._font_offset, weight=self._font_weight)
         self.apply_professional_style()
 
     def apply_professional_style(self):
@@ -35,8 +48,8 @@ class ModernButton(QPushButton):
         base_style = f"""
             QPushButton {{
                 border: 1px solid transparent;
-                border-radius: 10px;
-                padding: 6px 16px;
+                border-radius: {self._border_radius}px;
+                padding: {self._padding_vertical}px {self._padding_horizontal}px;
                 font-weight: 500;
                 letter-spacing: 0.3px;
                 text-align: center;
@@ -148,7 +161,11 @@ class ModernButton(QPushButton):
                 return
             self._handling_font_change = True
             try:
-                apply_scaled_font(self, offset=4, weight=QFont.Weight.Medium)
+                apply_scaled_font(
+                    self,
+                    offset=getattr(self, "_font_offset", 0),
+                    weight=getattr(self, "_font_weight", QFont.Weight.Medium),
+                )
                 self.apply_professional_style()
             finally:
                 self._handling_font_change = False
