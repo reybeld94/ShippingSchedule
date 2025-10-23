@@ -1,7 +1,7 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import csv
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict
 import os
 import textwrap
@@ -346,7 +346,13 @@ class ModernShippingMainWindow(QMainWindow):
         self._refresh_animation: Optional[QVariantAnimation] = None
         self._refresh_icon_base: Optional[QPixmap] = None
         self._refresh_animating = False
+        self._last_update_dt: Optional[datetime] = None
         self.search_shortcut: Optional[QShortcut] = None
+        self.new_shipment_shortcut: Optional[QShortcut] = None
+        self.delete_shipment_shortcut: Optional[QShortcut] = None
+        self.refresh_shortcut: Optional[QShortcut] = None
+        self.print_shortcut: Optional[QShortcut] = None
+        self.clear_filters_shortcut: Optional[QShortcut] = None
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -619,6 +625,30 @@ class ModernShippingMainWindow(QMainWindow):
         self.search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self.search_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self.search_shortcut.activated.connect(self.focus_search_input)
+
+        self.new_shipment_shortcut = QShortcut(QKeySequence("Ctrl+N"), self)
+        self.new_shipment_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.new_shipment_shortcut.activated.connect(self.add_shipment)
+
+        self.delete_shipment_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Delete), self)
+        self.delete_shipment_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.delete_shipment_shortcut.activated.connect(self._handle_delete_shortcut)
+
+        self.refresh_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F5), self)
+        self.refresh_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.refresh_shortcut.activated.connect(self.on_refresh_clicked)
+
+        self.print_shortcut = QShortcut(QKeySequence("Ctrl+P"), self)
+        self.print_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.print_shortcut.activated.connect(self.print_table_to_pdf)
+
+        self.clear_filters_shortcut = QShortcut(QKeySequence("Ctrl+L"), self)
+        self.clear_filters_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.clear_filters_shortcut.activated.connect(self._handle_clear_filters_shortcut)
+
+        if self.read_only:
+            self.new_shipment_shortcut.setEnabled(False)
+            self.delete_shipment_shortcut.setEnabled(False)
 
         # Acciones a la derecha agrupadas
         right_container = QFrame()
@@ -1472,6 +1502,24 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_status()
         self.update_filter_button_state()
 
+    def _handle_clear_filters_shortcut(self):
+        table = self.get_current_table()
+        if table is None:
+            return
+        name = self.get_table_key(table)
+        if not self.date_filters.get(name):
+            return
+        self.clear_all_filters(name)
+        self.show_toast("Filters cleared", color="#0EA5E9")
+
+    def _handle_delete_shortcut(self):
+        if self.read_only:
+            return
+        focus_widget = QApplication.focusWidget()
+        if isinstance(focus_widget, QLineEdit):
+            return
+        self.delete_shipment()
+
     def export_rows_to_csv(self, mode: str = "visible"):
         """Export the current table content to CSV using the requested scope."""
         table = self.get_current_table()
@@ -2058,13 +2106,14 @@ class ModernShippingMainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         
         # Widgets del status bar
-        self.record_count_label = QLabel("Loading records...")
+        self.record_count_label = QLabel("Showing 0 of 0")
         apply_scaled_font(self.record_count_label, offset=1, weight=QFont.Weight.Medium)
         self.record_count_label.setStyleSheet("color: #6B7280; font-weight: 500;")
 
-        self.last_update_label = QLabel("Last updated: Never")
+        self.last_update_label = QLabel("Updated —")
         apply_scaled_font(self.last_update_label, offset=1)
         self.last_update_label.setStyleSheet("color: #6B7280;")
+        self.last_update_label.setToolTip("No updates yet")
 
         self.connection_status_label = QLabel("Disconnected")
         apply_scaled_font(self.connection_status_label, offset=1, weight=QFont.Weight.DemiBold)
@@ -2255,6 +2304,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._hide_loading_indicator()
         print(f"Shipments cargados: {len(shipments)}")
         self.shipments = shipments
+        self._last_update_dt = datetime.now()
         
         # Separar datos para cache
         self._active_shipments = [s for s in shipments if not self.is_shipped(s)]
@@ -2537,25 +2587,37 @@ class ModernShippingMainWindow(QMainWindow):
     
     def update_status(self):
         """Actualizar información del status bar"""
-        active_count = len(self._active_shipments)
-        history_count = len(self._history_shipments)
-
         current_tab = self.tab_widget.currentIndex()
         table = self.active_table if current_tab == 0 else self.history_table
-        table_name = "active" if current_tab == 0 else "history"
-        visible_count = self.count_visible_rows(table)
+        visible_count = self.count_visible_rows(table) if isinstance(table, QTableWidget) else 0
+        total_count = len(self._active_shipments) if current_tab == 0 else len(self._history_shipments)
 
-        search_active = hasattr(self, "search_edit") and self.search_edit.text().strip()
-        if search_active or self.date_filters.get(table_name):
-            self.record_count_label.setText(f"{visible_count} results")
-        else:
-            if current_tab == 0:
-                self.record_count_label.setText(f"Active: {active_count} | History: {history_count}")
-            else:
-                self.record_count_label.setText(f"History: {history_count} | Active: {active_count}")
+        self.record_count_label.setText(f"Showing {visible_count} of {total_count}")
 
-        current_time = datetime.now().strftime("%H:%M:%S")
-        self.last_update_label.setText(f"Last updated: {current_time}")
+        if self._last_update_dt is None:
+            self.last_update_label.setText("Updated —")
+            self.last_update_label.setToolTip("No updates yet")
+            return
+
+        relative = self._format_relative_time(datetime.now() - self._last_update_dt)
+        exact_time = self._last_update_dt.strftime("%Y-%m-%d %H:%M:%S")
+        self.last_update_label.setText(f"Updated {relative}")
+        self.last_update_label.setToolTip(f"Last update at {exact_time}")
+
+    def _format_relative_time(self, delta: timedelta) -> str:
+        seconds = max(int(delta.total_seconds()), 0)
+        if seconds < 5:
+            return "just now"
+        if seconds < 60:
+            return f"{seconds}s ago"
+        minutes = seconds // 60
+        if minutes < 60:
+            return f"{minutes}m ago"
+        hours = minutes // 60
+        if hours < 24:
+            return f"{hours}h ago"
+        days = hours // 24
+        return f"{days}d ago"
     
     def truncate_text(self, text, max_length):
         """Truncar texto con puntos suspensivos"""
@@ -2642,6 +2704,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_toast("Changes saved successfully", color="#16A34A")
             table_name = "active" if table is self.active_table else "history"
             self.apply_date_filters_to_table(table, table_name)
+            self._last_update_dt = datetime.now()
             self.update_status()
 
         try:
@@ -2826,6 +2889,19 @@ class ModernShippingMainWindow(QMainWindow):
             self.search_edit.selectAll()
             event.accept()
             return
+
+        if event.key() == Qt.Key.Key_Escape:
+            handled = False
+            if hasattr(self, "search_edit"):
+                if self.search_edit.text():
+                    self.search_edit.clear()
+                    handled = True
+                elif self.search_edit.hasFocus():
+                    self.search_edit.clearFocus()
+                    handled = True
+            if handled:
+                event.accept()
+                return
         super().keyPressEvent(event)
 
     def open_user_management(self):
