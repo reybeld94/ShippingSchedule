@@ -1,10 +1,12 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
+import csv
 import json
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, Dict
 import os
 import textwrap
 from html import escape
+from urllib.parse import urlparse
 from .utils import show_popup_notification, apply_scaled_font, refresh_scaled_fonts, get_base_font_size
 from core.settings_manager import SettingsManager
 from core.api_client import RobustApiClient
@@ -17,6 +19,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QTableWidget,
     QTableWidgetItem,
+    QTableView,
     QLabel,
     QMessageBox,
     QHeaderView,
@@ -28,6 +31,10 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QMenu,
     QProgressDialog,
+    QGraphicsDropShadowEffect,
+    QToolButton,
+    QSizePolicy,
+    QLineEdit,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -38,6 +45,8 @@ from PyQt6.QtCore import (
     QUrl,
     QPoint,
     QEventLoop,
+    QEvent,
+    QSize,
 )
 from PyQt6.QtGui import (
     QFont,
@@ -48,10 +57,12 @@ from PyQt6.QtGui import (
     QDesktopServices,
     QBrush,
     QFontMetrics,
+    QKeySequence,
+    QAction,
 )
 
 # Imports locales
-from .widgets import ModernButton, ModernLineEdit
+from .widgets import ModernButton
 from .date_delegate import DateDelegate
 from .date_filter_dialog import DateFilterPopup
 from .date_filter_header import DateFilterHeader
@@ -169,6 +180,9 @@ class ModernShippingMainWindow(QMainWindow):
         self.is_admin = self.user_info.get("role") == "admin"
         self.read_only = self.user_info.get("role") == "read"
 
+        parsed_server = urlparse(get_server_url())
+        self.server_host = parsed_server.hostname or parsed_server.netloc or get_server_url()
+
         # Manage persistent UI settings
         self.settings_mgr = SettingsManager()
         # Loaded shipment color mappings for persistence
@@ -189,6 +203,12 @@ class ModernShippingMainWindow(QMainWindow):
         }
         self._base_header_labels: dict[str, list[str]] = {}
         self.date_filter_headers = {}
+        self._header_shadows: dict[str, QGraphicsDropShadowEffect] = {}
+        self._sort_state_cache: dict[str, tuple[int, Qt.SortOrder] | None] = {
+            "active": self.settings_mgr.load_sort_state("active"),
+            "history": self.settings_mgr.load_sort_state("history"),
+        }
+        self._pinned_views: Dict[str, dict[str, object]] = {}
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -216,6 +236,8 @@ class ModernShippingMainWindow(QMainWindow):
             8: "invoice_number",
             9: "shipping_notes",
         }
+
+        self._default_column_widths = [120, 280, 200, 110, 120, 110, 110, 110, 140, 220]
 
         # Flag para evitar disparar eventos al poblar tablas
         self.updating_table = False
@@ -269,10 +291,12 @@ class ModernShippingMainWindow(QMainWindow):
             
             # Status bar
             self.create_professional_status_bar()
-            
+
             # Aplicar tema profesional
             self.apply_professional_theme()
-            
+
+            self.update_filter_button_state()
+
             print("UI profesional configurada exitosamente")
         except Exception as e:
             print(f"Error configurando UI: {e}")
@@ -297,125 +321,240 @@ class ModernShippingMainWindow(QMainWindow):
                 self._configure_table_row_metrics(table)
     
     def create_professional_header(self, layout):
-        """Crear header profesional con logo"""
+        """Crear header profesional con barra superior compacta"""
         header_frame = QFrame()
-        header_frame.setFixedHeight(85)
-        header_frame.setStyleSheet("""
+        header_frame.setFixedHeight(56)
+        header_frame.setStyleSheet(
+            """
             QFrame {
                 background-color: #FFFFFF;
-                border: none;
-                
+                border-bottom: 1px solid #E5E7EB;
             }
-        """)
-        
+        """
+        )
+
         header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(25, 15, 25, 15)
-        
+        header_layout.setContentsMargins(16, 0, 24, 0)
+        header_layout.setSpacing(16)
+
         # Logo y título
-        logo_title_layout = QHBoxLayout()
-        logo_title_layout.setSpacing(15)
-        
-        # Intentar cargar el logo
+        left_container = QFrame()
+        left_layout = QHBoxLayout(left_container)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(12)
+
         logo_label = QLabel()
         if os.path.exists(LOGO_PATH):
             pixmap = QPixmap(LOGO_PATH)
-            # Escalar el logo manteniendo aspecto
-            scaled_pixmap = pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            scaled_pixmap = pixmap.scaled(
+                40,
+                40,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
             logo_label.setPixmap(scaled_pixmap)
         else:
-            # Fallback: usar texto
-            logo_label.setText("LOGO")
-            fallback_size = max(8, get_base_font_size() + 2)
+            logo_label.setText("SS")
+            fallback_size = max(8, get_base_font_size() + 3)
             logo_label.setStyleSheet(
                 f"""
-                background-color: #374151;
-                color: white;
-                font-weight: bold;
-                padding: 15px;
-                border-radius: 4px;
+                background-color: #1F2937;
+                color: #FFFFFF;
+                font-weight: 600;
+                border-radius: 8px;
+                padding: 8px 12px;
                 font-size: {fallback_size}px;
             """
             )
-            logo_label.setFixedSize(50, 50)
             logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Información de la aplicación
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(2)
-
         title_label = QLabel("Shipping Schedule")
-        apply_scaled_font(title_label, offset=8, weight=QFont.Weight.DemiBold)
-        title_label.setStyleSheet("color: #1F2937; letter-spacing: -0.5px;")
+        apply_scaled_font(title_label, offset=6, weight=QFont.Weight.DemiBold)
+        title_label.setStyleSheet("color: #1F2937;")
 
-        subtitle_label = QLabel("Dashboard")
-        apply_scaled_font(subtitle_label, offset=1)
-        subtitle_label.setStyleSheet("color: #6B7280;")
-        
-        title_layout.addWidget(title_label)
-        title_layout.addWidget(subtitle_label)
-        
-        logo_title_layout.addWidget(logo_label)
-        logo_title_layout.addLayout(title_layout)
-        
-        # Información del usuario (derecha)
-        user_info_layout = QVBoxLayout()
-        user_info_layout.setSpacing(3)
-        
-        user_name_label = QLabel(f"{self.user_info['username']}")
+        left_layout.addWidget(logo_label)
+        left_layout.addWidget(title_label)
+        left_container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+        # Buscador unificado en el centro
+        search_container = QFrame()
+        search_container.setObjectName("commandSearchContainer")
+        search_container.setMinimumHeight(40)
+        search_container.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        search_container.setProperty("focused", False)
+        search_container.setStyleSheet(
+            """
+            QFrame#commandSearchContainer {
+                background-color: #F9FAFB;
+                border: 1px solid #D1D5DB;
+                border-radius: 12px;
+            }
+            QFrame#commandSearchContainer[focused="true"] {
+                border: 1px solid #3B82F6;
+                box-shadow: 0px 2px 6px rgba(59, 130, 246, 0.25);
+            }
+        """
+        )
+
+        search_layout = QHBoxLayout(search_container)
+        search_layout.setContentsMargins(14, 0, 14, 0)
+        search_layout.setSpacing(8)
+
+        search_icon = QLabel("🔍")
+        apply_scaled_font(search_icon, offset=4)
+        search_icon.setStyleSheet("color: #6B7280;")
+        search_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.search_edit = QLineEdit()
+        apply_scaled_font(self.search_edit, offset=4)
+        self.search_edit.setPlaceholderText("Search jobs, WO, notes…")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setFrame(False)
+        self.search_edit.setMinimumWidth(520)
+        self.search_edit.setStyleSheet(
+            """
+            QLineEdit {
+                border: none;
+                background: transparent;
+                color: #1F2937;
+                padding: 0;
+            }
+            QLineEdit::placeholder {
+                color: #9CA3AF;
+            }
+        """
+        )
+
+        search_layout.addWidget(search_icon)
+        search_layout.addWidget(self.search_edit)
+
+        def update_search_focus_style(has_focus: bool):
+            search_container.setProperty("focused", has_focus)
+            search_container.style().unpolish(search_container)
+            search_container.style().polish(search_container)
+
+        original_focus_in = self.search_edit.focusInEvent
+        original_focus_out = self.search_edit.focusOutEvent
+
+        def focus_in(event):  # type: ignore[override]
+            update_search_focus_style(True)
+            original_focus_in(event)
+
+        def focus_out(event):  # type: ignore[override]
+            update_search_focus_style(False)
+            original_focus_out(event)
+
+        self.search_edit.focusInEvent = focus_in  # type: ignore[assignment]
+        self.search_edit.focusOutEvent = focus_out  # type: ignore[assignment]
+
+        # Timer para debounce en búsqueda unificada
+        self.search_timer = QTimer()
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(250)
+        self.search_timer.timeout.connect(self.perform_filter)
+        self.search_edit.textChanged.connect(self.on_search_text_changed)
+
+        # Acciones a la derecha
+        right_container = QFrame()
+        right_layout = QHBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(12)
+
+        if self.is_admin:
+            self.user_btn = ModernButton("Users", "secondary")
+            self.user_btn.clicked.connect(self.open_user_management)
+            right_layout.addWidget(self.user_btn)
+
+        self.refresh_top_btn = ModernButton("Refresh", "secondary")
+        self.refresh_top_btn.clicked.connect(self.load_shipments_async)
+        right_layout.addWidget(self.refresh_top_btn)
+
+        self.print_top_btn = ModernButton("Print", "secondary")
+        self.print_top_btn.clicked.connect(self.print_table_to_pdf)
+        right_layout.addWidget(self.print_top_btn)
+
+        user_widget = QFrame()
+        user_widget.setObjectName("userWidget")
+        user_widget.setStyleSheet(
+            """
+            QFrame#userWidget {
+                background-color: #F9FAFB;
+                border: 1px solid #E5E7EB;
+                border-radius: 10px;
+            }
+        """
+        )
+        user_layout = QHBoxLayout(user_widget)
+        user_layout.setContentsMargins(10, 6, 10, 6)
+        user_layout.setSpacing(10)
+
+        initials = "".join(part[0].upper() for part in self.user_info.get("username", "?").split()) or "U"
+        self.avatar_label = QLabel(initials[:2])
+        self.avatar_label.setFixedSize(32, 32)
+        self.avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.avatar_label.setStyleSheet(
+            "background-color: #3B82F6; color: white; border-radius: 16px; font-weight: 600;"
+        )
+
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(0)
+
+        user_name_label = QLabel(self.user_info.get("username", ""))
         apply_scaled_font(user_name_label, offset=2, weight=QFont.Weight.Medium)
         user_name_label.setStyleSheet("color: #1F2937;")
-        user_name_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        
+
         role_map = {
             "admin": "System Administrator",
             "write": "Write Access",
-            "read": "Read Only"
+            "read": "Read Only",
         }
         role_text = role_map.get(self.user_info.get("role"), "Read Only")
         user_role_label = QLabel(role_text)
         apply_scaled_font(user_role_label, offset=-1)
         user_role_label.setStyleSheet("color: #6B7280;")
-        user_role_label.setAlignment(Qt.AlignmentFlag.AlignRight)
-        
-        # Connection status
-        connection_layout = QHBoxLayout()
-        connection_layout.setSpacing(5)
-        
-        self.connection_indicator = QLabel("●")
-        apply_scaled_font(self.connection_indicator, offset=2)
-        self.connection_indicator.setStyleSheet("color: #10B981;")
 
-        connection_text = QLabel("Connected")
-        apply_scaled_font(connection_text, offset=-1)
-        connection_text.setStyleSheet("color: #6B7280;")
+        text_layout.addWidget(user_name_label)
+        text_layout.addWidget(user_role_label)
 
-        # Settings button
-        self.settings_btn = ModernButton("", "secondary")
+        self.settings_btn = QToolButton()
         self.settings_btn.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
         )
-        self.settings_btn.setFixedSize(30, 30)
+        self.settings_btn.setIconSize(QSize(16, 16))
+        self.settings_btn.setAutoRaise(True)
+        self.settings_btn.setToolTip("Settings")
         self.settings_btn.clicked.connect(self.open_settings_dialog)
 
-        connection_layout.addStretch()
-        connection_layout.addWidget(self.connection_indicator)
-        connection_layout.addWidget(connection_text)
-        connection_layout.addWidget(self.settings_btn)
-        
-        user_info_layout.addWidget(user_name_label)
-        user_info_layout.addWidget(user_role_label)
-        user_info_layout.addLayout(connection_layout)
-        
-        header_layout.addLayout(logo_title_layout)
-        header_layout.addStretch()
-        header_layout.addLayout(user_info_layout)
-        
+        user_layout.addWidget(self.avatar_label)
+        user_layout.addLayout(text_layout)
+        user_layout.addWidget(self.settings_btn)
+
+        right_layout.addWidget(user_widget)
+
+        self.connection_indicator = QLabel()
+        self.connection_indicator.setFixedSize(14, 14)
+        self.connection_indicator.setStyleSheet(
+            "background-color: #9CA3AF; border-radius: 7px;"
+        )
+        self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
+        right_layout.addWidget(self.connection_indicator, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        header_layout.addWidget(left_container)
+        header_layout.addStretch(1)
+        header_layout.addWidget(search_container, stretch=2)
+        header_layout.addStretch(1)
+        header_layout.addWidget(right_container)
+
         layout.addWidget(header_frame)
     
     def create_professional_toolbar(self, layout):
         """Crear toolbar profesional"""
         toolbar_frame = QFrame()
-        toolbar_frame.setFixedHeight(65)
+        toolbar_frame.setFixedHeight(64)
         toolbar_frame.setStyleSheet("""
             QFrame {
                 background: #FFFFFF;
@@ -423,70 +562,41 @@ class ModernShippingMainWindow(QMainWindow):
                 border-radius: 6px;
             }
         """)
-        
+
         toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(20, 12, 20, 12)
-        toolbar_layout.setSpacing(12)
-        
+        toolbar_layout.setContentsMargins(20, 10, 20, 10)
+        toolbar_layout.setSpacing(10)
+
         # Botones principales
         self.add_btn = ModernButton("New Shipment", "primary")
         self.add_btn.clicked.connect(self.add_shipment)
-        
-        
-        self.delete_btn = ModernButton("Delete", "danger")
+
+
+        self.delete_btn = ModernButton("Delete", "secondary")
         self.delete_btn.clicked.connect(self.delete_shipment)
         self.delete_btn.setEnabled(False)
 
         if self.read_only:
             self.add_btn.setEnabled(False)
             self.delete_btn.setEnabled(False)
-        
-        # Separador
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.VLine)
-        separator.setStyleSheet("color: #E5E7EB;")
-        separator.setFixedHeight(25)
-        
-        # Búsqueda
-        search_layout = QHBoxLayout()
-        search_layout.setSpacing(8)
-        
-        search_label = QLabel("Search:")
-        apply_scaled_font(search_label, weight=QFont.Weight.Medium)
-        search_label.setStyleSheet("color: #374151;")
-        
-        self.search_edit = ModernLineEdit("Search shipments...")
-        self.search_edit.setMinimumWidth(280)
-        
-        # Timer para debounce en búsqueda
-        self.search_timer = QTimer()
-        self.search_timer.setSingleShot(True)
-        self.search_timer.timeout.connect(self.perform_filter)
-        self.search_edit.textChanged.connect(lambda: self.search_timer.start(500))
-        
-        search_layout.addWidget(search_label)
-        search_layout.addWidget(self.search_edit)
-        
-        # Refresh button
-        self.refresh_btn = ModernButton("Refresh", "secondary")
-        self.refresh_btn.clicked.connect(self.load_shipments_async)
 
-        # Print button to export table contents
-        self.print_btn = ModernButton("Print", "secondary")
-        self.print_btn.clicked.connect(self.print_table_to_pdf)
-        
+        # Botones de utilidades de la tabla
+        self.columns_btn = ModernButton("Columns", "secondary")
+        self.columns_btn.clicked.connect(self.open_columns_menu)
+
+        self.filters_btn = ModernButton("Filters", "secondary")
+        self.filters_btn.clicked.connect(self.open_filters_menu)
+
+        self.export_btn = ModernButton("Export", "secondary")
+        self.export_btn.clicked.connect(self.export_visible_rows_to_csv)
+
         # Agregar todo al toolbar
         toolbar_layout.addWidget(self.add_btn)
         toolbar_layout.addWidget(self.delete_btn)
-        toolbar_layout.addWidget(separator)
-        toolbar_layout.addLayout(search_layout)
-        toolbar_layout.addStretch()
-        if self.is_admin:
-            self.user_btn = ModernButton("Users", "secondary")
-            self.user_btn.clicked.connect(self.open_user_management)
-            toolbar_layout.addWidget(self.user_btn)
-        toolbar_layout.addWidget(self.refresh_btn)
-        toolbar_layout.addWidget(self.print_btn)
+        toolbar_layout.addStretch(1)
+        toolbar_layout.addWidget(self.columns_btn)
+        toolbar_layout.addWidget(self.filters_btn)
+        toolbar_layout.addWidget(self.export_btn)
 
         layout.addWidget(toolbar_frame)
     
@@ -573,9 +683,16 @@ class ModernShippingMainWindow(QMainWindow):
     def setup_professional_table(self, table, name):
         """Configurar tabla con estilo profesional y restaurar ancho de columnas"""
         columns = [
-            "Job Number", "Job Name", "Description",
-            "QC Release", "QC Notes", "Crated", "Ship Plan", "Shipped",
-            "Invoice Number", "Notes"
+            "B NUMB",
+            "JOB NAME",
+            "DESCRIPTION",
+            "QC RELEASE",
+            "QC NOTES",
+            "CRATED",
+            "SHIP PLAN",
+            "SHIPPED",
+            "INVOICE NUMBER",
+            "NOTES",
         ]
         
         table.setColumnCount(len(columns))
@@ -595,10 +712,12 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Configuración
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setAlternatingRowColors(False)
+        table.setAlternatingRowColors(True)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
-        table.setWordWrap(True)
+        table.setWordWrap(False)
+        table.setMouseTracking(True)
+        table.setTextElideMode(Qt.TextElideMode.ElideRight)
         # Ajustar altura de filas en función del tamaño de fuente sin penalizar rendimiento
         self._configure_table_row_metrics(table)
         
@@ -608,8 +727,16 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Configurar columnas como ajustables por el usuario
         header = table.horizontalHeader()
+        header.setStretchLastSection(False)
         for i in range(len(columns)):
             header.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
+        header.setSectionsMovable(True)
+        header.setHighlightSections(False)
+
+        for index, width in enumerate(self._default_column_widths):
+            table.setColumnWidth(index, width)
 
         # Delegates para campos de fecha
         date_delegate = DateDelegate(table)
@@ -619,8 +746,19 @@ class ModernShippingMainWindow(QMainWindow):
         # Restaurar anchos guardados si existen
         self.restore_column_widths(table, name)
 
+        # Configurar columnas fijadas a la izquierda
+        self.setup_pinned_columns(table, name, pinned_count=2)
+
+        # Restaurar estado de ordenamiento persistido
+        self.restore_sort_state(table, name)
+
         # Guardar anchos cada vez que se ajusta alguna columna
-        header.sectionResized.connect(lambda *args, tbl=table, nm=name: self.save_table_column_widths(tbl, nm))
+        header.sectionResized.connect(
+            lambda logical, _old, _new, tbl=table, nm=name: self.on_header_section_resized(tbl, nm, logical)
+        )
+        header.sectionMoved.connect(
+            lambda logical, old, new, tbl=table, nm=name: self.enforce_pinned_section_positions(tbl, nm, logical, new, pinned_count=2)
+        )
 
         # Eventos
         table.selectionModel().selectionChanged.connect(self.on_selection_changed)
@@ -633,6 +771,9 @@ class ModernShippingMainWindow(QMainWindow):
         # Habilitar ordenamiento por columnas
         table.setSortingEnabled(True)
         header.setSortIndicatorShown(True)
+        header.sortIndicatorChanged.connect(
+            lambda col, order, tbl_name=name: self.on_sort_changed(tbl_name, col, order)
+        )
 
         # Restaurar estado visual de filtros si ya existen
         existing_filters = self.date_filters.get(name, {})
@@ -640,10 +781,342 @@ class ModernShippingMainWindow(QMainWindow):
             header.set_filter_active(column, True)
             self.update_header_filter_state(table, name, column, True, data)
 
+        shadow = QGraphicsDropShadowEffect(table)
+        shadow.setBlurRadius(18)
+        shadow.setOffset(0, 3)
+        shadow.setColor(QColor(17, 24, 39, 45))
+        shadow.setEnabled(False)
+        header.setGraphicsEffect(shadow)
+        self._header_shadows[name] = shadow
+        table.verticalScrollBar().valueChanged.connect(
+            lambda value, nm=name: self.update_header_shadow(nm, value > 0)
+        )
+        self.update_header_shadow(name, table.verticalScrollBar().value() > 0)
+
+    def restore_sort_state(self, table, name):
+        """Restaurar el ordenamiento persistido para la tabla dada."""
+        state = self._sort_state_cache.get(name)
+        if not state:
+            return
+        column, order = state
+        if column is None or column < 0 or column >= table.columnCount():
+            return
+        table.sortItems(column, order)
+
+    def on_sort_changed(self, name, column, order):
+        """Persistir el cambio de ordenamiento por tabla."""
+        self._sort_state_cache[name] = (column, order)
+        self.settings_mgr.save_sort_state(name, column, order)
+
+    def update_header_shadow(self, name, has_scroll):
+        """Aplicar sombra sutil al header cuando hay desplazamiento."""
+        effect = self._header_shadows.get(name)
+        if effect is None:
+            return
+        effect.setEnabled(bool(has_scroll))
+
+    def setup_pinned_columns(self, table, name, pinned_count=2):
+        """Overlay a helper view to keep the first columns fixed when scrolling."""
+        if table is None or pinned_count <= 0:
+            return
+
+        previous = self._pinned_views.get(name)
+        if previous:
+            view = previous.get("view")
+            viewport = previous.get("viewport")
+            if isinstance(view, QTableView):
+                view.deleteLater()
+            if isinstance(viewport, QWidget):
+                viewport.removeEventFilter(self)
+
+        pinned_view = QTableView(table)
+        pinned_view.setObjectName(f"pinnedView_{name}")
+        pinned_view.setModel(table.model())
+        pinned_view.setSelectionModel(table.selectionModel())
+        pinned_view.setFocusPolicy(table.focusPolicy())
+        pinned_view.setFrameShape(QFrame.Shape.NoFrame)
+        pinned_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        pinned_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        pinned_view.setEditTriggers(table.editTriggers())
+        pinned_view.setSelectionBehavior(table.selectionBehavior())
+        pinned_view.setSelectionMode(table.selectionMode())
+        pinned_view.horizontalHeader().setVisible(False)
+        pinned_view.verticalHeader().setVisible(False)
+        pinned_view.setStyleSheet(
+            """
+            QTableView {
+                background: rgba(255, 255, 255, 0.98);
+                border-right: 1px solid #E5E7EB;
+            }
+            QTableView::item:hover {
+                background: #E8F0F8;
+            }
+        """
+        )
+        pinned_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        pinned_view.customContextMenuRequested.connect(
+            lambda pos, nm=name: self.forward_pinned_context_menu(nm, pos)
+        )
+
+        pinned_view.setParent(table.viewport())
+        table.viewport().stackUnder(pinned_view)
+        pinned_view.show()
+        pinned_view.raise_()
+
+        viewport = table.viewport()
+        viewport.installEventFilter(self)
+
+        table.verticalScrollBar().valueChanged.connect(pinned_view.verticalScrollBar().setValue)
+
+        self._pinned_views[name] = {
+            "view": pinned_view,
+            "count": pinned_count,
+            "table": table,
+            "viewport": viewport,
+        }
+
+        self.refresh_pinned_columns(table, name)
+
+    def forward_pinned_context_menu(self, name, pos):
+        info = self._pinned_views.get(name)
+        if not info:
+            return
+        view = info.get("view")
+        table = info.get("table")
+        if not isinstance(view, QTableView) or table is None:
+            return
+        global_pos = view.viewport().mapToGlobal(pos)
+        table_pos = table.viewport().mapFromGlobal(global_pos)
+        table.customContextMenuRequested.emit(table_pos)
+
+    def refresh_pinned_columns(self, table, name):
+        info = self._pinned_views.get(name)
+        if not info:
+            return
+        view = info.get("view")
+        pinned_count = int(info.get("count", 0) or 0)
+        if not isinstance(view, QTableView):
+            return
+
+        total_columns = table.columnCount()
+        width = 0
+        for col in range(total_columns):
+            if col < pinned_count and not table.isColumnHidden(col):
+                view.setColumnHidden(col, False)
+                view.setColumnWidth(col, table.columnWidth(col))
+                width += table.columnWidth(col)
+            else:
+                view.setColumnHidden(col, True)
+
+        viewport = table.viewport()
+        geom = viewport.geometry()
+        x_offset = geom.x()
+        if table.verticalHeader() and table.verticalHeader().isVisible():
+            x_offset += table.verticalHeader().width()
+        pinned_height = geom.height()
+        view.setGeometry(x_offset, geom.y(), width, pinned_height)
+        view.setVisible(width > 0)
+        pinned_view_scroll = view.verticalScrollBar()
+        pinned_view_scroll.setRange(table.verticalScrollBar().minimum(), table.verticalScrollBar().maximum())
+        pinned_view_scroll.setValue(table.verticalScrollBar().value())
+
+    def update_pinned_column_width(self, table, name, column):
+        info = self._pinned_views.get(name)
+        if not info:
+            return
+        view = info.get("view")
+        pinned_count = int(info.get("count", 0) or 0)
+        if not isinstance(view, QTableView) or column >= pinned_count:
+            return
+        view.setColumnWidth(column, table.columnWidth(column))
+        self.refresh_pinned_columns(table, name)
+
+    def on_header_section_resized(self, table, name, column):
+        self.save_table_column_widths(table, name)
+        self.refresh_pinned_columns(table, name)
+        if column < table.columnCount():
+            self.update_pinned_column_width(table, name, column)
+
+    def get_table_key(self, table):
+        return "active" if table is self.active_table else "history"
+
+    def toggle_column_visibility(self, table, name, column, hidden):
+        table.setColumnHidden(column, hidden)
+        info = self._pinned_views.get(name)
+        if not info:
+            return
+        view = info.get("view")
+        pinned_count = int(info.get("count", 0) or 0)
+        if isinstance(view, QTableView) and column < pinned_count:
+            view.setColumnHidden(column, hidden)
+        self.refresh_pinned_columns(table, name)
+
+    def enforce_pinned_section_positions(self, table, name, logical, new_visual_index, pinned_count=2):
+        if logical >= pinned_count:
+            return
+        header = table.horizontalHeader()
+        current_visual = header.visualIndex(logical)
+        if current_visual < pinned_count:
+            return
+        target_visual = min(logical, pinned_count - 1)
+        header.blockSignals(True)
+        try:
+            header.moveSection(current_visual, target_visual)
+        finally:
+            header.blockSignals(False)
+        self.refresh_pinned_columns(table, name)
+
+    def eventFilter(self, obj, event):
+        if event.type() in (QEvent.Type.Resize, QEvent.Type.Move, QEvent.Type.Show):
+            for name, info in self._pinned_views.items():
+                if info.get("viewport") is obj:
+                    table = info.get("table")
+                    if isinstance(table, QTableWidget):
+                        self.refresh_pinned_columns(table, name)
+                    break
+        return super().eventFilter(obj, event)
+
+    def open_columns_menu(self):
+        """Mostrar menú para alternar visibilidad de columnas."""
+        table = self.get_current_table()
+        name = self.get_table_key(table)
+        menu = QMenu(self.columns_btn)
+        base_labels = self._base_header_labels.get(name, [])
+
+        for col in range(table.columnCount()):
+            label = base_labels[col] if col < len(base_labels) else f"Column {col + 1}"
+            action = QAction(label, menu)
+            action.setCheckable(True)
+            action.setChecked(not table.isColumnHidden(col))
+            action.toggled.connect(
+                lambda checked, c=col, tbl=table, nm=name: self.toggle_column_visibility(tbl, nm, c, not checked)
+            )
+            menu.addAction(action)
+
+        menu.addSeparator()
+        reset_action = QAction("Reset Layout", menu)
+        reset_action.triggered.connect(lambda _, nm=name: self.reset_column_layout(nm))
+        menu.addAction(reset_action)
+
+        menu.exec(self.columns_btn.mapToGlobal(QPoint(0, self.columns_btn.height())))
+
+    def reset_column_layout(self, name):
+        """Restaurar visibilidad y anchos predeterminados de columnas."""
+        table = self.active_table if name == "active" else self.history_table
+        if table is None:
+            return
+        for col in range(table.columnCount()):
+            table.setColumnHidden(col, False)
+        for index, width in enumerate(self._default_column_widths):
+            table.setColumnWidth(index, width)
+        self.refresh_pinned_columns(table, name)
+        self.save_table_column_widths(table, name)
+
+    def open_filters_menu(self):
+        """Mostrar menú de filtros rápidos."""
+        table = self.get_current_table()
+        name = self.get_table_key(table)
+        menu = QMenu(self.filters_btn)
+        base_labels = self._base_header_labels.get(name, [])
+
+        date_columns = self.get_date_filter_columns(name)
+        for column in date_columns:
+            label = base_labels[column] if column < len(base_labels) else f"Column {column + 1}"
+            action = QAction(label.title(), menu)
+            action.triggered.connect(
+                lambda _, c=column, tbl=table, nm=name: self.trigger_filter_for_column(tbl, nm, c)
+            )
+            menu.addAction(action)
+
+        if date_columns:
+            menu.addSeparator()
+
+        clear_action = QAction("Clear All Filters", menu)
+        clear_action.triggered.connect(lambda _, nm=name: self.clear_all_filters(nm))
+        menu.addAction(clear_action)
+
+        menu.exec(self.filters_btn.mapToGlobal(QPoint(0, self.filters_btn.height())))
+
+    def trigger_filter_for_column(self, table, name, column):
+        """Abrir el popup de filtro para una columna desde el menú."""
+        header = table.horizontalHeader()
+        if header is None:
+            return
+        section_pos = header.sectionViewportPosition(column)
+        section_width = header.sectionSize(column)
+        global_pos = header.mapToGlobal(QPoint(section_pos + section_width, header.height()))
+        self.open_date_filter_popup(table, name, column, global_pos)
+
+    def clear_all_filters(self, name):
+        """Limpiar filtros de fechas y actualizar la vista."""
+        table = self.active_table if name == "active" else self.history_table
+        if table is None:
+            return
+
+        active_filters = list(self.date_filters.get(name, {}).keys())
+        self.date_filters[name] = {}
+
+        header = self.date_filter_headers.get(name)
+        for column in active_filters:
+            if header:
+                header.set_filter_active(column, False)
+            self.update_header_filter_state(table, name, column, False)
+
+        self.persist_date_filters(name)
+        self.apply_row_filters(table, name)
+        self.update_status()
+        self.update_filter_button_state()
+
+    def export_visible_rows_to_csv(self):
+        """Exportar filas visibles a CSV."""
+        table = self.get_current_table()
+        name = self.get_table_key(table)
+        visible_rows = [row for row in range(table.rowCount()) if not table.isRowHidden(row)]
+        if not visible_rows:
+            self.show_error("No results to export")
+            return
+
+        headers = []
+        base_labels = self._base_header_labels.get(name, [])
+        visible_columns = []
+        for col in range(table.columnCount()):
+            if table.isColumnHidden(col):
+                continue
+            visible_columns.append(col)
+            header_item = table.horizontalHeaderItem(col)
+            header_text = base_labels[col] if col < len(base_labels) else (header_item.text() if header_item else f"Column {col + 1}")
+            headers.append(header_text)
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export CSV",
+            "",
+            "CSV Files (*.csv)",
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".csv"):
+            file_path += ".csv"
+
+        try:
+            with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow(headers)
+                for row in visible_rows:
+                    row_data = []
+                    for col in visible_columns:
+                        item = table.item(row, col)
+                        row_data.append(item.text() if item else "")
+                    writer.writerow(row_data)
+            self.show_toast(f"Exported {len(visible_rows)} rows to CSV", color="#10B981")
+        except Exception as exc:
+            self.show_error(f"Failed to export CSV: {exc}")
+        self.update_header_shadow(name, table.verticalScrollBar().value() > 0)
+
     def _apply_table_style(self, table):
         """Apply the dynamic table styling based on the global font size."""
-        table_font_size = max(8, get_base_font_size() + 2)
-        header_font_size = max(8, get_base_font_size() + 3)
+        table_font_size = max(12, get_base_font_size() + 4)
+        header_font_size = table_font_size + 1
         table.setStyleSheet(
             f"""
     QTableWidget {{
@@ -654,15 +1127,29 @@ class ModernShippingMainWindow(QMainWindow):
         border: 1px solid #E5E7EB;
     }}
     QHeaderView::section {{
-        background-color: #E5E5E5;
-        color: #000000;
-        padding: 12px 8px;
+        background-color: #F1F5F9;
+        color: #1F2937;
+        padding: 10px 12px;
         border: none;
-        border-bottom: 2px solid #E5E7EB;
+        border-bottom: 1px solid #CBD5F5;
         border-right: 1px solid #E5E7EB;
         font-weight: 600;
         font-size: {header_font_size}px;
         text-transform: uppercase;
+    }}
+    QTableWidget::item {{
+        padding: 6px 12px;
+        border-bottom: 1px solid #E5E7EB;
+    }}
+    QTableWidget::item:!selected:alternate {{
+        background: #F7FAFC;
+    }}
+    QTableWidget::item:selected {{
+        background: #DBEAFE;
+        color: #1E3A8A;
+    }}
+    QTableWidget::item:hover {{
+        background: #E8F0F8;
     }}
         """
         )
@@ -674,12 +1161,10 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         base_size = get_base_font_size()
-        table_font_size = max(8, base_size + 2)
+        table_font_size = max(12, base_size + 4)
         metrics = QFontMetrics(QFont(MODERN_FONT, table_font_size))
 
-        # Allow a little extra space so wrapped text remains readable without
-        # triggering the expensive ResizeToContents mode on large datasets.
-        default_height = max(36, int(metrics.lineSpacing() * 2.2))
+        default_height = max(40, int(metrics.lineSpacing() * 1.8))
 
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         vertical_header.setDefaultSectionSize(default_height)
@@ -714,6 +1199,7 @@ class ModernShippingMainWindow(QMainWindow):
         for i, width in enumerate(widths):
             if width is not None:
                 table.setColumnWidth(i, width)
+        self.refresh_pinned_columns(table, name)
 
     def update_header_filter_state(self, table, name, column, active, filter_data=None):
         """Update the visual indicator of a column header when a filter is applied."""
@@ -814,6 +1300,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.persist_date_filters(name)
         self.apply_date_filters_to_table(table, name)
         self.update_status()
+        self.update_filter_button_state()
 
     def persist_date_filters(self, name):
         """Persist current date filter configuration for a table."""
@@ -897,17 +1384,22 @@ class ModernShippingMainWindow(QMainWindow):
         return None
 
     def show_cell_menu(self, table, name, pos):
-        item = table.itemAt(pos)
-        if not item:
-            return
         menu = QMenu(table)
-        update_action = menu.addAction("Update")
-        clear_action = menu.addAction("Clear Mark")
-        address_action = menu.addAction("Show Mie Trak Address")
-        row = item.row()
+        refresh_action = menu.addAction("Refresh")
 
+        item = table.itemAt(pos)
+        update_action = clear_action = address_action = None
         status_actions = {}
-        if not self.read_only:
+        row = -1
+
+        if item:
+            menu.addSeparator()
+            update_action = menu.addAction("Update")
+            clear_action = menu.addAction("Clear Mark")
+            address_action = menu.addAction("Show Mie Trak Address")
+            row = item.row()
+
+        if item and not self.read_only:
             job_item = table.item(row, 0)
             shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
             current_status = shipment.get("status") if shipment else ""
@@ -925,22 +1417,29 @@ class ModernShippingMainWindow(QMainWindow):
                 status_actions[act] = code
 
         action = menu.exec(table.viewport().mapToGlobal(pos))
+        if action == refresh_action:
+            self.load_shipments_async()
+            return
+
+        if not item:
+            return
+
         if action == update_action:
-            shipment_id = self.get_shipment_id_from_row(table, item.row())
+            shipment_id = self.get_shipment_id_from_row(table, row)
             field_name = self.column_to_field_name.get(item.column())
             if shipment_id and field_name:
                 item.setBackground(QColor("#1E90FF"))
                 self.shipment_colors[name][(shipment_id, field_name)] = "#1E90FF"
                 self.save_shipment_colors(name)
         elif action == clear_action:
-            shipment_id = self.get_shipment_id_from_row(table, item.row())
+            shipment_id = self.get_shipment_id_from_row(table, row)
             field_name = self.column_to_field_name.get(item.column())
             if shipment_id and field_name:
                 item.setBackground(QColor("transparent"))
                 self.shipment_colors[name].pop((shipment_id, field_name), None)
                 self.save_shipment_colors(name)
         elif action == address_action:
-            job_item = table.item(row, 0)
+            job_item = table.item(row, 0) if row >= 0 else None
             job_number = job_item.text() if job_item else ""
             if job_number:
                 self.show_mie_trak_address(job_number)
@@ -1122,13 +1621,13 @@ class ModernShippingMainWindow(QMainWindow):
     def update_connection_status(self, connected):
         """Actualizar status de conexión profesional"""
         if connected:
-            self.connection_indicator.setStyleSheet("color: #10B981;")
-            self.connection_indicator.setToolTip("Connected - Real-time updates enabled")
-            self.connection_status_label.setText("Connected")
+            self.connection_indicator.setStyleSheet("background-color: #10B981; border-radius: 7px;")
+            self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
+            self.connection_status_label.setText(f"Connected · {self.server_host}")
             self.connection_status_label.setStyleSheet("color: #10B981; font-weight: 600;")
         else:
-            self.connection_indicator.setStyleSheet("color: #EF4444;")
-            self.connection_indicator.setToolTip("Disconnected - Manual refresh required")
+            self.connection_indicator.setStyleSheet("background-color: #EF4444; border-radius: 7px;")
+            self.connection_indicator.setToolTip(f"Disconnected from {self.server_host}")
             self.connection_status_label.setText("Disconnected")
             self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 600;")
     
@@ -1185,6 +1684,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.update_status()
         self.on_selection_changed()
+        self.update_filter_button_state()
     
     def on_selection_changed(self):
         """Manejar cambio de selección en tabla"""
@@ -1221,8 +1721,11 @@ class ModernShippingMainWindow(QMainWindow):
             self.history_table,
             self.add_btn,
             self.delete_btn,
-            self.refresh_btn,
-            self.print_btn,
+            self.columns_btn,
+            self.filters_btn,
+            self.export_btn,
+            self.refresh_top_btn,
+            self.print_top_btn,
         ]
         if hasattr(self, "user_btn"):
             widgets.append(self.user_btn)
@@ -1278,8 +1781,9 @@ class ModernShippingMainWindow(QMainWindow):
         else:
             self.populate_history_table()
             self._tables_populated["history"] = True
-        
+
         self.update_status()
+        self.update_filter_button_state()
 
     def on_shipments_error(self, error_msg):
         """Callback cuando hay error cargando shipments"""
@@ -1336,6 +1840,7 @@ class ModernShippingMainWindow(QMainWindow):
             # El ajuste de filas a su contenido puede ser costoso para miles de
             # registros. Dejamos un tamaño fijo establecido en la configuración
             table.setUpdatesEnabled(True)
+            self.refresh_pinned_columns(table, table_name)
             self.updating_table = False
             print(
                 f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas"
@@ -1377,9 +1882,8 @@ class ModernShippingMainWindow(QMainWindow):
                 item.setForeground(QColor("#059669"))
                 item.setData(Qt.ItemDataRole.UserRole + 5, 1)
 
-            # Alineación
-            if col in [0, 8]:  # Job # e Invoice #
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+
             if col == 0:
                 job_item = item
                 # store full shipment data for easy retrieval even after sorting
@@ -1389,6 +1893,15 @@ class ModernShippingMainWindow(QMainWindow):
                     shipment['version'] = 1
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            elif col in (5, 6, 7):
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
+            elif col == 8:
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+
+            if col in (1, 2, 9) and str(item_text).strip():
+                item.setToolTip(str(item_text))
+
             # store original flags to avoid calling item.flags() during edits
             # Qt6's ItemFlag cannot be converted directly to int; use the .value
             item.setData(
@@ -1424,11 +1937,18 @@ class ModernShippingMainWindow(QMainWindow):
             return str(value or "").lower()
 
         lowered = search_text.lower()
-        return (
-            lowered in safe_lower(shipment.get("job_number"))
-            or lowered in safe_lower(shipment.get("job_name"))
-            or lowered in safe_lower(shipment.get("status"))
-        )
+        for field in (
+            "job_number",
+            "job_name",
+            "description",
+            "shipping_notes",
+            "invoice_number",
+            "qc_notes",
+            "status",
+        ):
+            if lowered in safe_lower(shipment.get(field)):
+                return True
+        return False
     
     def update_search_visibility(self, table, name):
         """Actualizar coincidencias de búsqueda por fila para una tabla."""
@@ -1471,11 +1991,35 @@ class ModernShippingMainWindow(QMainWindow):
             table.setUpdatesEnabled(True)
 
         return visible_count
-    
+
+    def on_search_text_changed(self, _text):
+        """Debounce de búsqueda y actualización visual de filtros."""
+        if hasattr(self, "search_timer"):
+            self.search_timer.start()
+        self.update_filter_button_state()
+
+    def filters_active(self):
+        if hasattr(self, "search_edit") and self.search_edit.text().strip():
+            return True
+        for table_filters in self.date_filters.values():
+            if table_filters:
+                return True
+        return False
+
+    def update_filter_button_state(self):
+        """Resaltar el botón de filtros cuando hay filtros activos."""
+        if not hasattr(self, "filters_btn"):
+            return
+        label = "Filters"
+        if self.filters_active():
+            label = "Filters •"
+        if self.filters_btn.text() != label:
+            self.filters_btn.setText(label)
+
     def count_visible_rows(self, table):
         """Contar filas visibles actuales en una tabla."""
         return sum(1 for row in range(table.rowCount()) if not table.isRowHidden(row))
-    
+
     def perform_filter(self):
         """Ejecutar filtrado optimizado"""
         for table, name in ((self.active_table, "active"), (self.history_table, "history")):
@@ -1484,26 +2028,27 @@ class ModernShippingMainWindow(QMainWindow):
             self.update_search_visibility(table, name)
             self.apply_row_filters(table, name)
         self.update_status()
+        self.update_filter_button_state()
     
     def update_status(self):
         """Actualizar información del status bar"""
         active_count = len(self._active_shipments)
         history_count = len(self._history_shipments)
-        
+
         current_tab = self.tab_widget.currentIndex()
-        if current_tab == 0:  # Active tab
-            visible_count = self.count_visible_rows(self.active_table)
-            if visible_count != active_count:
-                self.record_count_label.setText(f"Showing {visible_count} of {active_count} active shipments")
-            else:
+        table = self.active_table if current_tab == 0 else self.history_table
+        table_name = "active" if current_tab == 0 else "history"
+        visible_count = self.count_visible_rows(table)
+
+        search_active = hasattr(self, "search_edit") and self.search_edit.text().strip()
+        if search_active or self.date_filters.get(table_name):
+            self.record_count_label.setText(f"{visible_count} results")
+        else:
+            if current_tab == 0:
                 self.record_count_label.setText(f"Active: {active_count} | History: {history_count}")
-        else:  # History tab
-            visible_count = self.count_visible_rows(self.history_table)
-            if visible_count != history_count:
-                self.record_count_label.setText(f"Showing {visible_count} of {history_count} historical shipments")
             else:
                 self.record_count_label.setText(f"History: {history_count} | Active: {active_count}")
-        
+
         current_time = datetime.now().strftime("%H:%M:%S")
         self.last_update_label.setText(f"Last updated: {current_time}")
     
@@ -1769,6 +2314,14 @@ class ModernShippingMainWindow(QMainWindow):
             }}
         """)
         msg.exec()
+
+    def keyPressEvent(self, event):  # type: ignore[override]
+        if event.matches(QKeySequence.StandardKey.Find):
+            self.search_edit.setFocus()
+            self.search_edit.selectAll()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def open_user_management(self):
         """Abrir diálogo de gestión de usuarios"""
