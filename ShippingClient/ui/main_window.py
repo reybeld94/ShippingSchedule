@@ -204,9 +204,8 @@ class StatusChipDelegate(QStyledItemDelegate):
     }
 
     CHIP_SPACING = 6
-    CHIP_RADIUS = 10
-    CHIP_PADDING_H = 10
-    CHIP_PADDING_V = 4
+    CHIP_PADDING_H = 8
+    CHIP_PADDING_V = 2
 
     def _resolve_style(self, status):
         normalized = str(status or "").strip().lower()
@@ -231,14 +230,12 @@ class StatusChipDelegate(QStyledItemDelegate):
 
         rect = opt.rect.adjusted(12, 0, -12, 0)
         metrics = QFontMetrics(opt.font)
-        job_width = metrics.horizontalAdvance(job_number)
         chip_text_width = metrics.horizontalAdvance(label) if label else 0
         chip_width = chip_text_width + self.CHIP_PADDING_H * 2 if chip_text_width else 0
         chip_height = min(rect.height(), metrics.height() + self.CHIP_PADDING_V * 2)
         spacing = self.CHIP_SPACING if chip_width else 0
 
-        total_width = job_width + chip_width + spacing
-        x = max(rect.left(), rect.right() - total_width)
+        x = rect.left()
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -252,7 +249,8 @@ class StatusChipDelegate(QStyledItemDelegate):
             )
             painter.setBrush(background_color)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(chip_rect, self.CHIP_RADIUS, self.CHIP_RADIUS)
+            radius = chip_height / 2 if chip_height > 0 else 0
+            painter.drawRoundedRect(chip_rect, radius, radius)
 
             painter.setPen(text_color)
             painter.drawText(
@@ -271,7 +269,7 @@ class StatusChipDelegate(QStyledItemDelegate):
         painter.setPen(text_pen)
         painter.drawText(
             job_rect,
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
             job_number,
         )
         painter.restore()
@@ -294,7 +292,7 @@ class ModernShippingMainWindow(QMainWindow):
         "shipping_notes",
     ]
     DATE_COLUMN_INDEXES = {3, 5, 6, 7}
-    RIGHT_ALIGN_COLUMNS = {0, 8}
+    RIGHT_ALIGN_COLUMNS = {8}
     CENTER_ALIGN_COLUMNS = {3, 5, 6, 7}
     PLACEHOLDER_COLOR = QColor(100, 116, 139, int(255 * 0.7))
     PLACEHOLDER_BRUSH = QBrush(PLACEHOLDER_COLOR)
@@ -382,12 +380,12 @@ class ModernShippingMainWindow(QMainWindow):
             0: 120,
             1: 260,
             2: 200,
-            3: 120,
+            3: 110,
             4: 140,
             5: 120,
-            6: 140,
+            6: 120,
             7: 120,
-            8: 140,
+            8: 120,
             9: 200,
         }
         self._column_max_widths: Dict[int, int] = {1: 360}
@@ -1119,6 +1117,7 @@ class ModernShippingMainWindow(QMainWindow):
         pinned_view.setAlternatingRowColors(True)
         pinned_view.horizontalHeader().setVisible(False)
         pinned_view.verticalHeader().setVisible(False)
+        pinned_view.setTextElideMode(Qt.TextElideMode.ElideRight)
         pinned_view.setStyleSheet(
             """
             QTableView {
@@ -2358,7 +2357,7 @@ class ModernShippingMainWindow(QMainWindow):
         if placeholder_original:
             tooltip = f"Original: {placeholder_original}"
         elif normalized:
-            tooltip = raw_text.strip() if isinstance(value, str) else normalized
+            tooltip = raw_text if isinstance(value, str) else normalized
 
         return {
             "display": display_text,
@@ -2400,7 +2399,6 @@ class ModernShippingMainWindow(QMainWindow):
                     shipment['version'] = 1
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
             elif col in self.CENTER_ALIGN_COLUMNS:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             elif col in self.RIGHT_ALIGN_COLUMNS:
