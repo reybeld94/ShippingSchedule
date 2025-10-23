@@ -1224,6 +1224,15 @@ class ModernShippingMainWindow(QMainWindow):
 
         table.verticalScrollBar().valueChanged.connect(pinned_view.verticalScrollBar().setValue)
 
+        vertical_header = table.verticalHeader()
+        if vertical_header is not None:
+            vertical_header.sectionResized.connect(
+                lambda logical, _old, new, tbl=table, nm=name: self.on_row_height_resized(tbl, nm, logical, new)
+            )
+            vertical_header.sectionCountChanged.connect(
+                lambda _old, _new, tbl=table, nm=name: self.sync_pinned_row_heights(tbl, nm)
+            )
+
         self._pinned_views[name] = {
             "view": pinned_view,
             "count": pinned_count,
@@ -1277,6 +1286,8 @@ class ModernShippingMainWindow(QMainWindow):
         pinned_view_scroll.setRange(table.verticalScrollBar().minimum(), table.verticalScrollBar().maximum())
         pinned_view_scroll.setValue(table.verticalScrollBar().value())
 
+        self.sync_pinned_row_heights(table, name)
+
     def update_pinned_column_width(self, table, name, column):
         info = self._pinned_views.get(name)
         if not info:
@@ -1328,6 +1339,28 @@ class ModernShippingMainWindow(QMainWindow):
 
     def get_table_key(self, table):
         return "active" if table is self.active_table else "history"
+
+    def on_row_height_resized(self, table, name, row, new_height):
+        info = self._pinned_views.get(name)
+        if not info:
+            return
+        view = info.get("view")
+        if not isinstance(view, QTableView):
+            return
+        if 0 <= row < table.rowCount():
+            view.setRowHeight(row, new_height)
+
+    def sync_pinned_row_heights(self, table, name):
+        info = self._pinned_views.get(name)
+        if not info:
+            return
+        view = info.get("view")
+        if not isinstance(view, QTableView):
+            return
+        for row in range(table.rowCount()):
+            desired_height = table.rowHeight(row)
+            if view.rowHeight(row) != desired_height:
+                view.setRowHeight(row, desired_height)
 
     def toggle_column_visibility(self, table, name, column, hidden):
         table.setColumnHidden(column, hidden)
