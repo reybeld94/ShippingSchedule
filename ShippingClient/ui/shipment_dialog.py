@@ -157,17 +157,17 @@ class ModernShipmentDialog(QDialog):
             QScrollArea {
                 background: transparent;
                 border: none;
-            }}
+            }
             QScrollBar:vertical {
                 background: #F3F4F6;
                 width: 8px;
                 border-radius: 4px;
-            }}
+            }
             QScrollBar::handle:vertical {
                 background: #D1D5DB;
                 border-radius: 4px;
                 min-height: 20px;
-            }}
+            }
             QScrollBar::handle:vertical:hover {
                 background: #9CA3AF;
             }
