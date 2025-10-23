@@ -23,6 +23,8 @@ class ModernButton(QPushButton):
         min_height: int = 32,
         min_width: int = 80,
         padding: Tuple[int, int] | None = None,
+        font_offset: int | None = None,
+        font_weight: QFont.Weight | int | None = None,
     ):
         super().__init__(text)
         self.button_type = button_type
@@ -34,8 +36,10 @@ class ModernButton(QPushButton):
         self._padding_horizontal = max(0, padding[1])
         self.setMinimumHeight(self._min_height)
         self.setMinimumWidth(self._min_width)
-        self._font_offset = font_offset if font_offset is not None else 0
-        self._font_weight = font_weight
+        self._font_offset = 0 if font_offset is None else font_offset
+        self._font_weight = (
+            QFont.Weight.Medium if font_weight is None else font_weight
+        )
         apply_scaled_font(self, offset=self._font_offset, weight=self._font_weight)
         self.apply_professional_style()
 
