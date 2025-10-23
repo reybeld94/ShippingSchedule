@@ -13,31 +13,41 @@ from core.config import MODERN_FONT
 from .utils import apply_scaled_font
 
 class ModernButton(QPushButton):
-    def __init__(self, text, button_type="primary"):
+    def __init__(
+        self,
+        text,
+        button_type="primary",
+        *,
+        min_height: int = 42,
+        min_width: int = 100,
+    ):
         super().__init__(text)
         self.button_type = button_type
-        self.setMinimumHeight(42)
-        self.setMinimumWidth(100)
+        self._min_height = max(0, min_height)
+        self._min_width = max(0, min_width)
+        self.setMinimumHeight(self._min_height)
+        self.setMinimumWidth(self._min_width)
         apply_scaled_font(self, offset=4, weight=QFont.Weight.Medium)
         self.apply_professional_style()
 
     def apply_professional_style(self):
         """Aplicar estilos profesionales según el tipo de botón"""
-        base_style = """
-            QPushButton {
+        base_style = f"""
+            QPushButton {{
                 border: 1px solid transparent;
                 border-radius: 12px;
                 padding: 10px 14px;
                 font-weight: 500;
                 letter-spacing: 0.3px;
                 text-align: center;
-                min-height: 42px;
-            }
-            QPushButton:disabled {
+                min-height: {self._min_height}px;
+                min-width: {self._min_width}px;
+            }}
+            QPushButton:disabled {{
                 background-color: #F1F5F9;
                 border-color: #E2E8F0;
                 color: #94A3B8;
-            }
+            }}
         """
 
         if self.button_type == "primary":
