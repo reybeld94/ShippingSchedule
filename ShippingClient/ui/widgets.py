@@ -16,9 +16,9 @@ class ModernButton(QPushButton):
     def __init__(self, text, button_type="primary"):
         super().__init__(text)
         self.button_type = button_type
-        self.setMinimumHeight(40)
+        self.setMinimumHeight(42)
         self.setMinimumWidth(100)
-        apply_scaled_font(self, weight=QFont.Weight.Medium)
+        apply_scaled_font(self, offset=4, weight=QFont.Weight.Medium)
         self.apply_professional_style()
 
     def apply_professional_style(self):
@@ -31,7 +31,7 @@ class ModernButton(QPushButton):
                 font-weight: 500;
                 letter-spacing: 0.3px;
                 text-align: center;
-                min-height: 40px;
+                min-height: 42px;
             }
             QPushButton:disabled {
                 background-color: #F1F5F9;
@@ -138,7 +138,7 @@ class ModernButton(QPushButton):
                 return
             self._handling_font_change = True
             try:
-                apply_scaled_font(self, weight=QFont.Weight.Medium)
+                apply_scaled_font(self, offset=4, weight=QFont.Weight.Medium)
                 self.apply_professional_style()
             finally:
                 self._handling_font_change = False

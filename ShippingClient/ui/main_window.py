@@ -5,7 +5,6 @@ from datetime import datetime, date
 from typing import Optional, Dict
 import os
 import textwrap
-from html import escape
 from urllib.parse import urlparse
 from .utils import show_popup_notification, apply_scaled_font, refresh_scaled_fonts, get_base_font_size
 from core.settings_manager import SettingsManager
@@ -51,6 +50,8 @@ from PyQt6.QtCore import (
     QEvent,
     QSize,
     QRect,
+    QVariantAnimation,
+    QEasingCurve,
 )
 from PyQt6.QtGui import (
     QFont,
@@ -64,6 +65,8 @@ from PyQt6.QtGui import (
     QKeySequence,
     QAction,
     QPainter,
+    QShortcut,
+    QTransform,
 )
 
 # Imports locales
@@ -125,7 +128,7 @@ class DateSortableItem(QTableWidgetItem):
     @staticmethod
     def _parse(text: Optional[str]):
         text = (text or "").strip()
-        if not text or text == "-":
+        if not text or text in {"-", "—", "01/01/01"}:
             return None
 
         for fmt in DateSortableItem.DATE_FORMATS:
@@ -278,6 +281,24 @@ class StatusChipDelegate(QStyledItemDelegate):
         return QSize(hint.width(), max(hint.height(), 40))
 
 class ModernShippingMainWindow(QMainWindow):
+    TABLE_COLUMN_KEYS = [
+        "job_number",
+        "job_name",
+        "description",
+        "qc_release",
+        "qc_notes",
+        "created",
+        "ship_plan",
+        "shipped",
+        "invoice_number",
+        "shipping_notes",
+    ]
+    DATE_COLUMN_INDEXES = {3, 5, 6, 7}
+    RIGHT_ALIGN_COLUMNS = {0, 8}
+    CENTER_ALIGN_COLUMNS = {3, 5, 6, 7}
+    PLACEHOLDER_COLOR = QColor(100, 116, 139, int(255 * 0.7))
+    PLACEHOLDER_BRUSH = QBrush(PLACEHOLDER_COLOR)
+
     def __init__(self, token, user_info):
         super().__init__()
         self.token = token
@@ -324,6 +345,10 @@ class ModernShippingMainWindow(QMainWindow):
         }
         self._pinned_views: Dict[str, dict[str, object]] = {}
         self.status_chip_delegate = StatusChipDelegate(self)
+        self._refresh_animation: Optional[QVariantAnimation] = None
+        self._refresh_icon_base: Optional[QPixmap] = None
+        self._refresh_animating = False
+        self.search_shortcut: Optional[QShortcut] = None
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -501,7 +526,7 @@ class ModernShippingMainWindow(QMainWindow):
             logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         title_label = QLabel("Shipping Schedule")
-        apply_scaled_font(title_label, offset=6, weight=QFont.Weight.DemiBold)
+        apply_scaled_font(title_label, offset=8, weight=QFont.Weight.DemiBold)
         title_label.setStyleSheet("color: #1F2937;")
 
         left_layout.addWidget(logo_label)
@@ -589,6 +614,11 @@ class ModernShippingMainWindow(QMainWindow):
         self.search_timer.setInterval(250)
         self.search_timer.timeout.connect(self.perform_filter)
         self.search_edit.textChanged.connect(self.on_search_text_changed)
+        self.search_edit.installEventFilter(self)
+
+        self.search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        self.search_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.search_shortcut.activated.connect(self.focus_search_input)
 
         # Acciones a la derecha agrupadas
         right_container = QFrame()
@@ -639,7 +669,8 @@ class ModernShippingMainWindow(QMainWindow):
             }
         """
         )
-        self.refresh_top_btn.clicked.connect(self.load_shipments_async)
+        self.refresh_top_btn.clicked.connect(self.on_refresh_clicked)
+        self._refresh_icon_base = self.refresh_top_btn.icon().pixmap(self.refresh_top_btn.iconSize())
         actions_layout.addWidget(self.refresh_top_btn)
 
         self.print_top_btn = ModernButton("Print", "outline")
@@ -734,18 +765,27 @@ class ModernShippingMainWindow(QMainWindow):
     def create_professional_toolbar(self, layout):
         """Crear toolbar profesional"""
         toolbar_frame = QFrame()
-        toolbar_frame.setFixedHeight(64)
-        toolbar_frame.setStyleSheet("""
-            QFrame {
+        toolbar_frame.setObjectName("gridToolbar")
+        toolbar_frame.setMinimumHeight(56)
+        toolbar_frame.setStyleSheet(
+            """
+            QFrame#gridToolbar {
                 background: #FFFFFF;
                 border: 1px solid #E5E7EB;
-                border-radius: 6px;
+                border-radius: 8px;
             }
-        """)
+        """
+        )
+
+        toolbar_shadow = QGraphicsDropShadowEffect(toolbar_frame)
+        toolbar_shadow.setBlurRadius(20)
+        toolbar_shadow.setOffset(0, 6)
+        toolbar_shadow.setColor(QColor(15, 23, 42, 36))
+        toolbar_frame.setGraphicsEffect(toolbar_shadow)
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(20, 10, 20, 10)
-        toolbar_layout.setSpacing(12)
+        toolbar_layout.setContentsMargins(16, 12, 16, 12)
+        toolbar_layout.setSpacing(16)
 
         # Botones principales
         self.add_btn = ModernButton("New Shipment", "primary")
@@ -768,7 +808,6 @@ class ModernShippingMainWindow(QMainWindow):
         self.filters_btn.clicked.connect(self.open_filters_menu)
 
         self.export_btn = ModernButton("Export", "outline")
-        self.export_btn.clicked.connect(self.export_visible_rows_to_csv)
 
         # Agregar todo al toolbar
         toolbar_layout.addWidget(self.add_btn)
@@ -777,6 +816,15 @@ class ModernShippingMainWindow(QMainWindow):
         toolbar_layout.addWidget(self.columns_btn)
         toolbar_layout.addWidget(self.filters_btn)
         toolbar_layout.addWidget(self.export_btn)
+
+        self.export_menu = QMenu(self.export_btn)
+        self.export_menu.setSeparatorsCollapsible(False)
+        self.export_visible_action = self.export_menu.addAction("Visible rows (CSV)")
+        self.export_visible_action.triggered.connect(lambda: self.export_rows_to_csv("visible"))
+        self.export_all_filtered_action = self.export_menu.addAction("All filtered (CSV)")
+        self.export_all_filtered_action.triggered.connect(lambda: self.export_rows_to_csv("all_filtered"))
+
+        self.export_btn.clicked.connect(self.show_export_menu)
 
         layout.addWidget(toolbar_frame)
     
@@ -1200,6 +1248,13 @@ class ModernShippingMainWindow(QMainWindow):
         self.refresh_pinned_columns(table, name)
 
     def eventFilter(self, obj, event):
+        if obj is getattr(self, "search_edit", None) and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Escape:
+                if self.search_edit.text():
+                    self.search_edit.clear()
+                else:
+                    self.search_edit.clearFocus()
+                return True
         if event.type() in (QEvent.Type.Resize, QEvent.Type.Move, QEvent.Type.Show):
             for name, info in self._pinned_views.items():
                 if info.get("viewport") is obj:
@@ -1208,6 +1263,86 @@ class ModernShippingMainWindow(QMainWindow):
                         self.refresh_pinned_columns(table, name)
                     break
         return super().eventFilter(obj, event)
+
+    def focus_search_input(self):
+        if not hasattr(self, "search_edit"):
+            return
+        self.search_edit.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self.search_edit.selectAll()
+
+    def on_refresh_clicked(self):
+        self._start_refresh_animation()
+        self.load_shipments_async()
+
+    def _start_refresh_animation(self):
+        if getattr(self, "refresh_top_btn", None) is None:
+            return
+        if self._refresh_animating:
+            return
+
+        button = self.refresh_top_btn
+        icon_size = button.iconSize()
+        base_pixmap = button.icon().pixmap(icon_size)
+        if base_pixmap.isNull():
+            return
+
+        self._refresh_icon_base = base_pixmap
+        animation = QVariantAnimation(self)
+        animation.setDuration(300)
+        animation.setStartValue(0)
+        animation.setEndValue(180)
+        animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        animation.valueChanged.connect(self._apply_refresh_rotation)
+        animation.finished.connect(self._reset_refresh_icon)
+
+        self._refresh_animation = animation
+        self._refresh_animating = True
+        animation.start()
+
+    def _apply_refresh_rotation(self, value):
+        if self._refresh_icon_base is None or getattr(self, "refresh_top_btn", None) is None:
+            return
+        try:
+            angle = float(value)
+        except (TypeError, ValueError):
+            angle = 0.0
+
+        pixmap = self._refresh_icon_base
+        transform = QTransform()
+        center_x = pixmap.width() / 2
+        center_y = pixmap.height() / 2
+        transform.translate(center_x, center_y)
+        transform.rotate(angle)
+        transform.translate(-center_x, -center_y)
+
+        rotated = pixmap.transformed(transform, Qt.TransformationMode.SmoothTransformation)
+        self.refresh_top_btn.setIcon(QIcon(rotated))
+
+    def _reset_refresh_icon(self):
+        if getattr(self, "refresh_top_btn", None) is not None and self._refresh_icon_base is not None:
+            self.refresh_top_btn.setIcon(QIcon(self._refresh_icon_base))
+        if self._refresh_animation is not None:
+            self._refresh_animation.deleteLater()
+            self._refresh_animation = None
+        self._refresh_animating = False
+
+    def show_export_menu(self):
+        if not hasattr(self, "export_menu") or self.export_menu is None:
+            return
+        table = self.get_current_table()
+        if table is None:
+            return
+        table_name = self.get_table_key(table)
+        visible_rows = sum(1 for row in range(table.rowCount()) if not table.isRowHidden(row))
+        self.export_visible_action.setEnabled(visible_rows > 0)
+        filtered_total = len(self._collect_filtered_shipments(table_name))
+        self.export_all_filtered_action.setEnabled(filtered_total > 0)
+
+        button = self.export_btn
+        if not isinstance(button, QWidget):
+            return
+        global_pos = button.mapToGlobal(QPoint(max(0, button.width() - self.export_menu.sizeHint().width()), button.height()))
+        self.export_menu.exec(global_pos)
 
     def open_columns_menu(self):
         """Mostrar menú para alternar visibilidad de columnas."""
@@ -1306,18 +1441,17 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_status()
         self.update_filter_button_state()
 
-    def export_visible_rows_to_csv(self):
-        """Exportar filas visibles a CSV."""
+    def export_rows_to_csv(self, mode: str = "visible"):
+        """Export the current table content to CSV using the requested scope."""
         table = self.get_current_table()
-        name = self.get_table_key(table)
-        visible_rows = [row for row in range(table.rowCount()) if not table.isRowHidden(row)]
-        if not visible_rows:
-            self.show_error("No results to export")
+        if table is None:
             return
 
-        headers = []
-        base_labels = self._base_header_labels.get(name, [])
-        visible_columns = []
+        table_name = self.get_table_key(table)
+        visible_columns: list[int] = []
+        headers: list[str] = []
+        base_labels = self._base_header_labels.get(table_name, [])
+
         for col in range(table.columnCount()):
             if table.isColumnHidden(col):
                 continue
@@ -1325,6 +1459,33 @@ class ModernShippingMainWindow(QMainWindow):
             header_item = table.horizontalHeaderItem(col)
             header_text = base_labels[col] if col < len(base_labels) else (header_item.text() if header_item else f"Column {col + 1}")
             headers.append(header_text)
+
+        rows_to_write: list[list[str]] = []
+
+        if mode == "all_filtered":
+            shipments = self._collect_filtered_shipments(table_name)
+            if not shipments:
+                self.show_error("No results to export")
+                return
+            for shipment in shipments:
+                row_data: list[str] = []
+                for col in visible_columns:
+                    key = self.TABLE_COLUMN_KEYS[col] if col < len(self.TABLE_COLUMN_KEYS) else None
+                    raw_value = shipment.get(key, "") if key else ""
+                    metadata = self._prepare_cell_metadata(col, raw_value)
+                    row_data.append(str(metadata["display"]))
+                rows_to_write.append(row_data)
+        else:
+            visible_rows = [row for row in range(table.rowCount()) if not table.isRowHidden(row)]
+            if not visible_rows:
+                self.show_error("No results to export")
+                return
+            for row in visible_rows:
+                row_data: list[str] = []
+                for col in visible_columns:
+                    item = table.item(row, col)
+                    row_data.append(item.text() if item else "")
+                rows_to_write.append(row_data)
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -1341,22 +1502,78 @@ class ModernShippingMainWindow(QMainWindow):
             with open(file_path, "w", newline="", encoding="utf-8") as csv_file:
                 writer = csv.writer(csv_file)
                 writer.writerow(headers)
-                for row in visible_rows:
-                    row_data = []
-                    for col in visible_columns:
-                        item = table.item(row, col)
-                        row_data.append(item.text() if item else "")
-                    writer.writerow(row_data)
-            self.show_toast(f"Exported {len(visible_rows)} rows to CSV", color="#10B981")
+                writer.writerows(rows_to_write)
+            exported_count = len(rows_to_write)
+            message = (
+                f"Exported {exported_count} filtered rows to CSV"
+                if mode == "all_filtered"
+                else f"Exported {exported_count} rows to CSV"
+            )
+            self.show_toast(message, color="#10B981")
         except Exception as exc:
             self.show_error(f"Failed to export CSV: {exc}")
-        self.update_header_shadow(name, table.verticalScrollBar().value() > 0)
+
+        self.update_header_shadow(table_name, table.verticalScrollBar().value() > 0)
+
+    def export_visible_rows_to_csv(self):
+        """Backward compatible wrapper for existing integrations."""
+        self.export_rows_to_csv("visible")
+
+    def _collect_filtered_shipments(self, table_name: str) -> list[dict]:
+        shipments = self._active_shipments if table_name == "active" else self._history_shipments
+        search_text = self.search_edit.text().strip()
+        results: list[dict] = []
+
+        for shipment in shipments:
+            if search_text and not self.shipment_matches_search(shipment, search_text):
+                continue
+
+            matches_filters = True
+            for column, filter_data in self.date_filters.get(table_name, {}).items():
+                if column >= len(self.TABLE_COLUMN_KEYS):
+                    continue
+                field_key = self.TABLE_COLUMN_KEYS[column]
+                if not self._value_matches_date_filter(shipment.get(field_key), filter_data):
+                    matches_filters = False
+                    break
+
+            if matches_filters:
+                results.append(shipment)
+
+        return results
+
+    def _value_matches_date_filter(self, raw_value, filter_data) -> bool:
+        text = "" if raw_value is None else str(raw_value).strip()
+        if text == "01/01/01":
+            text = ""
+
+        parsed = self.parse_table_date_value(text)
+        include_blank = filter_data.get("include_blank", True)
+        allowed_dates = filter_data.get("dates")
+
+        if allowed_dates is None:
+            return parsed is not None or include_blank
+
+        if len(allowed_dates) == 0:
+            return parsed is None and include_blank
+
+        if parsed is None:
+            return include_blank
+
+        for allowed in allowed_dates:
+            candidate = allowed
+            if isinstance(candidate, datetime):
+                candidate = candidate.date()
+            if isinstance(candidate, date) and parsed == candidate:
+                return True
+
+        return False
 
     def _apply_table_style(self, table):
         """Apply the dynamic table styling based on the global font size."""
         base_size = get_base_font_size()
-        table_font_size = max(12, base_size + 4)
-        header_font_size = max(14, base_size + 6)
+        table_font_size = max(14, base_size + 4)
+        header_font_size = max(15, base_size + 5)
         table.setStyleSheet(
             f"""
     QTableWidget {{
@@ -1369,7 +1586,7 @@ class ModernShippingMainWindow(QMainWindow):
     QHeaderView::section {{
         background-color: #F8FAFC;
         color: #475569;
-        padding: 12px 14px;
+        padding: 8px 12px;
         border: none;
         border-bottom: 1px solid #E5E9F2;
         border-right: 1px solid #E5E9F2;
@@ -1378,7 +1595,7 @@ class ModernShippingMainWindow(QMainWindow):
         text-transform: none;
     }}
     QTableWidget::item {{
-        padding: 8px 14px;
+        padding: 8px 12px;
         border-bottom: 1px solid #E5E9F2;
     }}
     QTableWidget::item:!selected:alternate {{
@@ -1401,10 +1618,10 @@ class ModernShippingMainWindow(QMainWindow):
             return
 
         base_size = get_base_font_size()
-        table_font_size = max(12, base_size + 4)
+        table_font_size = max(14, base_size + 4)
         metrics = QFontMetrics(QFont(MODERN_FONT, table_font_size))
 
-        default_height = max(40, int(metrics.lineSpacing() * 1.8))
+        default_height = max(42, int(metrics.lineSpacing() * 1.6))
 
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         vertical_header.setDefaultSectionSize(default_height)
@@ -1580,7 +1797,7 @@ class ModernShippingMainWindow(QMainWindow):
             return value
 
         text = str(value).strip()
-        if not text or text in {"-", "--", "None", "null"}:
+        if not text or text in {"-", "--", "—", "None", "null", "01/01/01"}:
             return None
 
         for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
@@ -2094,30 +2311,45 @@ class ModernShippingMainWindow(QMainWindow):
             self.updating_table = False
             print(f"Error poblando tabla: {e}")
             raise
-    
+
+    def _prepare_cell_metadata(self, column: int, value) -> dict[str, object]:
+        raw_text = "" if value is None else str(value)
+        normalized = raw_text.strip()
+        placeholder_original = normalized if normalized == "01/01/01" else None
+        if placeholder_original:
+            normalized = ""
+
+        is_placeholder = not normalized
+        display_text = "—" if is_placeholder else normalized
+
+        tooltip = ""
+        if placeholder_original:
+            tooltip = f"Original: {placeholder_original}"
+        elif normalized:
+            tooltip = raw_text.strip() if isinstance(value, str) else normalized
+
+        return {
+            "display": display_text,
+            "normalized": normalized,
+            "tooltip": tooltip,
+            "placeholder": is_placeholder,
+            "original": raw_text,
+        }
+
     def populate_table_row(self, table, row, shipment, is_active):
         """Poblar una fila de la tabla con estilo profesional"""
-        items = [
-            shipment.get("job_number", ""),
-            shipment.get("job_name", ""),
-            shipment.get("description", ""),
-            shipment.get("qc_release", ""),
-            shipment.get("qc_notes", ""),
-            shipment.get("created", ""),
-            shipment.get("ship_plan", ""),
-            shipment.get("shipped", ""),
-            shipment.get("invoice_number", ""),
-            shipment.get("shipping_notes", "")
-        ]
-        
         job_item = None
-        for col, item_text in enumerate(items):
-            if col == 6:  # Ship Plan
-                item = DateSortableItem(str(item_text) if item_text is not None else "", empty_display="-")
-            elif col in (5, 7):  # Created y Shipped
-                item = DateSortableItem(str(item_text) if item_text is not None else "")
+        placeholder_brush = self.PLACEHOLDER_BRUSH
+        for col, key in enumerate(self.TABLE_COLUMN_KEYS):
+            item_text = shipment.get(key, "")
+            metadata = self._prepare_cell_metadata(col, item_text)
+
+            if col in self.DATE_COLUMN_INDEXES:
+                item = DateSortableItem(metadata["normalized"], empty_display="—")
+                item.setData(Qt.ItemDataRole.EditRole, metadata["normalized"])
             else:
-                item = QTableWidgetItem(str(item_text))
+                item = QTableWidgetItem(metadata["display"])
+                item.setData(Qt.ItemDataRole.EditRole, metadata["normalized"])
 
             if not is_active and col == 7 and item_text:  # Shipped en history
                 shipped_font = QFont(MODERN_FONT, max(6, get_base_font_size() + 1), QFont.Weight.Medium)
@@ -2137,13 +2369,19 @@ class ModernShippingMainWindow(QMainWindow):
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-            elif col in (3, 5, 6, 7):
+            elif col in self.CENTER_ALIGN_COLUMNS:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
-            elif col == 8:
+            elif col in self.RIGHT_ALIGN_COLUMNS:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
 
-            if col in (1, 2, 9) and str(item_text).strip():
-                item.setToolTip(str(item_text))
+            tooltip = metadata["tooltip"]
+            if tooltip:
+                item.setToolTip(tooltip)
+            else:
+                item.setToolTip("")
+
+            if metadata["placeholder"]:
+                item.setForeground(placeholder_brush)
 
             # store original flags to avoid calling item.flags() during edits
             # Qt6's ItemFlag cannot be converted directly to int; use the .value
@@ -2153,6 +2391,8 @@ class ModernShippingMainWindow(QMainWindow):
             )
             if item.data(Qt.ItemDataRole.UserRole + 5) is None:
                 item.setData(Qt.ItemDataRole.UserRole + 5, 0)
+
+            item.setData(Qt.ItemDataRole.UserRole + 9, metadata["original"])
 
             table.setItem(row, col, item)
 
