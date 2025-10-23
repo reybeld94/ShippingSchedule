@@ -868,16 +868,17 @@ class ModernShippingMainWindow(QMainWindow):
         toolbar_layout.setSpacing(16)
 
         # Botones principales
-        self.add_btn = ModernButton("New Shipment", "primary", min_height=40)
+        self.add_btn = ModernButton(
+            "New Shipment", "primary", min_height=40, min_width=0, padding=(6, 10)
+        )
         apply_scaled_font(self.add_btn, offset=2, weight=QFont.Weight.Medium)
-        self.add_btn.setMinimumWidth(132)
         self.add_btn.clicked.connect(self.add_shipment)
 
         self.delete_btn = ModernButton(
-            "Delete", "danger-outline", min_height=40, min_width=0
+            "Delete", "danger-outline", min_height=40, min_width=0, padding=(6, 10)
         )
         apply_scaled_font(self.delete_btn, offset=1, weight=QFont.Weight.Medium)
-        self.delete_btn.setMinimumWidth(100)
+        self.delete_btn.setMinimumWidth(96)
         self.delete_btn.clicked.connect(self.delete_shipment)
         self.delete_btn.setEnabled(False)
 
@@ -886,13 +887,19 @@ class ModernShippingMainWindow(QMainWindow):
             self.delete_btn.setEnabled(False)
 
         # Botones de utilidades de la tabla
-        self.columns_btn = ModernButton("Columns", "outline", min_height=40, min_width=0)
+        self.columns_btn = ModernButton(
+            "Columns", "outline", min_height=40, min_width=0, padding=(6, 10)
+        )
         self.columns_btn.clicked.connect(self.open_columns_menu)
 
-        self.filters_btn = ModernButton("Filters", "outline", min_height=40, min_width=0)
+        self.filters_btn = ModernButton(
+            "Filters", "outline", min_height=40, min_width=0, padding=(6, 10)
+        )
         self.filters_btn.clicked.connect(self.open_filters_menu)
 
-        self.export_btn = ModernButton("Export", "outline", min_height=40, min_width=0)
+        self.export_btn = ModernButton(
+            "Export", "outline", min_height=40, min_width=0, padding=(6, 10)
+        )
 
         primary_layout = QHBoxLayout()
         primary_layout.setContentsMargins(0, 0, 0, 0)
