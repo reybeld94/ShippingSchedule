@@ -65,6 +65,13 @@ class UserFormDialog(QDialog):
         layout.addWidget(card)
         layout.addLayout(button_layout)
 
+    def _create_form_label(self, text: str) -> QLabel:
+        """Create a consistently styled form label."""
+        label = QLabel(text)
+        apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
+        label.setStyleSheet("color: #374151;")
+        return label
+
     def populate(self, user):
         self.username_edit.setText(user.get("username", ""))
         self.email_edit.setText(user.get("email", ""))
