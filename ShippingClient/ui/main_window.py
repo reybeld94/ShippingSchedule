@@ -1361,6 +1361,19 @@ class ModernShippingMainWindow(QMainWindow):
             if view.rowHeight(row) != desired_height:
                 view.setRowHeight(row, desired_height)
 
+    def sync_pinned_row_visibility(self, table, name):
+        """Mirror hidden/visible rows in the pinned helper view."""
+        info = self._pinned_views.get(name)
+        if not info:
+            return
+        view = info.get("view")
+        if not isinstance(view, QTableView):
+            return
+        for row in range(table.rowCount()):
+            hidden = table.isRowHidden(row)
+            if view.isRowHidden(row) != hidden:
+                view.setRowHidden(row, hidden)
+
     def toggle_column_visibility(self, table, name, column, hidden):
         table.setColumnHidden(column, hidden)
         info = self._pinned_views.get(name)
@@ -2635,6 +2648,8 @@ class ModernShippingMainWindow(QMainWindow):
                     visible_count += 1
         finally:
             table.setUpdatesEnabled(True)
+
+        self.sync_pinned_row_visibility(table, name)
 
         return visible_count
 
