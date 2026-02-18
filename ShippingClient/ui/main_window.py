@@ -1281,11 +1281,14 @@ class ModernShippingMainWindow(QMainWindow):
 
         viewport = table.viewport()
         geom = viewport.geometry()
-        x_offset = geom.x()
-        if table.verticalHeader() and table.verticalHeader().isVisible():
-            x_offset += table.verticalHeader().width()
         pinned_height = geom.height()
-        view.setGeometry(x_offset, geom.y(), width, pinned_height)
+        # pinned_view is a child of table.viewport(), so coordinates must be
+        # relative to the viewport itself (0, 0) — not relative to the
+        # QTableWidget.  Using geom.x()/geom.y() (which are relative to the
+        # QTableWidget) caused the overlay to be offset downward by the
+        # horizontal-header height, leaving the first rows uncovered and making
+        # JOB NUMBER / JOB NAME appear duplicated at the top of the table.
+        view.setGeometry(0, 0, width, pinned_height)
         view.setVisible(width > 0)
         pinned_view_scroll = view.verticalScrollBar()
         pinned_view_scroll.setRange(table.verticalScrollBar().minimum(), table.verticalScrollBar().maximum())
