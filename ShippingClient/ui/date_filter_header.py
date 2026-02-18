@@ -16,6 +16,8 @@ class DateFilterHeader(QHeaderView):
         self._active_filters = set()
         self._indicator_width = 16
         self.setSectionsClickable(True)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._on_custom_context_menu)
 
     def set_filter_active(self, section: int, active: bool) -> None:
         if active:
@@ -38,6 +40,12 @@ class DateFilterHeader(QHeaderView):
             event.accept()
             return
         super().mousePressEvent(event)
+
+    def _on_custom_context_menu(self, pos: QPoint) -> None:
+        logical = self.logicalIndexAt(pos)
+        if logical not in self._filter_columns:
+            return
+        self.filter_requested.emit(logical, self.viewport().mapToGlobal(pos))
 
     def paintSection(self, painter: QPainter, rect: QRect, logicalIndex: int) -> None:
         super().paintSection(painter, rect, logicalIndex)
