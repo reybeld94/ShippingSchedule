@@ -1184,6 +1184,12 @@ class ModernShippingMainWindow(QMainWindow):
         pinned_view.setFrameShape(QFrame.Shape.NoFrame)
         pinned_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         pinned_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Keep the helper view on the exact same pixel-based scroll model as
+        # the source table. If these differ (e.g. per-item vs per-pixel), both
+        # views can drift vertically and make the pinned columns look like they
+        # are overlapping a different table.
+        pinned_view.setVerticalScrollMode(table.verticalScrollMode())
+        pinned_view.setHorizontalScrollMode(table.horizontalScrollMode())
         pinned_view.setEditTriggers(table.editTriggers())
         pinned_view.setSelectionBehavior(table.selectionBehavior())
         pinned_view.setSelectionMode(table.selectionMode())
