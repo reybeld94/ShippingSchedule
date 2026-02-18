@@ -11,7 +11,8 @@ class WebSocketClient(QThread):
         super().__init__()
         self.ws = None
         self.running = False
-        self.url = url or get_ws_url()
+        base_url = (url or get_ws_url() or "").strip()
+        self.url = base_url.rstrip("/")
     
     def run(self):
         def on_message(ws, message):

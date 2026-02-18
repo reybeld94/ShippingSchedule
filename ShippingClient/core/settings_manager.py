@@ -19,10 +19,15 @@ class SettingsManager:
 
     def get_ws_url(self) -> str:
         """Return stored websocket URL or default."""
-        return self._settings.value("ws_url", "ws://localhost:8000/ws")
+        value = self._settings.value("ws_url", "ws://localhost:8000/ws")
+        cleaned = (value or "ws://localhost:8000/ws").strip().rstrip("/")
+        return cleaned or "ws://localhost:8000/ws"
 
     def set_ws_url(self, url: str):
-        self._settings.setValue("ws_url", url)
+        cleaned = (url or "").strip()
+        if cleaned.endswith("/"):
+            cleaned = cleaned.rstrip("/")
+        self._settings.setValue("ws_url", cleaned)
 
     def save_cell_colors(self, table_name: str, colors: dict[tuple[int, int], str]):
         """DEPRECATED: persist colors by (row, column) for legacy support."""

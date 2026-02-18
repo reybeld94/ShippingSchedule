@@ -570,6 +570,7 @@ async def delete_shipment(
 # ============ WEBSOCKET ============
 
 @app.websocket("/ws")
+@app.websocket("/ws/")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
