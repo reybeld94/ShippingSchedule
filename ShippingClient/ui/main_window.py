@@ -1191,11 +1191,17 @@ class ModernShippingMainWindow(QMainWindow):
         pinned_view.horizontalHeader().setVisible(False)
         pinned_view.verticalHeader().setVisible(False)
         pinned_view.setTextElideMode(Qt.TextElideMode.ElideRight)
+        pinned_view.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+        pinned_view.viewport().setAutoFillBackground(True)
         pinned_view.setStyleSheet(
             """
-            QTableView {
-                background: rgba(248, 250, 252, 0.98);
+            QTableView,
+            QTableView::viewport {
+                background: #F8FAFC;
                 border-right: 1px solid #E5E9F2;
+            }
+            QTableView::item {
+                background: #F8FAFC;
             }
             QTableView::item:!selected:alternate {
                 background: #F7FAFC;
