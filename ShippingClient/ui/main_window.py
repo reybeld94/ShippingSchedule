@@ -1083,8 +1083,8 @@ class ModernShippingMainWindow(QMainWindow):
         # Restaurar anchos guardados si existen
         self.restore_column_widths(table, name)
 
-        # Configurar columnas fijadas a la izquierda
-        self.setup_pinned_columns(table, name, pinned_count=2)
+        # Mostrar una tabla estándar sin columnas superpuestas/fijadas
+        self.setup_pinned_columns(table, name, pinned_count=0)
 
         # Restaurar estado de ordenamiento persistido
         self.restore_sort_state(table, name)
@@ -1094,7 +1094,7 @@ class ModernShippingMainWindow(QMainWindow):
             lambda logical, _old, new, tbl=table, nm=name: self.on_header_section_resized(tbl, nm, logical, new)
         )
         header.sectionMoved.connect(
-            lambda logical, old, new, tbl=table, nm=name: self.enforce_pinned_section_positions(tbl, nm, logical, new, pinned_count=2)
+            lambda logical, old, new, tbl=table, nm=name: self.enforce_pinned_section_positions(tbl, nm, logical, new, pinned_count=0)
         )
 
         # Eventos
@@ -1161,7 +1161,7 @@ class ModernShippingMainWindow(QMainWindow):
 
     def setup_pinned_columns(self, table, name, pinned_count=2):
         """Overlay a helper view to keep the first columns fixed when scrolling."""
-        if table is None or pinned_count <= 0:
+        if table is None:
             return
 
         previous = self._pinned_views.get(name)
@@ -1175,6 +1175,10 @@ class ModernShippingMainWindow(QMainWindow):
                 viewport.removeEventFilter(self)
             if isinstance(pinned_viewport, QWidget):
                 pinned_viewport.removeEventFilter(self)
+            self._pinned_views.pop(name, None)
+
+        if pinned_count <= 0:
+            return
 
         pinned_view = QTableView(table)
         pinned_view.setObjectName(f"pinnedView_{name}")
