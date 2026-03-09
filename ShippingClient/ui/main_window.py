@@ -2827,8 +2827,14 @@ class ModernShippingMainWindow(QMainWindow):
                         s["version"] = shipment["version"]
                         break
             self.show_toast("Changes saved successfully", color="#16A34A")
-            table_name = "active" if table is self.active_table else "history"
-            self.apply_date_filters_to_table(table, table_name)
+            # El campo "shipped" define si un shipment está en Active o History.
+            # Re-cargamos los datos para evitar que una fila cambie de tabla
+            # mientras Qt todavía finaliza la edición inline (causando cierres).
+            if field == "shipped":
+                self.load_shipments_async()
+            else:
+                table_name = "active" if table is self.active_table else "history"
+                self.apply_date_filters_to_table(table, table_name)
             self._last_update_dt = datetime.now()
             self.update_status()
 
