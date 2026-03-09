@@ -42,6 +42,7 @@ from PyQt6.QtCore import (
     Qt,
     QTimer,
     QThread,
+    QSignalBlocker,
     pyqtSignal,
     QStandardPaths,
     QUrl,
@@ -2010,6 +2011,28 @@ class ModernShippingMainWindow(QMainWindow):
                 continue
         return None
 
+    def normalize_date_cell_value(self, value) -> str:
+        """Normalize user-facing placeholder values to empty date values."""
+        text = "" if value is None else str(value).strip()
+        if text in {"-", "--", "—", "None", "null", "01/01/01"}:
+            return ""
+        return text
+
+    def set_item_text_safely(self, item, display_text: str, edit_text: Optional[str] = None):
+        """Update item text without retriggering itemChanged recursion."""
+        table = item.tableWidget()
+        if table is None:
+            item.setText(display_text)
+            if edit_text is not None:
+                item.setData(Qt.ItemDataRole.EditRole, edit_text)
+            return
+
+        blocker = QSignalBlocker(table)
+        item.setText(display_text)
+        if edit_text is not None:
+            item.setData(Qt.ItemDataRole.EditRole, edit_text)
+        del blocker
+
     def apply_date_filters_to_table(self, table, name):
         """Aplicar los filtros de fecha respetando la búsqueda actual."""
         return self.apply_row_filters(table, name)
@@ -2802,17 +2825,18 @@ class ModernShippingMainWindow(QMainWindow):
         if isinstance(new_value, str):
             new_value = new_value.strip()
 
-        # Normalizar valores para campos de fecha (permitiendo marcador "-")
+        # Normalizar valores para campos de fecha (aceptando placeholders de UI)
         date_fields = {"qc_release", "created", "ship_plan", "shipped"}
-        if field in date_fields and isinstance(new_value, str) and new_value == "-":
-            new_value = ""
+        if field in date_fields:
+            old_value = self.normalize_date_cell_value(old_value)
+            new_value = self.normalize_date_cell_value(new_value)
 
         if new_value == (old_value or ""):  # No real changes
             return
 
         # Asegurar que el valor mostrado coincida con el guardado
         if field in date_fields and not new_value:
-            item.setText("-")
+            self.set_item_text_safely(item, "—", "")
 
         def update_local_data(updated_data):
             """Helper to update local data consistently"""
@@ -2877,7 +2901,8 @@ class ModernShippingMainWindow(QMainWindow):
                         
                         if msg.exec() != QMessageBox.StandardButton.Yes:
                             # Usuario decidió no sobrescribir - revertir cambio local
-                            item.setText(str(latest_field_value))
+                            latest_field_text = self.normalize_date_cell_value(latest_field_value) if field in date_fields else str(latest_field_value)
+                            self.set_item_text_safely(item, latest_field_text or "—", latest_field_text)
                             for key, value in latest_shipment.items():
                                 if key in shipment:
                                     shipment[key] = value
@@ -2904,20 +2929,20 @@ class ModernShippingMainWindow(QMainWindow):
                         return
                     else:
                         # Revertir cambio
-                        item.setText(str(old_value))
+                        self.set_item_text_safely(item, old_value or "—", old_value)
                         self.show_error(f"Failed to save after resolving conflict: {retry_response.get_error()}")
                 else:
                     # Revertir cambio
-                    item.setText(str(old_value))
+                    self.set_item_text_safely(item, old_value or "—", old_value)
                     self.show_error("Could not resolve version conflict. Please refresh and try again.")
             else:
                 # Revertir cambio
-                item.setText(str(old_value))
+                self.set_item_text_safely(item, old_value or "—", old_value)
                 self.show_error(f"Failed to save changes: {api_response.get_error()}")
 
         except Exception as e:
             # Revertir cambio
-            item.setText(str(old_value))
+            self.set_item_text_safely(item, old_value or "—", old_value)
             print(f"Exception in on_item_changed: {str(e)}")
             self.show_error(f"Failed to save changes: {str(e)}")
     
