@@ -1,8 +1,9 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import csv
 import json
+from dataclasses import dataclass, field
 from datetime import datetime, date, timedelta
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import os
 import textwrap
 from urllib.parse import urlparse
@@ -86,6 +87,19 @@ from core.config import (
     LOGO_PATH,
     ICON_PATH,
 )
+
+
+@dataclass(frozen=True)
+class TabModuleConfig:
+    """Declarative configuration for each tab/module."""
+
+    id: str
+    label: str
+    columns: list[str]
+    date_filter_columns: list[int] = field(default_factory=list)
+    toolbar_actions: dict[str, Any] = field(default_factory=dict)
+    context_actions: list[str] = field(default_factory=list)
+    permissions: dict[str, bool] = field(default_factory=dict)
 
 class ShipmentLoader(QThread):
     """Thread para cargar datos en background"""
@@ -281,6 +295,38 @@ class StatusChipDelegate(QStyledItemDelegate):
         return QSize(hint.width(), max(hint.height(), 40))
 
 class ModernShippingMainWindow(QMainWindow):
+    DEFAULT_TABLE_COLUMNS = [
+        "JOB NUMBER",
+        "JOB NAME",
+        "DESCRIPTION",
+        "QC REL.",
+        "QC NOTES",
+        "CRATED",
+        "SHIP PLAN",
+        "SHIPPED",
+        "INVOICE",
+        "NOTES",
+    ]
+    TAB_MODULE_CONFIGS = [
+        TabModuleConfig(
+            id="active",
+            label="Active Shipments",
+            columns=DEFAULT_TABLE_COLUMNS,
+            date_filter_columns=[3, 5, 6],
+            toolbar_actions={"allow_add": True},
+            context_actions=["edit", "delete", "copy"],
+            permissions={"can_view": True},
+        ),
+        TabModuleConfig(
+            id="history",
+            label="Shipment History",
+            columns=DEFAULT_TABLE_COLUMNS,
+            date_filter_columns=[3, 5, 6, 7],
+            toolbar_actions={"allow_add": False},
+            context_actions=["copy", "export"],
+            permissions={"can_view": True},
+        ),
+    ]
     TABLE_COLUMN_KEYS = [
         "job_number",
         "job_name",
@@ -320,28 +366,28 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Manage persistent UI settings
         self.settings_mgr = SettingsManager()
+        self.tab_modules = list(self.TAB_MODULE_CONFIGS)
+        self.tab_tables: dict[str, QTableWidget] = {}
+        self.table_to_tab_id: dict[int, str] = {}
+        self.tab_index_to_id: dict[int, str] = {}
         # Loaded shipment color mappings for persistence
         self.shipment_colors = {
-            "active": self.settings_mgr.load_shipment_colors("active"),
-            "history": self.settings_mgr.load_shipment_colors("history"),
+            module.id: self.settings_mgr.load_shipment_colors(module.id)
+            for module in self.tab_modules
         }
 
         # Cache para optimización
         self._active_shipments = []
         self._history_shipments = []
         self._last_filter_text = ""
-        self._tables_populated = {"active": False, "history": False}
-        self._search_row_visibility = {"active": [], "history": []}
-        self.date_filters = {
-            "active": self.settings_mgr.load_date_filters("active"),
-            "history": self.settings_mgr.load_date_filters("history"),
-        }
+        self._tables_populated = {module.id: False for module in self.tab_modules}
+        self._search_row_visibility = {module.id: [] for module in self.tab_modules}
+        self.date_filters = {module.id: self.settings_mgr.load_date_filters(module.id) for module in self.tab_modules}
         self._base_header_labels: dict[str, list[str]] = {}
         self.date_filter_headers = {}
         self._header_shadows: dict[str, QGraphicsDropShadowEffect] = {}
         self._sort_state_cache: dict[str, tuple[int, Qt.SortOrder] | None] = {
-            "active": self.settings_mgr.load_sort_state("active"),
-            "history": self.settings_mgr.load_sort_state("history"),
+            module.id: self.settings_mgr.load_sort_state(module.id) for module in self.tab_modules
         }
         self._pinned_views: Dict[str, dict[str, object]] = {}
         self.status_chip_delegate = StatusChipDelegate(self)
@@ -473,11 +519,10 @@ class ModernShippingMainWindow(QMainWindow):
 
         refresh_scaled_fonts(self)
 
-        for table in getattr(self, "active_table", None), getattr(self, "history_table", None):
-            if table is not None:
-                self._apply_table_style(table)
-                self._refresh_table_item_fonts(table)
-                self._configure_table_row_metrics(table)
+        for table in self.tab_tables.values():
+            self._apply_table_style(table)
+            self._refresh_table_item_fonts(table)
+            self._configure_table_row_metrics(table)
     
     def create_professional_header(self, layout):
         """Crear header profesional con barra superior compacta"""
@@ -977,48 +1022,32 @@ class ModernShippingMainWindow(QMainWindow):
             )
         )
         
-        # Tab 1: Active Shipments
-        self.active_widget = QWidget()
-        active_layout = QVBoxLayout(self.active_widget)
-        active_layout.setContentsMargins(8, 8, 8, 8)
-        
-        self.active_table = QTableWidget()
-        self.setup_professional_table(self.active_table, "active")
-        active_layout.addWidget(self.active_table)
-        
-        self.tab_widget.addTab(self.active_widget, "Active Shipments")
-        
-        # Tab 2: History
-        self.history_widget = QWidget()
-        history_layout = QVBoxLayout(self.history_widget)
-        history_layout.setContentsMargins(8, 8, 8, 8)
-        
-        self.history_table = QTableWidget()
-        self.setup_professional_table(self.history_table, "history")
-        history_layout.addWidget(self.history_table)
-        
-        self.tab_widget.addTab(self.history_widget, "Shipment History")
-        
+        for module in self.tab_modules:
+            tab_widget = QWidget()
+            tab_layout = QVBoxLayout(tab_widget)
+            tab_layout.setContentsMargins(8, 8, 8, 8)
+
+            table = QTableWidget()
+            self.setup_professional_table(table, module)
+            tab_layout.addWidget(table)
+
+            tab_index = self.tab_widget.addTab(tab_widget, module.label)
+            self.tab_tables[module.id] = table
+            self.table_to_tab_id[id(table)] = module.id
+            self.tab_index_to_id[tab_index] = module.id
+            setattr(self, f"{module.id}_widget", tab_widget)
+            setattr(self, f"{module.id}_table", table)
+
         # Conectar cambio de tab
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         
         tabs_layout.addWidget(self.tab_widget)
         layout.addWidget(tabs_container)
     
-    def setup_professional_table(self, table, name):
+    def setup_professional_table(self, table, module_config: TabModuleConfig):
         """Configurar tabla con estilo profesional y restaurar ancho de columnas"""
-        columns = [
-            "JOB NUMBER",
-            "JOB NAME",
-            "DESCRIPTION",
-            "QC REL.",
-            "QC NOTES",
-            "CRATED",
-            "SHIP PLAN",
-            "SHIPPED",
-            "INVOICE",
-            "NOTES",
-        ]
+        name = module_config.id
+        columns = module_config.columns
 
         table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
@@ -1357,7 +1386,9 @@ class ModernShippingMainWindow(QMainWindow):
             self.update_pinned_column_width(table, name, column)
 
     def get_table_key(self, table):
-        return "active" if table is self.active_table else "history"
+        if table is None:
+            return self.get_current_tab_id()
+        return self.table_to_tab_id.get(id(table), self.get_current_tab_id())
 
     def on_row_height_resized(self, table, name, row, new_height):
         info = self._pinned_views.get(name)
@@ -1551,7 +1582,7 @@ class ModernShippingMainWindow(QMainWindow):
 
     def reset_column_layout(self, name):
         """Restaurar visibilidad y anchos predeterminados de columnas."""
-        table = self.active_table if name == "active" else self.history_table
+        table = self.tab_tables.get(name)
         if table is None:
             return
         for col in range(table.columnCount()):
@@ -1609,7 +1640,7 @@ class ModernShippingMainWindow(QMainWindow):
 
     def clear_all_filters(self, name):
         """Limpiar filtros de fechas y actualizar la vista."""
-        table = self.active_table if name == "active" else self.history_table
+        table = self.tab_tables.get(name)
         if table is None:
             return
 
@@ -1912,6 +1943,9 @@ class ModernShippingMainWindow(QMainWindow):
 
     def get_date_filter_columns(self, name):
         """Return the indices of columns that support the date filter."""
+        module = self.get_tab_module_config(name)
+        if module:
+            return list(module.date_filter_columns)
         return [3, 5, 6, 7]
 
     def open_date_filter_popup(self, table, name, column, global_pos):
@@ -2355,19 +2389,14 @@ class ModernShippingMainWindow(QMainWindow):
     def on_tab_changed(self, index):
         """Manejar cambio de tab optimizado"""
         print(f"Cambio de tab: {index}")
-        if index == 0:  # Active tab
-            if not self._tables_populated["active"]:
-                self.populate_active_table()
-                self._tables_populated["active"] = True
-            if not self.read_only:
-                self.add_btn.setEnabled(True)
-        else:  # History tab
-            print("Abriendo tab de historial")
-            if not self._tables_populated["history"]:
-                self.populate_history_table()
-                self._tables_populated["history"] = True
-            if not self.read_only:
-                self.add_btn.setEnabled(False)
+        tab_id = self.tab_index_to_id.get(index, self.get_current_tab_id())
+        module = self.get_tab_module_config(tab_id)
+        if not self._tables_populated.get(tab_id, False):
+            self.populate_module_table(tab_id)
+            self._tables_populated[tab_id] = True
+        if not self.read_only:
+            allow_add = bool(module and module.toolbar_actions.get("allow_add", False))
+            self.add_btn.setEnabled(allow_add)
 
         self.update_status()
         self.on_selection_changed()
@@ -2384,7 +2413,20 @@ class ModernShippingMainWindow(QMainWindow):
     
     def get_current_table(self):
         """Obtener la tabla actualmente activa"""
-        return self.active_table if self.tab_widget.currentIndex() == 0 else self.history_table
+        current_tab_id = self.get_current_tab_id()
+        return self.tab_tables[current_tab_id]
+
+    def get_current_tab_id(self):
+        current_index = self.tab_widget.currentIndex()
+        if current_index in self.tab_index_to_id:
+            return self.tab_index_to_id[current_index]
+        return self.tab_modules[0].id
+
+    def get_tab_module_config(self, tab_id: str):
+        for module in self.tab_modules:
+            if module.id == tab_id:
+                return module
+        return None
     
     def is_shipped(self, shipment):
         """Verificar si un shipment ya fue enviado"""
@@ -2404,8 +2446,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.progress_dialog.show()
 
         widgets = [
-            self.active_table,
-            self.history_table,
+            *self.tab_tables.values(),
             self.add_btn,
             self.delete_btn,
             self.columns_btn,
@@ -2457,17 +2498,13 @@ class ModernShippingMainWindow(QMainWindow):
         self._history_shipments = [s for s in shipments if self.is_shipped(s)]
         
         # Marcar tablas como no pobladas
-        self._tables_populated = {"active": False, "history": False}
-        self._search_row_visibility = {"active": [], "history": []}
+        self._tables_populated = {module.id: False for module in self.tab_modules}
+        self._search_row_visibility = {module.id: [] for module in self.tab_modules}
         
         # Poblar tabla actual
-        current_tab = self.tab_widget.currentIndex()
-        if current_tab == 0:
-            self.populate_active_table()
-            self._tables_populated["active"] = True
-        else:
-            self.populate_history_table()
-            self._tables_populated["history"] = True
+        current_tab_id = self.get_current_tab_id()
+        self.populate_module_table(current_tab_id)
+        self._tables_populated[current_tab_id] = True
 
         self.update_status()
         self.update_filter_button_state()
@@ -2487,6 +2524,17 @@ class ModernShippingMainWindow(QMainWindow):
         """Poblar tabla de historial"""
         print(f"Populando historial: {len(self._history_shipments)} shipments totales")
         self.populate_table_fast(self.history_table, self._history_shipments, is_active=False)
+
+    def populate_module_table(self, tab_id: str):
+        if tab_id == "active":
+            self.populate_active_table()
+            return
+        if tab_id == "history":
+            self.populate_history_table()
+            return
+        table = self.tab_tables.get(tab_id)
+        if table is not None:
+            self.populate_table_fast(table, [], is_active=False)
     
     def populate_table_fast(self, table, shipments, is_active=True):
         """Poblar tabla de forma optimizada"""
@@ -2725,7 +2773,7 @@ class ModernShippingMainWindow(QMainWindow):
 
     def perform_filter(self):
         """Ejecutar filtrado optimizado"""
-        for table, name in ((self.active_table, "active"), (self.history_table, "history")):
+        for name, table in self.tab_tables.items():
             if not self._tables_populated.get(name):
                 continue
             self.update_search_visibility(table, name)
@@ -2735,10 +2783,14 @@ class ModernShippingMainWindow(QMainWindow):
     
     def update_status(self):
         """Actualizar información del status bar"""
-        current_tab = self.tab_widget.currentIndex()
-        table = self.active_table if current_tab == 0 else self.history_table
+        current_tab_id = self.get_current_tab_id()
+        table = self.tab_tables.get(current_tab_id)
         visible_count = self.count_visible_rows(table) if isinstance(table, QTableWidget) else 0
-        total_count = len(self._active_shipments) if current_tab == 0 else len(self._history_shipments)
+        total_count = 0
+        if current_tab_id == "active":
+            total_count = len(self._active_shipments)
+        elif current_tab_id == "history":
+            total_count = len(self._history_shipments)
 
         self.record_count_label.setText(f"Showing {visible_count} of {total_count}")
 
@@ -2857,7 +2909,7 @@ class ModernShippingMainWindow(QMainWindow):
             if field == "shipped":
                 self.load_shipments_async()
             else:
-                table_name = "active" if table is self.active_table else "history"
+                table_name = self.get_table_key(table)
                 self.apply_date_filters_to_table(table, table_name)
             self._last_update_dt = datetime.now()
             self.update_status()
@@ -3125,7 +3177,8 @@ class ModernShippingMainWindow(QMainWindow):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
             # Determinar nombre según tab actual
-            tab_name = "Active" if self.tab_widget.currentIndex() == 0 else "History"
+            current_module = self.get_tab_module_config(self.get_current_tab_id())
+            tab_name = (current_module.label if current_module else "Tab").replace(" ", "_")
             file_path = os.path.join(
                 docs_dir, f"Shipping_Schedule_{tab_name}_{timestamp}.pdf"
             )
@@ -3387,12 +3440,14 @@ class ModernShippingMainWindow(QMainWindow):
         """Manejar cierre de ventana"""
         try:
             # Guardar colores de shipments
-            self.save_shipment_colors("active")
-            self.save_shipment_colors("history")
+            for module in self.tab_modules:
+                self.save_shipment_colors(module.id)
 
             # Guardar anchos de columnas antes de cerrar
-            self.save_table_column_widths(self.active_table, "active")
-            self.save_table_column_widths(self.history_table, "history")
+            for module in self.tab_modules:
+                table = self.tab_tables.get(module.id)
+                if table is not None:
+                    self.save_table_column_widths(table, module.id)
 
             if hasattr(self, 'ws_client'):
                 self.ws_client.stop()
