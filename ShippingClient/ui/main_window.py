@@ -333,8 +333,21 @@ class ModernShippingMainWindow(QMainWindow):
                 "allow_add": True,
                 "visible": ["add", "delete", "columns", "export"],
             },
-            context_actions=["edit", "delete", "copy"],
-            permissions={"can_view": True},
+            context_actions=[
+                "refresh",
+                "update_mark",
+                "clear_mark",
+                "show_mie_trak_address",
+                "change_status",
+            ],
+            permissions={
+                "can_view": True,
+                "allow_add": True,
+                "allow_delete": True,
+                "allow_update_mark": True,
+                "allow_status_change": True,
+                "allow_mie_trak_address": True,
+            },
         ),
         TabModuleConfig(
             id="history",
@@ -345,8 +358,15 @@ class ModernShippingMainWindow(QMainWindow):
                 "allow_add": False,
                 "visible": ["columns", "export"],
             },
-            context_actions=["copy", "export"],
-            permissions={"can_view": True},
+            context_actions=["refresh", "update_mark", "clear_mark"],
+            permissions={
+                "can_view": True,
+                "allow_add": False,
+                "allow_delete": False,
+                "allow_update_mark": True,
+                "allow_status_change": False,
+                "allow_mie_trak_address": False,
+            },
         ),
     ]
     TABLE_COLUMN_KEYS = [
@@ -1557,6 +1577,44 @@ class ModernShippingMainWindow(QMainWindow):
         target_module = module_id or self.get_current_tab_id()
         return self.tab_toolbars.get(target_module, {})
 
+    def _get_role_policy(self) -> dict[str, bool]:
+        role = (self.user_info.get("role") or "").lower()
+        if role == "read":
+            return {
+                "can_edit": False,
+                "can_delete": False,
+                "can_change_status": False,
+            }
+        return {
+            "can_edit": True,
+            "can_delete": True,
+            "can_change_status": True,
+        }
+
+    def _get_module_policy(self, module_id: str) -> dict[str, bool]:
+        module = self.get_tab_module_config(module_id)
+        if module is None:
+            return {}
+        return module.permissions or {}
+
+    def can_execute_context_action(self, module_id: str, action_id: str, row_data: dict[str, Any]) -> bool:
+        role_policy = self._get_role_policy()
+        module_policy = self._get_module_policy(module_id)
+        module = self.get_tab_module_config(module_id)
+        if module is None or action_id not in set(module.context_actions):
+            return False
+
+        has_item = bool(row_data.get("item"))
+        if action_id == "refresh":
+            return True
+        if action_id in {"update_mark", "clear_mark"}:
+            return has_item and role_policy["can_edit"] and module_policy.get("allow_update_mark", True)
+        if action_id == "show_mie_trak_address":
+            return has_item and module_policy.get("allow_mie_trak_address", False)
+        if action_id == "change_status":
+            return has_item and role_policy["can_change_status"] and module_policy.get("allow_status_change", False)
+        return False
+
     def _current_tab_has_selection(self, module_id: str) -> bool:
         table = self.tab_tables.get(module_id)
         if table is None or table.selectionModel() is None:
@@ -1578,12 +1636,17 @@ class ModernShippingMainWindow(QMainWindow):
 
         add_btn = controls.get("add")
         if isinstance(add_btn, QWidget):
+            role_policy = self._get_role_policy()
+            module_policy = self._get_module_policy(target_module)
             allow_add = bool(module.toolbar_actions.get("allow_add", False))
-            add_btn.setEnabled((not self.read_only) and allow_add)
+            add_btn.setEnabled(role_policy["can_edit"] and allow_add and module_policy.get("allow_add", allow_add))
 
         delete_btn = controls.get("delete")
         if isinstance(delete_btn, QWidget):
-            delete_btn.setEnabled((not self.read_only) and self._current_tab_has_selection(target_module))
+            role_policy = self._get_role_policy()
+            module_policy = self._get_module_policy(target_module)
+            can_delete = role_policy["can_delete"] and module_policy.get("allow_delete", True)
+            delete_btn.setEnabled(can_delete and self._current_tab_has_selection(target_module))
 
     def show_export_menu(self, module_id: Optional[str] = None):
         controls = self._get_toolbar_controls(module_id)
@@ -2160,72 +2223,108 @@ class ModernShippingMainWindow(QMainWindow):
                 return shipment.get('id')
         return None
 
-    def show_cell_menu(self, table, name, pos):
+    def build_context_menu(self, module_id: str, row_data: dict[str, Any]):
+        table = row_data["table"]
         menu = QMenu(table)
+        action_registry: dict[QAction, dict[str, Any]] = {}
+
         refresh_action = menu.addAction("Refresh")
+        if self.can_execute_context_action(module_id, "refresh", row_data):
+            action_registry[refresh_action] = {"action_id": "refresh"}
 
-        item = table.itemAt(pos)
-        update_action = clear_action = address_action = None
-        status_actions = {}
-        row = -1
-
-        if item:
+        if row_data.get("item"):
             menu.addSeparator()
-            update_action = menu.addAction("Update")
-            clear_action = menu.addAction("Clear Mark")
-            address_action = menu.addAction("Show Mie Trak Address")
-            row = item.row()
+            if self.can_execute_context_action(module_id, "update_mark", row_data):
+                action_registry[menu.addAction("Update")] = {"action_id": "update_mark"}
+            if self.can_execute_context_action(module_id, "clear_mark", row_data):
+                action_registry[menu.addAction("Clear Mark")] = {"action_id": "clear_mark"}
+            if self.can_execute_context_action(module_id, "show_mie_trak_address", row_data):
+                action_registry[menu.addAction("Show Mie Trak Address")] = {"action_id": "show_mie_trak_address"}
 
-        if item and not self.read_only:
-            job_item = table.item(row, 0)
-            shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
-            current_status = shipment.get("status") if shipment else ""
-            status_menu = menu.addMenu("Status")
-            status_map = {
-                "partial_release": "Partial Release",
-                "final_release": "Final Release",
-                "rejected": "Rejected",
-            }
-            for code, text in status_map.items():
-                act = status_menu.addAction(text)
-                act.setCheckable(True)
-                if code == current_status:
-                    act.setChecked(True)
-                status_actions[act] = code
+            if self.can_execute_context_action(module_id, "change_status", row_data):
+                status_menu = menu.addMenu("Status")
+                status_map = {
+                    "partial_release": "Partial Release",
+                    "final_release": "Final Release",
+                    "rejected": "Rejected",
+                }
+                current_status = row_data.get("shipment", {}).get("status", "")
+                for status_code, label in status_map.items():
+                    status_action = status_menu.addAction(label)
+                    status_action.setCheckable(True)
+                    if status_code == current_status:
+                        status_action.setChecked(True)
+                    action_registry[status_action] = {
+                        "action_id": "change_status",
+                        "status_code": status_code,
+                    }
 
-        action = menu.exec(table.viewport().mapToGlobal(pos))
-        if action == refresh_action:
+        return menu, action_registry
+
+    def execute_context_action(self, module_id: str, action_id: str, row_data: dict[str, Any]):
+        if not self.can_execute_context_action(module_id, action_id, row_data):
+            return
+
+        if action_id == "refresh":
             self.load_shipments_async()
             return
 
-        if not item:
+        table = row_data["table"]
+        row = row_data.get("row", -1)
+        item = row_data.get("item")
+
+        if action_id in {"update_mark", "clear_mark"} and item is not None:
+            shipment_id = self.get_shipment_id_from_row(table, row)
+            field_name = self.column_to_field_name.get(item.column())
+            if shipment_id and field_name:
+                if action_id == "update_mark":
+                    item.setBackground(QColor("#1E90FF"))
+                    self.shipment_colors[module_id][(shipment_id, field_name)] = "#1E90FF"
+                else:
+                    item.setBackground(QColor("transparent"))
+                    self.shipment_colors[module_id].pop((shipment_id, field_name), None)
+                self.save_shipment_colors(module_id)
             return
 
-        if action == update_action:
-            shipment_id = self.get_shipment_id_from_row(table, row)
-            field_name = self.column_to_field_name.get(item.column())
-            if shipment_id and field_name:
-                item.setBackground(QColor("#1E90FF"))
-                self.shipment_colors[name][(shipment_id, field_name)] = "#1E90FF"
-                self.save_shipment_colors(name)
-        elif action == clear_action:
-            shipment_id = self.get_shipment_id_from_row(table, row)
-            field_name = self.column_to_field_name.get(item.column())
-            if shipment_id and field_name:
-                item.setBackground(QColor("transparent"))
-                self.shipment_colors[name].pop((shipment_id, field_name), None)
-                self.save_shipment_colors(name)
-        elif action == address_action:
-            job_item = table.item(row, 0) if row >= 0 else None
-            job_number = job_item.text() if job_item else ""
+        if action_id == "show_mie_trak_address":
+            job_number = row_data.get("job_number", "")
             if job_number:
                 self.show_mie_trak_address(job_number)
-        elif action in status_actions:
-            self.change_status(table, row, status_actions[action])
+            return
+
+        if action_id == "change_status":
+            new_status = row_data.get("status_code")
+            if new_status:
+                self.change_status(table, row, new_status)
+
+    def show_cell_menu(self, table, name, pos):
+        item = table.itemAt(pos)
+        row = item.row() if item else -1
+        job_item = table.item(row, 0) if row >= 0 else None
+        shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
+        row_data = {
+            "table": table,
+            "item": item,
+            "row": row,
+            "shipment": shipment if isinstance(shipment, dict) else {},
+            "job_number": job_item.text() if job_item else "",
+        }
+
+        menu, action_registry = self.build_context_menu(name, row_data)
+
+        action = menu.exec(table.viewport().mapToGlobal(pos))
+        action_data = action_registry.get(action)
+        if not action_data:
+            return
+
+        action_row_data = dict(row_data)
+        if "status_code" in action_data:
+            action_row_data["status_code"] = action_data["status_code"]
+        self.execute_context_action(name, action_data["action_id"], action_row_data)
 
     def change_status(self, table, row, new_status):
         """Change shipment status with flexible version control"""
-        if self.read_only:
+        if not self._get_role_policy().get("can_change_status", False):
             return
 
         job_item = table.item(row, 0)
@@ -2459,7 +2558,10 @@ class ModernShippingMainWindow(QMainWindow):
         controls = self._get_toolbar_controls(tab_id)
         delete_btn = controls.get("delete")
         if isinstance(delete_btn, QWidget):
-            delete_btn.setEnabled((not self.read_only) and self._current_tab_has_selection(tab_id))
+            role_policy = self._get_role_policy()
+            module_policy = self._get_module_policy(tab_id)
+            can_delete = role_policy["can_delete"] and module_policy.get("allow_delete", True)
+            delete_btn.setEnabled(can_delete and self._current_tab_has_selection(tab_id))
     
     def get_current_table(self):
         """Obtener la tabla actualmente activa"""
