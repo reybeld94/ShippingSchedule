@@ -101,6 +101,22 @@ class TabModuleConfig:
     context_actions: list[str] = field(default_factory=list)
     permissions: dict[str, bool] = field(default_factory=dict)
 
+
+class TabPage(QWidget):
+    """Tab content wrapper with per-module toolbar + table."""
+
+    def __init__(self, module_id: str, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.module_id = module_id
+        self.module_toolbar = QFrame(self)
+        self.module_table = QTableWidget(self)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(10)
+        layout.addWidget(self.module_toolbar)
+        layout.addWidget(self.module_table)
+
 class ShipmentLoader(QThread):
     """Thread para cargar datos en background"""
     data_loaded = pyqtSignal(list)
@@ -313,7 +329,10 @@ class ModernShippingMainWindow(QMainWindow):
             label="Active Shipments",
             columns=DEFAULT_TABLE_COLUMNS,
             date_filter_columns=[3, 5, 6],
-            toolbar_actions={"allow_add": True},
+            toolbar_actions={
+                "allow_add": True,
+                "visible": ["add", "delete", "columns", "export"],
+            },
             context_actions=["edit", "delete", "copy"],
             permissions={"can_view": True},
         ),
@@ -322,7 +341,10 @@ class ModernShippingMainWindow(QMainWindow):
             label="Shipment History",
             columns=DEFAULT_TABLE_COLUMNS,
             date_filter_columns=[3, 5, 6, 7],
-            toolbar_actions={"allow_add": False},
+            toolbar_actions={
+                "allow_add": False,
+                "visible": ["columns", "export"],
+            },
             context_actions=["copy", "export"],
             permissions={"can_view": True},
         ),
@@ -368,6 +390,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.settings_mgr = SettingsManager()
         self.tab_modules = list(self.TAB_MODULE_CONFIGS)
         self.tab_tables: dict[str, QTableWidget] = {}
+        self.tab_pages: dict[str, TabPage] = {}
+        self.tab_toolbars: dict[str, dict[str, Any]] = {}
         self.table_to_tab_id: dict[int, str] = {}
         self.tab_index_to_id: dict[int, str] = {}
         # Loaded shipment color mappings for persistence
@@ -487,9 +511,6 @@ class ModernShippingMainWindow(QMainWindow):
             
             # Header profesional
             self.create_professional_header(main_layout)
-            
-            # Toolbar
-            self.create_professional_toolbar(main_layout)
             
             # Sistema de tabs
             self.create_professional_tabs(main_layout)
@@ -895,80 +916,73 @@ class ModernShippingMainWindow(QMainWindow):
 
         layout.addWidget(header_frame)
     
-    def create_professional_toolbar(self, layout):
-        """Crear toolbar profesional"""
-        toolbar_frame = QFrame()
-        toolbar_frame.setObjectName("actionBar")
+    def create_module_toolbar(self, toolbar_frame: QFrame, module: TabModuleConfig):
+        """Create toolbar controls inside each tab."""
+        toolbar_frame.setObjectName(f"actionBar_{module.id}")
         toolbar_frame.setMinimumHeight(48)
         toolbar_frame.setStyleSheet(
             """
-            QFrame#actionBar {
+            QFrame {
                 background: #F8FAFC;
                 border-top: 1px solid rgba(148, 163, 184, 0.25);
                 border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+                border-radius: 6px;
             }
         """
         )
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(24, 12, 24, 12)
+        toolbar_layout.setContentsMargins(16, 10, 16, 10)
         toolbar_layout.setSpacing(10)
 
-        # Botones principales
-        self.add_btn = ModernButton(
-            "New Shipment", "primary", min_height=36, min_width=104
-        )
-        apply_scaled_font(self.add_btn, offset=2, weight=QFont.Weight.Medium)
-        self.add_btn.clicked.connect(self.add_shipment)
+        add_btn = ModernButton("New Shipment", "primary", min_height=36, min_width=104)
+        apply_scaled_font(add_btn, offset=2, weight=QFont.Weight.Medium)
+        add_btn.clicked.connect(self.add_shipment)
 
-        self.delete_btn = ModernButton(
-            "Delete", "danger-outline", min_height=36, min_width=0, padding=(6, 10)
-        )
-        apply_scaled_font(self.delete_btn, offset=1, weight=QFont.Weight.Medium)
-        self.delete_btn.setMinimumWidth(92)
-        self.delete_btn.clicked.connect(self.delete_shipment)
-        self.delete_btn.setEnabled(False)
+        delete_btn = ModernButton("Delete", "danger-outline", min_height=36, min_width=0, padding=(6, 10))
+        apply_scaled_font(delete_btn, offset=1, weight=QFont.Weight.Medium)
+        delete_btn.setMinimumWidth(92)
+        delete_btn.clicked.connect(self.delete_shipment)
+        delete_btn.setEnabled(False)
 
-        if self.read_only:
-            self.add_btn.setEnabled(False)
-            self.delete_btn.setEnabled(False)
+        columns_btn = ModernButton("Columns", "outline", min_height=36, min_width=0, padding=(6, 10))
+        columns_btn.clicked.connect(lambda _, module_id=module.id: self.open_columns_menu(module_id))
 
-        # Botones de utilidades de la tabla
-        self.columns_btn = ModernButton(
-            "Columns", "outline", min_height=36, min_width=0, padding=(6, 10)
-        )
-        self.columns_btn.clicked.connect(self.open_columns_menu)
-
-        self.export_btn = ModernButton(
-            "Export", "outline", min_height=36, min_width=0, padding=(6, 10)
-        )
+        export_btn = ModernButton("Export", "outline", min_height=36, min_width=0, padding=(6, 10))
+        export_btn.clicked.connect(lambda _, module_id=module.id: self.show_export_menu(module_id))
 
         primary_layout = QHBoxLayout()
         primary_layout.setContentsMargins(0, 0, 0, 0)
         primary_layout.setSpacing(8)
-        primary_layout.addWidget(self.add_btn)
-        primary_layout.addWidget(self.delete_btn)
+        primary_layout.addWidget(add_btn)
+        primary_layout.addWidget(delete_btn)
 
         secondary_layout = QHBoxLayout()
         secondary_layout.setContentsMargins(0, 0, 0, 0)
         secondary_layout.setSpacing(8)
-        secondary_layout.addWidget(self.columns_btn)
-        secondary_layout.addWidget(self.export_btn)
+        secondary_layout.addWidget(columns_btn)
+        secondary_layout.addWidget(export_btn)
 
         toolbar_layout.addLayout(primary_layout)
         toolbar_layout.addStretch(1)
         toolbar_layout.addLayout(secondary_layout)
 
-        self.export_menu = QMenu(self.export_btn)
-        self.export_menu.setSeparatorsCollapsible(False)
-        self.export_visible_action = self.export_menu.addAction("Visible rows (CSV)")
-        self.export_visible_action.triggered.connect(lambda: self.export_rows_to_csv("visible"))
-        self.export_all_filtered_action = self.export_menu.addAction("All filtered (CSV)")
-        self.export_all_filtered_action.triggered.connect(lambda: self.export_rows_to_csv("all_filtered"))
+        export_menu = QMenu(export_btn)
+        export_menu.setSeparatorsCollapsible(False)
+        export_visible_action = export_menu.addAction("Visible rows (CSV)")
+        export_visible_action.triggered.connect(lambda _, module_id=module.id: self.export_rows_to_csv("visible"))
+        export_all_filtered_action = export_menu.addAction("All filtered (CSV)")
+        export_all_filtered_action.triggered.connect(lambda _, module_id=module.id: self.export_rows_to_csv("all_filtered"))
 
-        self.export_btn.clicked.connect(self.show_export_menu)
-
-        layout.addWidget(toolbar_frame)
+        self.tab_toolbars[module.id] = {
+            "add": add_btn,
+            "delete": delete_btn,
+            "columns": columns_btn,
+            "export": export_btn,
+            "export_menu": export_menu,
+            "export_visible_action": export_visible_action,
+            "export_all_filtered_action": export_all_filtered_action,
+        }
     
     def create_professional_tabs(self, layout):
         """Crear sistema de tabs profesional"""
@@ -1023,23 +1037,24 @@ class ModernShippingMainWindow(QMainWindow):
         )
         
         for module in self.tab_modules:
-            tab_widget = QWidget()
-            tab_layout = QVBoxLayout(tab_widget)
-            tab_layout.setContentsMargins(8, 8, 8, 8)
+            tab_page = TabPage(module.id)
+            self.create_module_toolbar(tab_page.module_toolbar, module)
 
-            table = QTableWidget()
+            table = tab_page.module_table
             self.setup_professional_table(table, module)
-            tab_layout.addWidget(table)
 
-            tab_index = self.tab_widget.addTab(tab_widget, module.label)
+            tab_index = self.tab_widget.addTab(tab_page, module.label)
             self.tab_tables[module.id] = table
+            self.tab_pages[module.id] = tab_page
             self.table_to_tab_id[id(table)] = module.id
             self.tab_index_to_id[tab_index] = module.id
-            setattr(self, f"{module.id}_widget", tab_widget)
+            setattr(self, f"{module.id}_widget", tab_page)
             setattr(self, f"{module.id}_table", table)
 
         # Conectar cambio de tab
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
+        for module in self.tab_modules:
+            self._apply_module_toolbar_state(module.id)
         
         tabs_layout.addWidget(self.tab_widget)
         layout.addWidget(tabs_container)
@@ -1538,29 +1553,67 @@ class ModernShippingMainWindow(QMainWindow):
             self._refresh_animation = None
         self._refresh_animating = False
 
-    def show_export_menu(self):
-        if not hasattr(self, "export_menu") or self.export_menu is None:
+    def _get_toolbar_controls(self, module_id: Optional[str] = None) -> dict[str, Any]:
+        target_module = module_id or self.get_current_tab_id()
+        return self.tab_toolbars.get(target_module, {})
+
+    def _current_tab_has_selection(self, module_id: str) -> bool:
+        table = self.tab_tables.get(module_id)
+        if table is None or table.selectionModel() is None:
+            return False
+        return len(table.selectionModel().selectedRows()) > 0
+
+    def _apply_module_toolbar_state(self, module_id: Optional[str] = None):
+        target_module = module_id or self.get_current_tab_id()
+        module = self.get_tab_module_config(target_module)
+        controls = self._get_toolbar_controls(target_module)
+        if not controls or module is None:
+            return
+
+        visible_actions = set(module.toolbar_actions.get("visible", ["add", "delete", "columns", "export"]))
+        for action_name in ("add", "delete", "columns", "export"):
+            widget = controls.get(action_name)
+            if isinstance(widget, QWidget):
+                widget.setVisible(action_name in visible_actions)
+
+        add_btn = controls.get("add")
+        if isinstance(add_btn, QWidget):
+            allow_add = bool(module.toolbar_actions.get("allow_add", False))
+            add_btn.setEnabled((not self.read_only) and allow_add)
+
+        delete_btn = controls.get("delete")
+        if isinstance(delete_btn, QWidget):
+            delete_btn.setEnabled((not self.read_only) and self._current_tab_has_selection(target_module))
+
+    def show_export_menu(self, module_id: Optional[str] = None):
+        controls = self._get_toolbar_controls(module_id)
+        export_menu = controls.get("export_menu")
+        export_btn = controls.get("export")
+        export_visible_action = controls.get("export_visible_action")
+        export_all_filtered_action = controls.get("export_all_filtered_action")
+        if not isinstance(export_menu, QMenu) or not isinstance(export_btn, QWidget):
             return
         table = self.get_current_table()
         if table is None:
             return
         table_name = self.get_table_key(table)
         visible_rows = sum(1 for row in range(table.rowCount()) if not table.isRowHidden(row))
-        self.export_visible_action.setEnabled(visible_rows > 0)
+        if isinstance(export_visible_action, QAction):
+            export_visible_action.setEnabled(visible_rows > 0)
         filtered_total = len(self._collect_filtered_shipments(table_name))
-        self.export_all_filtered_action.setEnabled(filtered_total > 0)
+        if isinstance(export_all_filtered_action, QAction):
+            export_all_filtered_action.setEnabled(filtered_total > 0)
 
-        button = self.export_btn
-        if not isinstance(button, QWidget):
-            return
-        global_pos = button.mapToGlobal(QPoint(max(0, button.width() - self.export_menu.sizeHint().width()), button.height()))
-        self.export_menu.exec(global_pos)
+        global_pos = export_btn.mapToGlobal(QPoint(max(0, export_btn.width() - export_menu.sizeHint().width()), export_btn.height()))
+        export_menu.exec(global_pos)
 
-    def open_columns_menu(self):
+    def open_columns_menu(self, module_id: Optional[str] = None):
         """Mostrar menú para alternar visibilidad de columnas."""
         table = self.get_current_table()
         name = self.get_table_key(table)
-        menu = QMenu(self.columns_btn)
+        controls = self._get_toolbar_controls(module_id)
+        columns_btn = controls.get("columns")
+        menu = QMenu(columns_btn if isinstance(columns_btn, QWidget) else self)
         base_labels = self._base_header_labels.get(name, [])
 
         for col in range(table.columnCount()):
@@ -1578,7 +1631,8 @@ class ModernShippingMainWindow(QMainWindow):
         reset_action.triggered.connect(lambda _, nm=name: self.reset_column_layout(nm))
         menu.addAction(reset_action)
 
-        menu.exec(self.columns_btn.mapToGlobal(QPoint(0, self.columns_btn.height())))
+        if isinstance(columns_btn, QWidget):
+            menu.exec(columns_btn.mapToGlobal(QPoint(0, columns_btn.height())))
 
     def reset_column_layout(self, name):
         """Restaurar visibilidad y anchos predeterminados de columnas."""
@@ -2390,13 +2444,10 @@ class ModernShippingMainWindow(QMainWindow):
         """Manejar cambio de tab optimizado"""
         print(f"Cambio de tab: {index}")
         tab_id = self.tab_index_to_id.get(index, self.get_current_tab_id())
-        module = self.get_tab_module_config(tab_id)
         if not self._tables_populated.get(tab_id, False):
             self.populate_module_table(tab_id)
             self._tables_populated[tab_id] = True
-        if not self.read_only:
-            allow_add = bool(module and module.toolbar_actions.get("allow_add", False))
-            self.add_btn.setEnabled(allow_add)
+        self._apply_module_toolbar_state(tab_id)
 
         self.update_status()
         self.on_selection_changed()
@@ -2404,12 +2455,11 @@ class ModernShippingMainWindow(QMainWindow):
     
     def on_selection_changed(self):
         """Manejar cambio de selección en tabla"""
-        current_table = self.get_current_table()
-        has_selection = len(current_table.selectionModel().selectedRows()) > 0
-        if self.read_only:
-            self.delete_btn.setEnabled(False)
-        else:
-            self.delete_btn.setEnabled(has_selection)
+        tab_id = self.get_current_tab_id()
+        controls = self._get_toolbar_controls(tab_id)
+        delete_btn = controls.get("delete")
+        if isinstance(delete_btn, QWidget):
+            delete_btn.setEnabled((not self.read_only) and self._current_tab_has_selection(tab_id))
     
     def get_current_table(self):
         """Obtener la tabla actualmente activa"""
@@ -2447,13 +2497,14 @@ class ModernShippingMainWindow(QMainWindow):
 
         widgets = [
             *self.tab_tables.values(),
-            self.add_btn,
-            self.delete_btn,
-            self.columns_btn,
-            self.export_btn,
             self.refresh_top_btn,
             self.print_top_btn,
         ]
+        for controls in self.tab_toolbars.values():
+            for key in ("add", "delete", "columns", "export"):
+                widget = controls.get(key)
+                if isinstance(widget, QWidget):
+                    widgets.append(widget)
         if hasattr(self, "user_btn"):
             widgets.append(self.user_btn)
 
