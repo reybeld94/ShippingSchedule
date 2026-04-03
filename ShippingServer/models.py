@@ -1,5 +1,5 @@
 ﻿# models.py - Estructura de la base de datos
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index, Boolean, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, validates
 from datetime import datetime
@@ -61,6 +61,8 @@ class Shipment(Base):
     
     invoice_number = Column(String(50))
     shipping_notes = Column(Text)
+    tracking_number = Column(String(100), default="")
+    address = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     
     # Metadata
     created_by = Column(Integer, ForeignKey("users.id"))
@@ -190,20 +192,23 @@ class Shipment(Base):
         
         return cleaned
 
-    @validates('invoice_number')
+    @validates('invoice_number', 'tracking_number')
     def validate_invoice_number(self, key, value):
-        """Validar número de invoice"""
+        """Validar número de invoice/tracking"""
         if not value:
             return ""
         
         cleaned = str(value).strip()
         
-        if len(cleaned) > 50:
-            raise ValueError("Invoice number too long (max 50 characters)")
+        max_length = 50 if key == "invoice_number" else 100
+        if len(cleaned) > max_length:
+            field_name = "Invoice number" if key == "invoice_number" else "Tracking number"
+            raise ValueError(f"{field_name} too long (max {max_length} characters)")
         
         # Validar caracteres (permitir alfanuméricos, guiones y puntos)
         if not re.match(r'^[a-zA-Z0-9\-\.]*$', cleaned):
-            raise ValueError("Invoice number contains invalid characters (only letters, numbers, hyphens, and dots allowed)")
+            field_name = "Invoice number" if key == "invoice_number" else "Tracking number"
+            raise ValueError(f"{field_name} contains invalid characters (only letters, numbers, hyphens, and dots allowed)")
         
         return cleaned
 
