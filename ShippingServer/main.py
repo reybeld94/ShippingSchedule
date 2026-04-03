@@ -69,6 +69,8 @@ class ShipmentCreate(BaseModel):
     shipped: str = ""
     invoice_number: str = ""
     shipping_notes: str = ""
+    tracking_number: str = ""
+    address: bool = False
 
 class ShipmentUpdate(BaseModel):
     job_name: str = None
@@ -82,6 +84,8 @@ class ShipmentUpdate(BaseModel):
     shipped: str = None
     invoice_number: str = None
     shipping_notes: str = None
+    tracking_number: str = None
+    address: bool = None
 
 class ShipmentResponse(BaseModel):
     id: int
@@ -97,6 +101,8 @@ class ShipmentResponse(BaseModel):
     shipped: str
     invoice_number: str
     shipping_notes: str
+    tracking_number: str
+    address: bool
     created_by: int
     version: int
     last_modified_by: int | None = None
@@ -536,7 +542,9 @@ async def delete_shipment(
         "ship_plan": shipment.ship_plan,
         "shipped": shipment.shipped,
         "invoice_number": shipment.invoice_number,
-        "shipping_notes": shipment.shipping_notes
+        "shipping_notes": shipment.shipping_notes,
+        "tracking_number": shipment.tracking_number,
+        "address": shipment.address,
     }
     
     job_number = shipment.job_number
