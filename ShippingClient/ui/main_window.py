@@ -445,6 +445,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.refresh_shortcut: Optional[QShortcut] = None
         self.print_shortcut: Optional[QShortcut] = None
         self.clear_filters_shortcut: Optional[QShortcut] = None
+        self._session_expired = False
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -2507,6 +2508,8 @@ class ModernShippingMainWindow(QMainWindow):
     
     def handle_websocket_message(self, message):
         """Manejar mensajes del WebSocket"""
+        if self._session_expired:
+            return
         try:
             data = json.loads(message)
             msg_type = data.get("type")
@@ -2626,6 +2629,9 @@ class ModernShippingMainWindow(QMainWindow):
 
     def load_shipments_async(self):
         """Cargar shipments de forma asíncrona"""
+        if self._session_expired:
+            print("Sesión expirada detectada, se omite recarga de shipments.")
+            return
         print("Iniciando carga asíncrona de shipments...")
         self.record_count_label.setText("Loading records...")
         self._show_loading_indicator()
@@ -2666,6 +2672,35 @@ class ModernShippingMainWindow(QMainWindow):
         """Callback cuando hay error cargando shipments"""
         self._hide_loading_indicator()
         print(f"Error cargando shipments: {error_msg}")
+        normalized_error = str(error_msg or "").lower()
+        auth_error_markers = [
+            "could not validate credentials",
+            "not authenticated",
+            "invalid token",
+            "token expired",
+            "http 401",
+            "401",
+        ]
+        is_auth_error = any(marker in normalized_error for marker in auth_error_markers)
+
+        if is_auth_error:
+            if self._session_expired:
+                self.record_count_label.setText("Session expired")
+                return
+
+            self._session_expired = True
+            self.record_count_label.setText("Session expired")
+
+            if hasattr(self, "ws_client"):
+                self.ws_client.stop()
+            if hasattr(self, "status_timer") and self.status_timer.isActive():
+                self.status_timer.stop()
+
+            self.show_error(
+                "Your session has expired. Please close this window and sign in again."
+            )
+            return
+
         self.show_error(f"Failed to load shipments: {error_msg}")
         self.record_count_label.setText("Error loading records")
     
