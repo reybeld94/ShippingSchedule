@@ -1006,7 +1006,7 @@ class ModernShippingMainWindow(QMainWindow):
         }
     
     def create_professional_tabs(self, layout):
-        """Crear sistema de tabs profesional"""
+        """Crear módulo Shipping con subtabs internas."""
         tabs_container = QFrame()
         tabs_container.setStyleSheet("""
             QFrame {
@@ -1015,13 +1015,51 @@ class ModernShippingMainWindow(QMainWindow):
                 border-radius: 6px;
             }
         """)
-        
+
         tabs_layout = QVBoxLayout(tabs_container)
         tabs_layout.setContentsMargins(1, 1, 1, 1)
-        
-        # Widget de tabs
+
+        # Tab principal: módulo Shipping
+        self.main_tab_widget = QTabWidget()
+        self.main_tab_widget.setObjectName("mainModuleTabs")
+        main_tab_font_size = max(8, get_base_font_size() + 2)
+        self.main_tab_widget.setStyleSheet(
+            textwrap.dedent(
+                f"""
+                QTabWidget::pane {{
+                    border: none;
+                    background: #FFFFFF;
+                }}
+                QTabBar::tab {{
+                    background: #F8FAFC;
+                    color: #334155;
+                    padding: 10px 20px;
+                    margin-right: 1px;
+                    border-top-left-radius: 6px;
+                    border-top-right-radius: 6px;
+                    font-weight: 600;
+                    font-size: {main_tab_font_size}px;
+                    min-width: 120px;
+                    border: 1px solid #E2E8F0;
+                    border-bottom: none;
+                }}
+                QTabBar::tab:selected {{
+                    background: #FFFFFF;
+                    color: #0F172A;
+                    border-bottom: 2px solid #2563EB;
+                }}
+            """
+            )
+        )
+
+        shipping_page = QWidget()
+        shipping_layout = QVBoxLayout(shipping_page)
+        shipping_layout.setContentsMargins(8, 8, 8, 8)
+        shipping_layout.setSpacing(8)
+
+        # Subtabs internas del módulo Shipping
         self.tab_widget = QTabWidget()
-        tab_font_size = max(8, get_base_font_size() + 3)
+        sub_tab_font_size = max(8, get_base_font_size() + 1)
         self.tab_widget.setStyleSheet(
             textwrap.dedent(
                 f"""
@@ -1033,13 +1071,13 @@ class ModernShippingMainWindow(QMainWindow):
                 QTabBar::tab {{
                     background: #F9FAFB;
                     color: #6B7280;
-                    padding: 14px 28px;
+                    padding: 8px 16px;
                     margin-right: 1px;
                     border-top-left-radius: 6px;
                     border-top-right-radius: 6px;
                     font-weight: 500;
-                    font-size: {tab_font_size}px;
-                    min-width: 120px;
+                    font-size: {sub_tab_font_size}px;
+                    min-width: 92px;
                     border: 1px solid #E5E7EB;
                     border-bottom: none;
                 }}
@@ -1056,7 +1094,7 @@ class ModernShippingMainWindow(QMainWindow):
             """
             )
         )
-        
+
         for module in self.tab_modules:
             tab_page = TabPage(module.id)
             self.create_module_toolbar(tab_page.module_toolbar, module)
@@ -1072,12 +1110,15 @@ class ModernShippingMainWindow(QMainWindow):
             setattr(self, f"{module.id}_widget", tab_page)
             setattr(self, f"{module.id}_table", table)
 
-        # Conectar cambio de tab
+        # Conectar cambio de subtab
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         for module in self.tab_modules:
             self._apply_module_toolbar_state(module.id)
-        
-        tabs_layout.addWidget(self.tab_widget)
+
+        shipping_layout.addWidget(self.tab_widget)
+        self.main_tab_widget.addTab(shipping_page, "Shipping")
+
+        tabs_layout.addWidget(self.main_tab_widget)
         layout.addWidget(tabs_container)
     
     def setup_professional_table(self, table, module_config: TabModuleConfig):
