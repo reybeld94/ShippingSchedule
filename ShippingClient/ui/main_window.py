@@ -321,7 +321,9 @@ class ModernShippingMainWindow(QMainWindow):
         "SHIP PLAN",
         "SHIPPED",
         "INVOICE",
-        "NOTES",
+        "TRACKING #",
+        "ADDRESS",
+        "SHIPPING NOTES",
     ]
     TAB_MODULE_CONFIGS = [
         TabModuleConfig(
@@ -379,11 +381,13 @@ class ModernShippingMainWindow(QMainWindow):
         "ship_plan",
         "shipped",
         "invoice_number",
+        "tracking_number",
+        "address",
         "shipping_notes",
     ]
     DATE_COLUMN_INDEXES = {3, 5, 6, 7}
-    RIGHT_ALIGN_COLUMNS = {8}
-    CENTER_ALIGN_COLUMNS = {3, 5, 6, 7}
+    RIGHT_ALIGN_COLUMNS = {8, 9}
+    CENTER_ALIGN_COLUMNS = {3, 5, 6, 7, 10}
     PLACEHOLDER_COLOR = QColor(100, 116, 139, int(255 * 0.7))
     PLACEHOLDER_BRUSH = QBrush(PLACEHOLDER_COLOR)
 
@@ -457,7 +461,8 @@ class ModernShippingMainWindow(QMainWindow):
             6: "ship_plan",
             7: "shipped",
             8: "invoice_number",
-            9: "shipping_notes",
+            9: "tracking_number",
+            11: "shipping_notes",
         }
 
         # Mapeo de índice de columna a nombre de campo para colores
@@ -471,10 +476,12 @@ class ModernShippingMainWindow(QMainWindow):
             6: "ship_plan",
             7: "shipped",
             8: "invoice_number",
-            9: "shipping_notes",
+            9: "tracking_number",
+            10: "address",
+            11: "shipping_notes",
         }
 
-        self._default_column_widths = [120, 300, 220, 120, 160, 120, 140, 120, 140, 260]
+        self._default_column_widths = [120, 300, 220, 120, 160, 120, 140, 120, 140, 170, 110, 260]
         self._column_min_widths: Dict[int, int] = {
             0: 120,
             1: 260,
@@ -485,7 +492,9 @@ class ModernShippingMainWindow(QMainWindow):
             6: 120,
             7: 120,
             8: 120,
-            9: 200,
+            9: 140,
+            10: 100,
+            11: 200,
         }
         self._column_max_widths: Dict[int, int] = {1: 360}
 
@@ -2846,7 +2855,18 @@ class ModernShippingMainWindow(QMainWindow):
         placeholder_brush = self.PLACEHOLDER_BRUSH
         for col, key in enumerate(self.TABLE_COLUMN_KEYS):
             item_text = shipment.get(key, "")
-            metadata = self._prepare_cell_metadata(col, item_text)
+
+            if key == "address":
+                has_address = bool(item_text)
+                metadata = {
+                    "display": "✓" if has_address else "—",
+                    "normalized": "true" if has_address else "",
+                    "tooltip": "Address available" if has_address else "Address not available",
+                    "placeholder": not has_address,
+                    "original": bool(item_text),
+                }
+            else:
+                metadata = self._prepare_cell_metadata(col, item_text)
 
             if col in self.DATE_COLUMN_INDEXES:
                 item = DateSortableItem(metadata["normalized"], empty_display="—")
@@ -2872,6 +2892,9 @@ class ModernShippingMainWindow(QMainWindow):
                     shipment['version'] = 1
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            elif key == "address":
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             elif col in self.CENTER_ALIGN_COLUMNS:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             elif col in self.RIGHT_ALIGN_COLUMNS:
@@ -2920,6 +2943,7 @@ class ModernShippingMainWindow(QMainWindow):
             "job_name",
             "description",
             "shipping_notes",
+            "tracking_number",
             "invoice_number",
             "qc_notes",
             "status",
