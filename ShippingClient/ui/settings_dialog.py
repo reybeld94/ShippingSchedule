@@ -100,6 +100,8 @@ class SettingsDialog(QDialog):
         self.fedex_api_key_edit = ModernLineEdit("FedEx API Key")
         self.fedex_secret_key_edit = ModernLineEdit("FedEx Secret Key")
         self.fedex_secret_key_edit.setEchoMode(ModernLineEdit.EchoMode.Password)
+        self.fedex_base_url_edit = ModernLineEdit("FedEx Base URL (optional)")
+        self.fedex_base_url_edit.setPlaceholderText("https://apis.fedex.com or https://apis-sandbox.fedex.com")
         self.test_fedex_btn = ModernButton("Test Connection", "secondary")
         self.test_fedex_btn.clicked.connect(self.test_fedex_connection)
         self.test_fedex_btn.setEnabled(self.is_admin)
@@ -113,6 +115,7 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.fedex_enabled)
         layout.addWidget(self.fedex_api_key_edit)
         layout.addWidget(self.fedex_secret_key_edit)
+        layout.addWidget(self.fedex_base_url_edit)
         layout.addWidget(self.test_fedex_btn)
         layout.addStretch()
 
@@ -130,6 +133,7 @@ class SettingsDialog(QDialog):
             fedex = (response.get_data() or {}).get("fedex", {})
             self.fedex_enabled.setChecked(bool(fedex.get("enabled", False)))
             self.fedex_api_key_edit.setText(str(fedex.get("apiKey") or ""))
+            self.fedex_base_url_edit.setText(str(fedex.get("baseUrl") or ""))
             if fedex.get("hasSecretKey"):
                 self.fedex_secret_key_edit.setPlaceholderText("********")
         else:
@@ -160,6 +164,7 @@ class SettingsDialog(QDialog):
         enabled = self.fedex_enabled.isChecked()
         fedex_api_key = self.fedex_api_key_edit.text().strip()
         fedex_secret_key = self.fedex_secret_key_edit.text().strip()
+        fedex_base_url = self.fedex_base_url_edit.text().strip()
         has_secret_placeholder = self.fedex_secret_key_edit.placeholderText() == "********"
         if not fedex_secret_key and has_secret_placeholder:
             fedex_secret_key = "********"
@@ -178,7 +183,7 @@ class SettingsDialog(QDialog):
                 # We refetch by disabling secret updates when left masked.
                 fedex_secret_key = ""
 
-            response = self.api_client.update_fedex_settings(enabled, fedex_api_key, fedex_secret_key)
+            response = self.api_client.update_fedex_settings(enabled, fedex_api_key, fedex_secret_key, fedex_base_url)
             if not response.is_success():
                 QMessageBox.warning(self, "Error", response.get_error() or "Failed to save FedEx settings")
                 return

@@ -198,12 +198,13 @@ class RobustApiClient:
         """Obtener configuración de conexiones externas."""
         return self.get("/settings/connections")
 
-    def update_fedex_settings(self, enabled: bool, api_key: str, secret_key: str) -> ApiResponse:
+    def update_fedex_settings(self, enabled: bool, api_key: str, secret_key: str, base_url: str = "") -> ApiResponse:
         """Guardar configuración de FedEx."""
         payload = {
             "enabled": bool(enabled),
             "apiKey": api_key or "",
             "secretKey": secret_key or "",
+            "baseUrl": base_url or "",
         }
         return self.put("/settings/connections/fedex", data=payload)
 

@@ -19,22 +19,27 @@ class FedExService:
         self.timeout = int(os.getenv("FEDEX_TIMEOUT_SECONDS", "15"))
         self._token: str | None = None
         self._token_expires_at = 0.0
+        self._token_cache_key: str | None = None
         self._lock = threading.Lock()
 
-    def _token_url(self) -> str:
-        return f"{self.base_url.rstrip('/')}/oauth/token"
+    def _token_url(self, base_url: str | None = None) -> str:
+        resolved = (base_url or self.base_url).rstrip("/")
+        return f"{resolved}/oauth/token"
 
-    def _track_url(self) -> str:
-        return f"{self.base_url.rstrip('/')}/track/v1/trackingnumbers"
+    def _track_url(self, base_url: str | None = None) -> str:
+        resolved = (base_url or self.base_url).rstrip("/")
+        return f"{resolved}/track/v1/trackingnumbers"
 
-    def get_fedex_access_token(self, api_key: str, secret_key: str) -> str:
+    def get_fedex_access_token(self, api_key: str, secret_key: str, base_url: str | None = None) -> str:
+        resolved_base_url = (base_url or self.base_url).strip().rstrip("/")
+        current_cache_key = f"{api_key}:{secret_key}:{resolved_base_url}"
         now = time.time()
-        if self._token and now < (self._token_expires_at - 60):
+        if self._token and self._token_cache_key == current_cache_key and now < (self._token_expires_at - 60):
             return self._token
 
         with self._lock:
             now = time.time()
-            if self._token and now < (self._token_expires_at - 60):
+            if self._token and self._token_cache_key == current_cache_key and now < (self._token_expires_at - 60):
                 return self._token
 
             payload = {
@@ -44,7 +49,7 @@ class FedExService:
             }
             try:
                 response = requests.post(
-                    self._token_url(),
+                    self._token_url(resolved_base_url),
                     data=payload,
                     timeout=self.timeout,
                 )
@@ -64,10 +69,17 @@ class FedExService:
 
             self._token = token
             self._token_expires_at = now + max(expires_in, 60)
+            self._token_cache_key = current_cache_key
             return token
 
-    def track_fedex_number(self, tracking_number: str, api_key: str, secret_key: str) -> dict[str, Any]:
-        token = self.get_fedex_access_token(api_key, secret_key)
+    def track_fedex_number(
+        self,
+        tracking_number: str,
+        api_key: str,
+        secret_key: str,
+        base_url: str | None = None,
+    ) -> dict[str, Any]:
+        token = self.get_fedex_access_token(api_key, secret_key, base_url=base_url)
 
         headers = {
             "Authorization": f"Bearer {token}",
@@ -88,7 +100,7 @@ class FedExService:
 
         try:
             response = requests.post(
-                self._track_url(),
+                self._track_url(base_url=base_url),
                 json=payload,
                 headers=headers,
                 timeout=self.timeout,

@@ -238,4 +238,5 @@ class AppConnectionSettings(Base):
     enabled = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     api_key = Column(String(255), default="")
     secret_key = Column(String(255), default="")
+    base_url = Column(String(255), default="")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
