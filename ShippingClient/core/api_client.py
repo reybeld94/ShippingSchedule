@@ -215,3 +215,17 @@ class RobustApiClient:
     def get_fedex_tracking(self, tracking_number: str) -> ApiResponse:
         """Consultar tracking de FedEx vía backend."""
         return self.get(f"/tracking/fedex/{tracking_number}")
+
+    def get_shipping_logs(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 1000,
+    ) -> ApiResponse:
+        """Obtener logs del módulo shipping con filtro por rango de fechas."""
+        params: Dict[str, Any] = {"limit": limit}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        return self.get("/shipping-logs", params=params)

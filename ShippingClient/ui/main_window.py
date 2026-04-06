@@ -37,12 +37,14 @@ from PyQt6.QtWidgets import (
     QToolButton,
     QSizePolicy,
     QLineEdit,
+    QDateEdit,
     QStyleOptionViewItem,
     QStyledItemDelegate,
 )
 from PyQt6.QtCore import (
     Qt,
     QTimer,
+    QDate,
     QThread,
     QSignalBlocker,
     pyqtSignal,
@@ -473,6 +475,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.print_shortcut: Optional[QShortcut] = None
         self.clear_filters_shortcut: Optional[QShortcut] = None
         self._session_expired = False
+        self.shipping_logs = []
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -1139,9 +1142,75 @@ class ModernShippingMainWindow(QMainWindow):
 
         shipping_layout.addWidget(self.tab_widget)
         self.main_tab_widget.addTab(shipping_page, "Shipping")
+        logs_page = self.create_shipping_logs_page()
+        self.main_tab_widget.addTab(logs_page, "Shipping Logs")
+        self.main_tab_widget.currentChanged.connect(self.on_main_tab_changed)
 
         tabs_layout.addWidget(self.main_tab_widget)
         layout.addWidget(tabs_container)
+
+    def create_shipping_logs_page(self):
+        logs_page = QWidget()
+        logs_layout = QVBoxLayout(logs_page)
+        logs_layout.setContentsMargins(8, 8, 8, 8)
+        logs_layout.setSpacing(8)
+
+        filters_frame = QFrame()
+        filters_layout = QHBoxLayout(filters_frame)
+        filters_layout.setContentsMargins(0, 0, 0, 0)
+        filters_layout.setSpacing(8)
+
+        date_label = QLabel("Date Range:")
+        self.logs_start_date = QDateEdit()
+        self.logs_start_date.setCalendarPopup(True)
+        self.logs_start_date.setDisplayFormat("yyyy-MM-dd")
+        self.logs_start_date.setDate(QDate.currentDate().addDays(-30))
+
+        to_label = QLabel("to")
+        self.logs_end_date = QDateEdit()
+        self.logs_end_date.setCalendarPopup(True)
+        self.logs_end_date.setDisplayFormat("yyyy-MM-dd")
+        self.logs_end_date.setDate(QDate.currentDate())
+
+        self.logs_refresh_btn = ModernButton("Load Logs", "primary", min_height=34, min_width=120)
+        self.logs_refresh_btn.clicked.connect(self.load_shipping_logs)
+
+        self.logs_range_hint = QLabel("Default: Last 30 days - Present")
+        self.logs_range_hint.setStyleSheet("color: #6B7280;")
+
+        filters_layout.addWidget(date_label)
+        filters_layout.addWidget(self.logs_start_date)
+        filters_layout.addWidget(to_label)
+        filters_layout.addWidget(self.logs_end_date)
+        filters_layout.addWidget(self.logs_refresh_btn)
+        filters_layout.addWidget(self.logs_range_hint)
+        filters_layout.addStretch(1)
+
+        self.logs_table = QTableWidget()
+        self.logs_table.setColumnCount(8)
+        self.logs_table.setHorizontalHeaderLabels(
+            ["DATE", "USER", "ACTION", "JOB NUMBER", "FIELD", "OLD VALUE", "NEW VALUE", "SHIPMENT ID"]
+        )
+        self.logs_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.logs_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.logs_table.verticalHeader().setVisible(False)
+        self.logs_table.setAlternatingRowColors(True)
+        self.logs_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.logs_table.horizontalHeader().setStretchLastSection(False)
+        self.logs_table.setColumnWidth(0, 180)
+        self.logs_table.setColumnWidth(1, 140)
+        self.logs_table.setColumnWidth(2, 100)
+        self.logs_table.setColumnWidth(3, 120)
+        self.logs_table.setColumnWidth(4, 150)
+        self.logs_table.setColumnWidth(5, 280)
+        self.logs_table.setColumnWidth(6, 280)
+        self.logs_table.setColumnWidth(7, 120)
+        self._apply_table_style(self.logs_table)
+        self._configure_table_row_metrics(self.logs_table)
+
+        logs_layout.addWidget(filters_frame)
+        logs_layout.addWidget(self.logs_table)
+        return logs_page
     
     def setup_professional_table(self, table, module_config: TabModuleConfig):
         """Configurar tabla con estilo profesional y restaurar ancho de columnas"""
@@ -1586,7 +1655,50 @@ class ModernShippingMainWindow(QMainWindow):
 
     def on_refresh_clicked(self):
         self._start_refresh_animation()
-        self.load_shipments_async()
+        current_main_index = self.main_tab_widget.currentIndex() if hasattr(self, "main_tab_widget") else 0
+        current_main_label = self.main_tab_widget.tabText(current_main_index).strip().lower() if hasattr(self, "main_tab_widget") else ""
+        if current_main_label == "shipping logs":
+            self.load_shipping_logs()
+        else:
+            self.load_shipments_async()
+
+    def load_shipping_logs(self):
+        start_value = self.logs_start_date.date().toString("yyyy-MM-dd")
+        end_value = self.logs_end_date.date().toString("yyyy-MM-dd")
+        response = self.api_client.get_shipping_logs(start_date=start_value, end_date=end_value, limit=3000)
+        if not response.is_success():
+            self.show_toast(response.get_error() or "Unable to load shipping logs", color="#EF4444")
+            return
+
+        self.shipping_logs = response.get_data() or []
+        self._last_update_dt = datetime.now()
+        self.populate_shipping_logs_table()
+        self.update_status()
+
+    def populate_shipping_logs_table(self):
+        self.logs_table.setUpdatesEnabled(False)
+        try:
+            logs = self.shipping_logs or []
+            self.logs_table.setRowCount(len(logs))
+            for row, log in enumerate(logs):
+                values = [
+                    str(log.get("changed_at", "")),
+                    str(log.get("username", "")),
+                    str(log.get("action", "")),
+                    str(log.get("job_number", "")),
+                    str(log.get("field_name", "")),
+                    str(log.get("old_value", "")),
+                    str(log.get("new_value", "")),
+                    str(log.get("shipment_id", "")),
+                ]
+                for col, value in enumerate(values):
+                    item = QTableWidgetItem(value)
+                    item.setToolTip(value)
+                    if col in (0, 7):
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
+                    self.logs_table.setItem(row, col, item)
+        finally:
+            self.logs_table.setUpdatesEnabled(True)
 
     def _start_refresh_animation(self):
         if getattr(self, "refresh_top_btn", None) is None:
@@ -2620,6 +2732,12 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_status()
         self.on_selection_changed()
         self.update_filter_button_state()
+
+    def on_main_tab_changed(self, index):
+        tab_label = self.main_tab_widget.tabText(index).strip().lower()
+        if tab_label == "shipping logs" and not self.shipping_logs:
+            self.load_shipping_logs()
+        self.update_status()
     
     def on_selection_changed(self):
         """Manejar cambio de selección en tabla"""
@@ -3090,6 +3208,22 @@ class ModernShippingMainWindow(QMainWindow):
     
     def update_status(self):
         """Actualizar información del status bar"""
+        if hasattr(self, "main_tab_widget"):
+            main_tab_label = self.main_tab_widget.tabText(self.main_tab_widget.currentIndex()).strip().lower()
+            if main_tab_label == "shipping logs":
+                visible_logs = self.count_visible_rows(self.logs_table) if hasattr(self, "logs_table") else 0
+                total_logs = len(self.shipping_logs)
+                self.record_count_label.setText(f"Showing {visible_logs} of {total_logs} logs")
+                if self._last_update_dt is None:
+                    self.last_update_label.setText("Updated —")
+                    self.last_update_label.setToolTip("No updates yet")
+                    return
+                relative = self._format_relative_time(datetime.now() - self._last_update_dt)
+                exact_time = self._last_update_dt.strftime("%Y-%m-%d %H:%M:%S")
+                self.last_update_label.setText(f"Updated {relative}")
+                self.last_update_label.setToolTip(f"Last update at {exact_time}")
+                return
+
         current_tab_id = self.get_current_tab_id()
         table = self.tab_tables.get(current_tab_id)
         visible_count = self.count_visible_rows(table) if isinstance(table, QTableWidget) else 0
