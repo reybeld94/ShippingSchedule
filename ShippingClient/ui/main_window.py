@@ -78,6 +78,7 @@ from .date_delegate import DateDelegate
 from .date_filter_dialog import DateFilterPopup
 from .date_filter_header import DateFilterHeader
 from .settings_dialog import SettingsDialog
+from .tracking_dialog import TrackingDetailsDialog
 from core.websocket_client import WebSocketClient
 from core.config import (
     get_server_url,
@@ -136,6 +137,26 @@ class ShipmentLoader(QThread):
                 self.error_occurred.emit(api_response.get_error())
         except Exception as e:
             self.error_occurred.emit(f"Unexpected error: {str(e)}")
+
+
+class FedExTrackingLoader(QThread):
+    data_loaded = pyqtSignal(dict)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, api_client: RobustApiClient, tracking_number: str):
+        super().__init__()
+        self.api_client = api_client
+        self.tracking_number = tracking_number
+
+    def run(self):
+        try:
+            response = self.api_client.get_fedex_tracking(self.tracking_number)
+            if response.is_success():
+                self.data_loaded.emit(response.get_data() or {})
+            else:
+                self.error_occurred.emit(response.get_error() or "Unable to retrieve tracking details right now")
+        except Exception as exc:
+            self.error_occurred.emit(str(exc))
 
 
 class DateSortableItem(QTableWidgetItem):
@@ -386,6 +407,7 @@ class ModernShippingMainWindow(QMainWindow):
         "shipping_notes",
     ]
     DATE_COLUMN_INDEXES = {3, 5, 6, 7}
+    TRACKING_COLUMN_INDEX = 9
     RIGHT_ALIGN_COLUMNS = {8, 9}
     CENTER_ALIGN_COLUMNS = {3, 5, 6, 7, 10}
     PLACEHOLDER_COLOR = QColor(100, 116, 139, int(255 * 0.7))
@@ -1206,6 +1228,9 @@ class ModernShippingMainWindow(QMainWindow):
         # Eventos
         table.selectionModel().selectionChanged.connect(self.on_selection_changed)
         table.itemChanged.connect(self.on_item_changed)
+        table.cellClicked.connect(
+            lambda row, col, tbl=table: self.on_table_cell_clicked(tbl, row, col)
+        )
         table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(
             lambda pos, tbl=table, nm=name: self.show_cell_menu(tbl, nm, pos)
@@ -2605,6 +2630,31 @@ class ModernShippingMainWindow(QMainWindow):
             module_policy = self._get_module_policy(tab_id)
             can_delete = role_policy["can_delete"] and module_policy.get("allow_delete", True)
             delete_btn.setEnabled(can_delete and self._current_tab_has_selection(tab_id))
+
+    def on_table_cell_clicked(self, table, row: int, column: int):
+        if column != self.TRACKING_COLUMN_INDEX:
+            return
+        item = table.item(row, column)
+        if not item:
+            return
+        tracking_number = str(item.data(Qt.ItemDataRole.EditRole) or "").strip()
+        if not tracking_number:
+            return
+
+        self.record_count_label.setText(f"Loading tracking {tracking_number}...")
+        self.tracking_loader = FedExTrackingLoader(self.api_client, tracking_number)
+        self.tracking_loader.data_loaded.connect(self.on_tracking_loaded)
+        self.tracking_loader.error_occurred.connect(self.on_tracking_error)
+        self.tracking_loader.start()
+
+    def on_tracking_loaded(self, tracking_data: dict):
+        dialog = TrackingDetailsDialog(tracking_data, parent=self)
+        dialog.exec()
+        self.update_status()
+
+    def on_tracking_error(self, message: str):
+        self.show_toast(message or "Unable to retrieve tracking details right now", color="#EF4444")
+        self.update_status()
     
     def get_current_table(self):
         """Obtener la tabla actualmente activa"""
@@ -2889,6 +2939,13 @@ class ModernShippingMainWindow(QMainWindow):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             elif col in self.RIGHT_ALIGN_COLUMNS:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+
+            if col == self.TRACKING_COLUMN_INDEX and metadata["normalized"]:
+                tracking_font = item.font()
+                tracking_font.setUnderline(True)
+                item.setFont(tracking_font)
+                item.setForeground(QBrush(QColor("#1D4ED8")))
+                item.setToolTip("Click to view FedEx tracking details")
 
             tooltip = metadata["tooltip"]
             if tooltip:

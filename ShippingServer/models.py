@@ -228,3 +228,14 @@ class AuditLog(Base):
     
     # Relación
     user = relationship("User")
+
+
+class AppConnectionSettings(Base):
+    __tablename__ = "app_connection_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    provider = Column(String(50), unique=True, index=True, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    api_key = Column(String(255), default="")
+    secret_key = Column(String(255), default="")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

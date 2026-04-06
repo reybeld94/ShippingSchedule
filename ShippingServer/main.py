@@ -12,9 +12,10 @@ from sqlalchemy.orm.exc import StaleDataError
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
-from models import User, Shipment, AuditLog
+from models import User, Shipment, AuditLog, AppConnectionSettings
 from auth import authenticate_user, create_access_token, get_current_user, get_current_admin_user, Token, UserLogin, UserCreate
 from pydantic import BaseModel
+from fedex_service import FedExService
 
 # Crear app FastAPI
 app = FastAPI(title="Shipping Schedule API", version="1.0.0")
@@ -22,6 +23,7 @@ app = FastAPI(title="Shipping Schedule API", version="1.0.0")
 # Configuración básica de logging para depuración
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+fedex_service = FedExService()
 
 # CORS para permitir conexiones desde clientes
 app.add_middleware(
@@ -128,6 +130,16 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class FedExConnectionSettingsUpdate(BaseModel):
+    enabled: bool = False
+    apiKey: str = ""
+    secretKey: str = ""
+
+
+class FedExTrackRequest(BaseModel):
+    trackingNumber: str
 
 # ============ ENDPOINTS DE AUTENTICACIÓN ============
 
@@ -251,6 +263,102 @@ async def delete_user(
     db.delete(user)
     db.commit()
     return {"message": "User deleted"}
+
+
+def _get_or_create_fedex_settings(db: Session) -> AppConnectionSettings:
+    settings = (
+        db.query(AppConnectionSettings)
+        .filter(AppConnectionSettings.provider == "fedex")
+        .first()
+    )
+    if not settings:
+        settings = AppConnectionSettings(provider="fedex", enabled=False, api_key="", secret_key="")
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return settings
+
+
+@app.get("/settings/connections")
+async def get_connection_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    fedex = _get_or_create_fedex_settings(db)
+    return {
+        "fedex": {
+            "enabled": bool(fedex.enabled),
+            "apiKey": fedex.api_key or "",
+            "hasSecretKey": bool(fedex.secret_key),
+            "secretKeyMasked": "********" if fedex.secret_key else "",
+        }
+    }
+
+
+@app.put("/settings/connections/fedex")
+async def update_fedex_connection_settings(
+    payload: FedExConnectionSettingsUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    api_key = (payload.apiKey or "").strip()
+    secret_key = (payload.secretKey or "").strip()
+    enabled = bool(payload.enabled)
+
+    if enabled and (not api_key or not secret_key):
+        raise HTTPException(status_code=400, detail="FedEx API Key and Secret Key are required when enabled")
+
+    settings = _get_or_create_fedex_settings(db)
+    settings.enabled = enabled
+    settings.api_key = api_key
+    if secret_key:
+        settings.secret_key = secret_key
+    db.commit()
+    db.refresh(settings)
+
+    return {
+        "message": "FedEx connection settings saved",
+        "fedex": {
+            "enabled": bool(settings.enabled),
+            "apiKey": settings.api_key or "",
+            "hasSecretKey": bool(settings.secret_key),
+            "secretKeyMasked": "********" if settings.secret_key else "",
+        },
+    }
+
+
+@app.post("/settings/connections/fedex/test")
+async def test_fedex_connection_settings(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    settings = _get_or_create_fedex_settings(db)
+    if not settings.api_key or not settings.secret_key:
+        raise HTTPException(status_code=400, detail="FedEx credentials are not configured")
+
+    fedex_service.get_fedex_access_token(settings.api_key, settings.secret_key)
+    return {"message": "FedEx connection is valid"}
+
+
+@app.get("/tracking/fedex/{tracking_number}")
+async def get_fedex_tracking(
+    tracking_number: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    normalized = (tracking_number or "").strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Tracking number is required")
+    if len(normalized) > 100:
+        raise HTTPException(status_code=400, detail="Tracking number is too long")
+
+    settings = _get_or_create_fedex_settings(db)
+    if not settings.enabled:
+        raise HTTPException(status_code=400, detail="FedEx integration is disabled")
+    if not settings.api_key or not settings.secret_key:
+        raise HTTPException(status_code=400, detail="FedEx credentials are not configured")
+
+    return fedex_service.track_fedex_number(normalized, settings.api_key, settings.secret_key)
 
 # ============ ENDPOINTS DE SHIPMENTS ============
 
