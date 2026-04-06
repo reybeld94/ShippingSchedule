@@ -789,16 +789,6 @@ class ModernShippingMainWindow(QMainWindow):
 
         button_min_width = 88
 
-        if self.is_admin:
-            self.user_btn = ModernButton(
-                "Users", "outline", min_height=34, min_width=button_min_width
-            )
-            apply_scaled_font(
-                self.user_btn, offset=2, weight=QFont.Weight.Medium
-            )
-            self.user_btn.clicked.connect(self.open_user_management)
-            button_group_layout.addWidget(self.user_btn)
-
         self.refresh_top_btn = ModernButton(
             "Refresh", "outline", min_height=34, min_width=button_min_width
         )
@@ -3365,15 +3355,13 @@ class ModernShippingMainWindow(QMainWindow):
                 return
         super().keyPressEvent(event)
 
-    def open_user_management(self):
-        """Abrir diálogo de gestión de usuarios"""
-        from .user_dialog import UserManagementDialog
-        dialog = UserManagementDialog(token=self.token)
-        dialog.exec()
-
     def open_settings_dialog(self):
-        """Open settings dialog to configure server URLs"""
-        dlg = SettingsDialog(self.settings_mgr)
+        """Open tabbed settings dialog for app configuration."""
+        dlg = SettingsDialog(
+            self.settings_mgr,
+            token=self.token,
+            is_admin=self.is_admin,
+        )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self.apply_global_font_preferences()
             if hasattr(self, "ws_client"):
