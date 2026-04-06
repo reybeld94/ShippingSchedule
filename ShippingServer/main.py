@@ -489,17 +489,6 @@ async def create_shipment(
                 db.add(new_shipment)
                 db.flush()  # Flush para obtener ID y detectar errores antes del commit
 
-                # Crear audit log
-                audit_changes = {k: v for k, v in shipment_data.items() if v}
-                log = AuditLog(
-                    user_id=current_user.id,
-                    action="create",
-                    table_name="shipments",
-                    record_id=new_shipment.id,
-                    changes=json.dumps(audit_changes)
-                )
-                db.add(log)
-
                 shipping_changes = {
                     field_name: {"old": "", "new": _safe_text(value)}
                     for field_name, value in shipment_data.items()
@@ -648,15 +637,6 @@ async def update_shipment(
         shipment.last_modified_by = current_user.id
         shipment.updated_at = datetime.utcnow()
 
-        # Crear audit log
-        log = AuditLog(
-            user_id=current_user.id,
-            action="update",
-            table_name="shipments",
-            record_id=shipment.id,
-            changes=json.dumps(changes_made)
-        )
-        db.add(log)
         _append_shipping_logs(
             db,
             shipment_id=shipment.id,
@@ -756,17 +736,6 @@ async def delete_shipment(
     db.delete(shipment)
     db.commit()
 
-    # 🔐 Registrar log de eliminación
-    log = AuditLog(
-        user_id=current_user.id,
-        action="delete",
-        table_name="shipments",
-        record_id=shipment_id,
-        changes=json.dumps(backup_data)
-    )
-    db.add(log)
-    db.commit()
-    
     # 🔔 Notificar eliminación
     await manager.broadcast(json.dumps({
         "type": "shipment_deleted",
