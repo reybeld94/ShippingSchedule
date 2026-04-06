@@ -630,11 +630,11 @@ class ModernShippingMainWindow(QMainWindow):
         )
         header_frame.setStyleSheet(
             f"""
-            QFrame#topHeaderBar {
+            QFrame#topHeaderBar {{
                 background-color: {COLOR_BG_SUBTLE};
                 border: none;
                 border-bottom: 1px solid {COLOR_BORDER};
-            }
+            }}
         """
         )
 
@@ -707,14 +707,14 @@ class ModernShippingMainWindow(QMainWindow):
         search_container.setProperty("focused", False)
         search_container.setStyleSheet(
             f"""
-            QFrame#commandSearchContainer {
+            QFrame#commandSearchContainer {{
                 background-color: {COLOR_SURFACE};
                 border: 1px solid {COLOR_BORDER};
                 border-radius: {RADIUS_MD}px;
-            }
-            QFrame#commandSearchContainer[focused="true"] {
+            }}
+            QFrame#commandSearchContainer[focused="true"] {{
                 border: 1px solid {COLOR_PRIMARY};
-            }
+            }}
         """
         )
 
@@ -741,15 +741,15 @@ class ModernShippingMainWindow(QMainWindow):
         self.search_edit.setMinimumWidth(0)
         self.search_edit.setStyleSheet(
             f"""
-            QLineEdit {
+            QLineEdit {{
                 border: none;
                 background: transparent;
                 color: {COLOR_TEXT_PRIMARY};
                 padding: 0;
-            }
-            QLineEdit::placeholder {
+            }}
+            QLineEdit::placeholder {{
                 color: {COLOR_TEXT_SECONDARY};
-            }
+            }}
         """
         )
 
@@ -931,19 +931,19 @@ class ModernShippingMainWindow(QMainWindow):
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.setStyleSheet(
             f"""
-            QToolButton {
+            QToolButton {{
                 border: 1px solid {COLOR_BORDER};
                 background-color: {COLOR_SURFACE};
                 border-radius: {RADIUS_MD}px;
-            }
-            QToolButton:hover {
+            }}
+            QToolButton:hover {{
                 background-color: #F8FAFC;
                 border-color: {COLOR_BORDER_STRONG};
-            }
-            QToolButton:pressed {
+            }}
+            QToolButton:pressed {{
                 background-color: #E2E8F0;
                 border-color: {COLOR_BORDER_STRONG};
-            }
+            }}
         """
         )
         self.settings_btn.clicked.connect(self.open_settings_dialog)
@@ -987,11 +987,11 @@ class ModernShippingMainWindow(QMainWindow):
         toolbar_frame.setMinimumHeight(48)
         toolbar_frame.setStyleSheet(
             f"""
-            QFrame {
+            QFrame {{
                 background: {COLOR_BG_SUBTLE};
                 border: 1px solid {COLOR_BORDER};
                 border-radius: {RADIUS_MD}px;
-            }
+            }}
         """
         )
 
@@ -1052,11 +1052,11 @@ class ModernShippingMainWindow(QMainWindow):
         """Crear módulo Shipping con subtabs internas."""
         tabs_container = QFrame()
         tabs_container.setStyleSheet(f"""
-            QFrame {
+            QFrame {{
                 background: {COLOR_SURFACE};
                 border: 1px solid {COLOR_BORDER};
                 border-radius: {RADIUS_MD}px;
-            }
+            }}
         """)
 
         tabs_layout = QVBoxLayout(tabs_container)
