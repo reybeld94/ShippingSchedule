@@ -229,6 +229,28 @@ class AuditLog(Base):
     # Relación
     user = relationship("User")
 
+class ShippingLog(Base):
+    __tablename__ = "shipping_logs"
+
+    __table_args__ = (
+        Index("ix_shipping_logs_changed_at", "changed_at"),
+        Index("ix_shipping_logs_shipment_changed_at", "shipment_id", "changed_at"),
+        Index("ix_shipping_logs_changed_by", "changed_by"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    shipment_id = Column(Integer, ForeignKey("shipments.id"), nullable=True)
+    changed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action = Column(String(20), nullable=False)  # create, update, delete
+    field_name = Column(String(100), nullable=False)
+    old_value = Column(Text, default="")
+    new_value = Column(Text, default="")
+    changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    module = Column(String(30), nullable=False, default="shipping", server_default="shipping")
+
+    user = relationship("User", foreign_keys=[changed_by])
+    shipment = relationship("Shipment")
+
 
 class AppConnectionSettings(Base):
     __tablename__ = "app_connection_settings"
