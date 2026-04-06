@@ -193,3 +193,24 @@ class RobustApiClient:
     def get_shipment_by_id(self, shipment_id: int) -> ApiResponse:
         """Obtener un shipment específico por ID"""
         return self.get(f"/shipments/{shipment_id}")
+
+    def get_connection_settings(self) -> ApiResponse:
+        """Obtener configuración de conexiones externas."""
+        return self.get("/settings/connections")
+
+    def update_fedex_settings(self, enabled: bool, api_key: str, secret_key: str) -> ApiResponse:
+        """Guardar configuración de FedEx."""
+        payload = {
+            "enabled": bool(enabled),
+            "apiKey": api_key or "",
+            "secretKey": secret_key or "",
+        }
+        return self.put("/settings/connections/fedex", data=payload)
+
+    def test_fedex_settings(self) -> ApiResponse:
+        """Validar credenciales de FedEx en el backend."""
+        return self.post("/settings/connections/fedex/test", data={})
+
+    def get_fedex_tracking(self, tracking_number: str) -> ApiResponse:
+        """Consultar tracking de FedEx vía backend."""
+        return self.get(f"/tracking/fedex/{tracking_number}")
