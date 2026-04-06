@@ -26,6 +26,22 @@ from core.config import (
     ICON_PATH,
 )
 from .utils import apply_scaled_font, get_base_font_size, refresh_scaled_fonts
+from .style_tokens import (
+    COLOR_BG_APP,
+    COLOR_BG_SUBTLE,
+    COLOR_BORDER,
+    COLOR_PRIMARY,
+    COLOR_SUCCESS,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    COLOR_SURFACE,
+    CONTROL_HEIGHT_LARGE,
+    RADIUS_MD,
+    SPACE_12,
+    SPACE_16,
+    SPACE_20,
+    SPACE_24,
+)
 
 class ModernLoginDialog(QDialog):
     def __init__(self):
@@ -62,8 +78,8 @@ class ModernLoginDialog(QDialog):
             QFrame {
                 background: qlineargradient(
                     x1: 0, y1: 0, x2: 1, y2: 1,
-                    stop: 0 #F8FAFC,
-                    stop: 1 #E2E8F0
+                    stop: 0 #F5F7FA,
+                    stop: 1 #E8EDF3
                 );
             }
         """)
@@ -75,16 +91,17 @@ class ModernLoginDialog(QDialog):
         # Tarjeta principal de login
         login_card = QFrame()
         login_card.setFixedWidth(420)
-        login_card.setStyleSheet("""
+        login_card.setStyleSheet(f"""
             QFrame {
                 background: #FFFFFF;
-                border-radius: 12px;
+                border: 1px solid #E5EAF0;
+                border-radius: {RADIUS_MD}px;
             }
         """)
         
         card_layout = QVBoxLayout(login_card)
-        card_layout.setContentsMargins(40, 40, 40, 40)
-        card_layout.setSpacing(20)
+        card_layout.setContentsMargins(SPACE_24, SPACE_24, SPACE_24, SPACE_24)
+        card_layout.setSpacing(SPACE_20)
         
         # Header con logo y título
         self.create_login_header(card_layout)
@@ -114,14 +131,14 @@ class ModernLoginDialog(QDialog):
         # Título principal
         title_label = QLabel("Shipping Schedule")
         apply_scaled_font(title_label, offset=6, weight=QFont.Weight.DemiBold)
-        title_label.setStyleSheet("color: #1F2937; border: none; background: transparent;")
+        title_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; border: none; background: transparent;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
         # Texto de instrucción
         instruction_label = QLabel("Please sign in to continue")
         apply_scaled_font(instruction_label, offset=-1)
-        instruction_label.setStyleSheet("color: #9CA3AF; border: none; background: transparent;")
+        instruction_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; border: none; background: transparent;")
         instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
         header_layout.addWidget(title_label)
@@ -132,7 +149,7 @@ class ModernLoginDialog(QDialog):
     def create_login_form(self, layout):
         """Crear formulario de login"""
         form_layout = QVBoxLayout()
-        form_layout.setSpacing(20)
+        form_layout.setSpacing(SPACE_20)
         
         # Campo usuario
         username_layout = QVBoxLayout()
@@ -140,7 +157,7 @@ class ModernLoginDialog(QDialog):
         
         username_label = QLabel("Username")
         apply_scaled_font(username_label, offset=1, weight=QFont.Weight.Medium)
-        username_label.setStyleSheet("color: #374151;")
+        username_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
 
         self.username_edit = ModernLineEdit("Enter your username")
         
@@ -153,7 +170,7 @@ class ModernLoginDialog(QDialog):
         
         password_label = QLabel("Password")
         apply_scaled_font(password_label, offset=1, weight=QFont.Weight.Medium)
-        password_label.setStyleSheet("color: #374151;")
+        password_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
 
         self.password_edit = ModernLineEdit("Enter your password")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
@@ -179,13 +196,13 @@ class ModernLoginDialog(QDialog):
         
         # Botón principal de login
         self.login_btn = ModernButton("Sign In", "primary")
-        self.login_btn.setMinimumHeight(44)
+        self.login_btn.setMinimumHeight(CONTROL_HEIGHT_LARGE)
         self.login_btn.clicked.connect(self.login)
         self.password_edit.returnPressed.connect(self.login)
         
         # Botón secundario de cancelar
         self.cancel_btn = ModernButton("Cancel", "secondary")
-        self.cancel_btn.setMinimumHeight(44)
+        self.cancel_btn.setMinimumHeight(CONTROL_HEIGHT_LARGE)
         self.cancel_btn.clicked.connect(self.reject)
         
         button_layout.addWidget(self.login_btn)
@@ -202,7 +219,7 @@ class ModernLoginDialog(QDialog):
         # Separador visual
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("background-color: #E5E7EB; border: none; height: 1px;")
+        separator.setStyleSheet(f"background-color: {COLOR_BORDER}; border: none; height: 1px;")
         separator.setFixedHeight(1)
         
         # Status de conexión
@@ -212,11 +229,11 @@ class ModernLoginDialog(QDialog):
         
         self.connection_indicator = QLabel("●")
         apply_scaled_font(self.connection_indicator)
-        self.connection_indicator.setStyleSheet("color: #10B981;")
+        self.connection_indicator.setStyleSheet(f"color: {COLOR_SUCCESS};")
 
         self.connection_text = QLabel("Server connection active")
         apply_scaled_font(self.connection_text, offset=-1)
-        self.connection_text.setStyleSheet("color: #6B7280;")
+        self.connection_text.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
 
         # Botón para abrir la configuración de servidor
         self.settings_btn = ModernButton("", "secondary")
