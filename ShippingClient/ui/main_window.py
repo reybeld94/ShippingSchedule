@@ -1135,6 +1135,12 @@ class ModernShippingMainWindow(QMainWindow):
             setattr(self, f"{module.id}_widget", tab_page)
             setattr(self, f"{module.id}_table", table)
 
+        logs_page = self.create_shipping_logs_page()
+        logs_index = self.tab_widget.addTab(logs_page, "Shipping Logs")
+        self.tab_tables["logs"] = self.logs_table
+        self.table_to_tab_id[id(self.logs_table)] = "logs"
+        self.tab_index_to_id[logs_index] = "logs"
+
         # Conectar cambio de subtab
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         for module in self.tab_modules:
@@ -1655,9 +1661,7 @@ class ModernShippingMainWindow(QMainWindow):
 
     def on_refresh_clicked(self):
         self._start_refresh_animation()
-        current_main_index = self.main_tab_widget.currentIndex() if hasattr(self, "main_tab_widget") else 0
-        current_main_label = self.main_tab_widget.tabText(current_main_index).strip().lower() if hasattr(self, "main_tab_widget") else ""
-        if current_main_label == "shipping logs":
+        if self.get_current_tab_id() == "logs":
             self.load_shipping_logs()
         else:
             self.load_shipments_async()
@@ -2724,7 +2728,9 @@ class ModernShippingMainWindow(QMainWindow):
         """Manejar cambio de tab optimizado"""
         print(f"Cambio de tab: {index}")
         tab_id = self.tab_index_to_id.get(index, self.get_current_tab_id())
-        if not self._tables_populated.get(tab_id, False):
+        if tab_id == "logs":
+            self.load_shipping_logs()
+        elif not self._tables_populated.get(tab_id, False):
             self.populate_module_table(tab_id)
             self._tables_populated[tab_id] = True
         self._apply_module_toolbar_state(tab_id)
@@ -2875,8 +2881,11 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Poblar tabla actual
         current_tab_id = self.get_current_tab_id()
-        self.populate_module_table(current_tab_id)
-        self._tables_populated[current_tab_id] = True
+        if current_tab_id == "logs":
+            self.load_shipping_logs()
+        else:
+            self.populate_module_table(current_tab_id)
+            self._tables_populated[current_tab_id] = True
 
         self.update_status()
         self.update_filter_button_state()
@@ -2932,6 +2941,9 @@ class ModernShippingMainWindow(QMainWindow):
             return
         if tab_id == "history":
             self.populate_history_table()
+            return
+        if tab_id == "logs":
+            self.populate_shipping_logs_table()
             return
         table = self.tab_tables.get(tab_id)
         if table is not None:
@@ -3198,7 +3210,11 @@ class ModernShippingMainWindow(QMainWindow):
 
     def perform_filter(self):
         """Ejecutar filtrado optimizado"""
-        for name, table in self.tab_tables.items():
+        for module in self.tab_modules:
+            name = module.id
+            table = self.tab_tables.get(name)
+            if table is None:
+                continue
             if not self._tables_populated.get(name):
                 continue
             self.update_search_visibility(table, name)
@@ -3225,6 +3241,20 @@ class ModernShippingMainWindow(QMainWindow):
                 return
 
         current_tab_id = self.get_current_tab_id()
+        if current_tab_id == "logs":
+            visible_logs = self.count_visible_rows(self.logs_table) if hasattr(self, "logs_table") else 0
+            total_logs = len(self.shipping_logs)
+            self.record_count_label.setText(f"Showing {visible_logs} of {total_logs} logs")
+            if self._last_update_dt is None:
+                self.last_update_label.setText("Updated —")
+                self.last_update_label.setToolTip("No updates yet")
+                return
+            relative = self._format_relative_time(datetime.now() - self._last_update_dt)
+            exact_time = self._last_update_dt.strftime("%Y-%m-%d %H:%M:%S")
+            self.last_update_label.setText(f"Updated {relative}")
+            self.last_update_label.setToolTip(f"Last update at {exact_time}")
+            return
+
         table = self.tab_tables.get(current_tab_id)
         visible_count = self.count_visible_rows(table) if isinstance(table, QTableWidget) else 0
         total_count = 0
