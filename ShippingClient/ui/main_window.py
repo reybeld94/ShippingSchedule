@@ -1148,6 +1148,9 @@ class ModernShippingMainWindow(QMainWindow):
 
         shipping_layout.addWidget(self.tab_widget)
         self.main_tab_widget.addTab(shipping_page, "Shipping")
+        logs_page = self.create_shipping_logs_page()
+        self.main_tab_widget.addTab(logs_page, "Shipping Logs")
+        self.main_tab_widget.currentChanged.connect(self.on_main_tab_changed)
 
         tabs_layout.addWidget(self.main_tab_widget)
         layout.addWidget(tabs_container)
@@ -2735,6 +2738,12 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_status()
         self.on_selection_changed()
         self.update_filter_button_state()
+
+    def on_main_tab_changed(self, index):
+        tab_label = self.main_tab_widget.tabText(index).strip().lower()
+        if tab_label == "shipping logs" and not self.shipping_logs:
+            self.load_shipping_logs()
+        self.update_status()
     
     def on_selection_changed(self):
         """Manejar cambio de selección en tabla"""
@@ -3215,6 +3224,22 @@ class ModernShippingMainWindow(QMainWindow):
     
     def update_status(self):
         """Actualizar información del status bar"""
+        if hasattr(self, "main_tab_widget"):
+            main_tab_label = self.main_tab_widget.tabText(self.main_tab_widget.currentIndex()).strip().lower()
+            if main_tab_label == "shipping logs":
+                visible_logs = self.count_visible_rows(self.logs_table) if hasattr(self, "logs_table") else 0
+                total_logs = len(self.shipping_logs)
+                self.record_count_label.setText(f"Showing {visible_logs} of {total_logs} logs")
+                if self._last_update_dt is None:
+                    self.last_update_label.setText("Updated —")
+                    self.last_update_label.setToolTip("No updates yet")
+                    return
+                relative = self._format_relative_time(datetime.now() - self._last_update_dt)
+                exact_time = self._last_update_dt.strftime("%Y-%m-%d %H:%M:%S")
+                self.last_update_label.setText(f"Updated {relative}")
+                self.last_update_label.setToolTip(f"Last update at {exact_time}")
+                return
+
         current_tab_id = self.get_current_tab_id()
         if current_tab_id == "logs":
             visible_logs = self.count_visible_rows(self.logs_table) if hasattr(self, "logs_table") else 0
