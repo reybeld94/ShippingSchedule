@@ -136,6 +136,7 @@ class FedExConnectionSettingsUpdate(BaseModel):
     enabled: bool = False
     apiKey: str = ""
     secretKey: str = ""
+    baseUrl: str = ""
 
 
 class FedExTrackRequest(BaseModel):
@@ -279,6 +280,13 @@ def _get_or_create_fedex_settings(db: Session) -> AppConnectionSettings:
     return settings
 
 
+def _normalize_fedex_base_url(base_url: str | None) -> str:
+    value = (base_url or "").strip()
+    if not value:
+        return ""
+    return value.rstrip("/")
+
+
 @app.get("/settings/connections")
 async def get_connection_settings(
     db: Session = Depends(get_db),
@@ -291,6 +299,7 @@ async def get_connection_settings(
             "apiKey": fedex.api_key or "",
             "hasSecretKey": bool(fedex.secret_key),
             "secretKeyMasked": "********" if fedex.secret_key else "",
+            "baseUrl": _normalize_fedex_base_url(fedex.base_url),
         }
     }
 
@@ -303,14 +312,18 @@ async def update_fedex_connection_settings(
 ):
     api_key = (payload.apiKey or "").strip()
     secret_key = (payload.secretKey or "").strip()
+    base_url = _normalize_fedex_base_url(payload.baseUrl)
     enabled = bool(payload.enabled)
 
     if enabled and (not api_key or not secret_key):
         raise HTTPException(status_code=400, detail="FedEx API Key and Secret Key are required when enabled")
+    if base_url and not (base_url.startswith("http://") or base_url.startswith("https://")):
+        raise HTTPException(status_code=400, detail="FedEx Base URL must start with http:// or https://")
 
     settings = _get_or_create_fedex_settings(db)
     settings.enabled = enabled
     settings.api_key = api_key
+    settings.base_url = base_url
     if secret_key:
         settings.secret_key = secret_key
     db.commit()
@@ -323,6 +336,7 @@ async def update_fedex_connection_settings(
             "apiKey": settings.api_key or "",
             "hasSecretKey": bool(settings.secret_key),
             "secretKeyMasked": "********" if settings.secret_key else "",
+            "baseUrl": _normalize_fedex_base_url(settings.base_url),
         },
     }
 
@@ -336,7 +350,11 @@ async def test_fedex_connection_settings(
     if not settings.api_key or not settings.secret_key:
         raise HTTPException(status_code=400, detail="FedEx credentials are not configured")
 
-    fedex_service.get_fedex_access_token(settings.api_key, settings.secret_key)
+    fedex_service.get_fedex_access_token(
+        settings.api_key,
+        settings.secret_key,
+        base_url=_normalize_fedex_base_url(settings.base_url) or None,
+    )
     return {"message": "FedEx connection is valid"}
 
 
@@ -358,7 +376,12 @@ async def get_fedex_tracking(
     if not settings.api_key or not settings.secret_key:
         raise HTTPException(status_code=400, detail="FedEx credentials are not configured")
 
-    return fedex_service.track_fedex_number(normalized, settings.api_key, settings.secret_key)
+    return fedex_service.track_fedex_number(
+        normalized,
+        settings.api_key,
+        settings.secret_key,
+        base_url=_normalize_fedex_base_url(settings.base_url) or None,
+    )
 
 # ============ ENDPOINTS DE SHIPMENTS ============
 
