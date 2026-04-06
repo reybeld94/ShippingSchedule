@@ -26,6 +26,22 @@ from core.config import (
     LOGO_PATH,
 )
 from .utils import apply_scaled_font, get_base_font_size
+from .style_tokens import (
+    COLOR_BG_APP,
+    COLOR_BG_SUBTLE,
+    COLOR_BORDER,
+    COLOR_BORDER_STRONG,
+    COLOR_PRIMARY,
+    COLOR_SURFACE,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    CONTROL_HEIGHT,
+    RADIUS_MD,
+    SPACE_12,
+    SPACE_16,
+    SPACE_20,
+    SPACE_8,
+)
 
 class ModernShipmentDialog(QDialog):
     def __init__(self, shipment_data=None, api_client: RobustApiClient | None = None):
@@ -57,8 +73,8 @@ class ModernShipmentDialog(QDialog):
         """Configurar interfaz profesional"""
         # Layout principal
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(SPACE_20, SPACE_20, SPACE_20, SPACE_20)
+        main_layout.setSpacing(SPACE_20)
         
         # Header profesional
         self.create_professional_header(main_layout)
@@ -111,12 +127,12 @@ class ModernShipmentDialog(QDialog):
         title_text = "Create New Shipment" if not self.shipment_data else "Edit Shipment"
         title_label = QLabel(title_text)
         apply_scaled_font(title_label, offset=8, weight=QFont.Weight.DemiBold)
-        title_label.setStyleSheet("color: #1F2937;")
+        title_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
 
         subtitle_text = "Enter shipment details below" if not self.shipment_data else f"Modifying Job #{self.shipment_data.get('job_number', '')}"
         subtitle_label = QLabel(subtitle_text)
         apply_scaled_font(subtitle_label, offset=1)
-        subtitle_label.setStyleSheet("color: #6B7280;")
+        subtitle_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
         
         title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label)
@@ -177,8 +193,8 @@ class ModernShipmentDialog(QDialog):
         # Widget contenedor del formulario
         form_container = QWidget()
         form_layout = QVBoxLayout(form_container)
-        form_layout.setContentsMargins(10, 10, 10, 10)
-        form_layout.setSpacing(20)
+        form_layout.setContentsMargins(SPACE_12, SPACE_12, SPACE_12, SPACE_12)
+        form_layout.setSpacing(SPACE_20)
         
         # Sección de información básica
         self.create_basic_info_section(form_layout)
@@ -198,8 +214,8 @@ class ModernShipmentDialog(QDialog):
         
         # Grid para campos básicos
         grid_layout = QGridLayout()
-        grid_layout.setSpacing(15)
-        grid_layout.setContentsMargins(0, 10, 0, 0)
+        grid_layout.setSpacing(SPACE_16)
+        grid_layout.setContentsMargins(0, SPACE_12, 0, 0)
         
         # Fila 1: Job Number y Job Name
         grid_layout.addWidget(self.create_field_label("Job Number", required=True), 0, 0)
@@ -241,8 +257,8 @@ class ModernShipmentDialog(QDialog):
         
         # Grid para fechas
         dates_grid = QGridLayout()
-        dates_grid.setSpacing(15)
-        dates_grid.setContentsMargins(0, 10, 0, 0)
+        dates_grid.setSpacing(SPACE_16)
+        dates_grid.setContentsMargins(0, SPACE_12, 0, 0)
         
         # Fila 1: QC Release y Crated
         dates_grid.addWidget(self.create_field_label("QC Release"), 0, 0)
@@ -270,8 +286,8 @@ class ModernShipmentDialog(QDialog):
         details_card = ProfessionalCard("Additional Details")
         
         details_layout = QGridLayout()
-        details_layout.setSpacing(15)
-        details_layout.setContentsMargins(0, 10, 0, 0)
+        details_layout.setSpacing(SPACE_16)
+        details_layout.setContentsMargins(0, SPACE_12, 0, 0)
         
         # Invoice Number
         details_layout.addWidget(self.create_field_label("Invoice Number"), 0, 0)
@@ -314,13 +330,13 @@ class ModernShipmentDialog(QDialog):
         apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
 
         if required:
-            label.setStyleSheet("""
-                color: #1F2937;
+            label.setStyleSheet(f"""
+                color: {COLOR_TEXT_PRIMARY};
                 border: none;
                 background: transparent;
             """)
         else:
-            label.setStyleSheet("color: #374151;")
+            label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
         
         return label
     
@@ -332,21 +348,21 @@ class ModernShipmentDialog(QDialog):
         text_edit.setStyleSheet(
             f"""
             QTextEdit {{
-                background: #FFFFFF;
-                border: 1px solid #D1D5DB;
-                border-radius: 6px;
-                padding: 10px;
+                background: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
+                padding: {SPACE_8}px {SPACE_12}px;
                 font-family: '{MODERN_FONT}';
                 font-size: {text_size}px;
-                color: #1F2937;
+                color: {COLOR_TEXT_PRIMARY};
                 selection-background-color: #DBEAFE;
             }}
             QTextEdit:focus {{
-                border-color: #3B82F6;
+                border-color: {COLOR_PRIMARY};
                 outline: none;
             }}
             QTextEdit:hover {{
-                border-color: #9CA3AF;
+                border-color: {COLOR_BORDER_STRONG};
             }}
         """
         )
@@ -356,17 +372,17 @@ class ModernShipmentDialog(QDialog):
         """Crear botones del footer"""
         footer_frame = QFrame()
         footer_frame.setFixedHeight(70)
-        footer_frame.setStyleSheet("""
+        footer_frame.setStyleSheet(f"""
             QFrame {
-                background: #F9FAFB;
+                background: {COLOR_BG_SUBTLE};
                 border: none;
-                border-top: 1px solid #E5E7EB;
+                border-top: 1px solid {COLOR_BORDER};
             }
         """)
         
         footer_layout = QHBoxLayout(footer_frame)
-        footer_layout.setContentsMargins(20, 15, 20, 15)
-        footer_layout.setSpacing(12)
+        footer_layout.setContentsMargins(SPACE_20, SPACE_12, SPACE_20, SPACE_12)
+        footer_layout.setSpacing(SPACE_12)
         
         # Botones
         self.cancel_btn = ModernButton("Cancel", "secondary")
@@ -396,11 +412,11 @@ class ModernShipmentDialog(QDialog):
         """Aplicar tema profesional"""
         self.setStyleSheet(f"""
             QDialog {{
-                background: #F3F4F6;
+                background: {COLOR_BG_APP};
                 font-family: '{MODERN_FONT}', sans-serif;
             }}
             QLabel {{
-                color: #374151;
+                color: {COLOR_TEXT_SECONDARY};
             }}
         """)
     

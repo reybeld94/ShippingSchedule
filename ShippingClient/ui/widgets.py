@@ -13,6 +13,25 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 from core.config import MODERN_FONT
 from .utils import apply_scaled_font
+from .style_tokens import (
+    COLOR_BORDER,
+    COLOR_BORDER_STRONG,
+    COLOR_PRIMARY,
+    COLOR_PRIMARY_HOVER,
+    COLOR_PRIMARY_PRESSED,
+    COLOR_SUCCESS,
+    COLOR_SUCCESS_HOVER,
+    COLOR_SUCCESS_PRESSED,
+    COLOR_SURFACE,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    CONTROL_HEIGHT,
+    RADIUS_MD,
+    SPACE_12,
+    SPACE_16,
+    SPACE_20,
+    SPACE_8,
+)
 
 class ModernButton(QPushButton):
     def __init__(
@@ -20,7 +39,7 @@ class ModernButton(QPushButton):
         text,
         button_type="primary",
         *,
-        min_height: int = 32,
+        min_height: int = CONTROL_HEIGHT,
         min_width: int = 80,
         padding: Tuple[int, int] | None = None,
         font_offset: int | None = None,
@@ -31,7 +50,7 @@ class ModernButton(QPushButton):
         self._min_height = max(0, min_height)
         self._min_width = max(0, min_width)
         if padding is None:
-            padding = (6, 16)
+            padding = (SPACE_8, SPACE_16)
         self._padding_vertical = max(0, padding[0])
         self._padding_horizontal = max(0, padding[1])
         self.setMinimumHeight(self._min_height)
@@ -48,7 +67,7 @@ class ModernButton(QPushButton):
         base_style = f"""
             QPushButton {{
                 border: 1px solid transparent;
-                border-radius: 10px;
+                border-radius: {RADIUS_MD}px;
                 padding: {self._padding_vertical}px {self._padding_horizontal}px;
                 font-weight: 500;
                 letter-spacing: 0.3px;
@@ -58,51 +77,51 @@ class ModernButton(QPushButton):
             }}
             QPushButton:disabled {{
                 background-color: #F1F5F9;
-                border-color: #E2E8F0;
+                border-color: {COLOR_BORDER};
                 color: #94A3B8;
             }}
         """
 
         if self.button_type == "primary":
-            style = base_style + """
+            style = base_style + f"""
                 QPushButton {
-                    background-color: #2563EB;
+                    background-color: {COLOR_PRIMARY};
                     color: #FFFFFF;
                 }
                 QPushButton:hover {
-                    background-color: #1D4ED8;
+                    background-color: {COLOR_PRIMARY_HOVER};
                 }
                 QPushButton:pressed {
-                    background-color: #1E40AF;
+                    background-color: {COLOR_PRIMARY_PRESSED};
                 }
             """
         elif self.button_type in ("secondary", "outline"):
-            style = base_style + """
+            style = base_style + f"""
                 QPushButton {
-                    background-color: #FFFFFF;
-                    color: #4B5563;
-                    border-color: #E2E8F0;
+                    background-color: {COLOR_SURFACE};
+                    color: {COLOR_TEXT_SECONDARY};
+                    border-color: {COLOR_BORDER};
                 }
                 QPushButton:hover {
                     background-color: #F8FAFC;
-                    border-color: #CBD5E1;
+                    border-color: {COLOR_BORDER_STRONG};
                 }
                 QPushButton:pressed {
                     background-color: #E2E8F0;
-                    border-color: #CBD5E1;
+                    border-color: {COLOR_BORDER_STRONG};
                 }
             """
         elif self.button_type == "success":
-            style = base_style + """
+            style = base_style + f"""
                 QPushButton {
-                    background-color: #10B981;
+                    background-color: {COLOR_SUCCESS};
                     color: #FFFFFF;
                 }
                 QPushButton:hover {
-                    background-color: #059669;
+                    background-color: {COLOR_SUCCESS_HOVER};
                 }
                 QPushButton:pressed {
-                    background-color: #047857;
+                    background-color: {COLOR_SUCCESS_PRESSED};
                 }
             """
         elif self.button_type == "danger":
@@ -175,7 +194,7 @@ class ModernLineEdit(QLineEdit):
     def __init__(self, placeholder=""):
         super().__init__()
         self.setPlaceholderText(placeholder)
-        self.setMinimumHeight(40)
+        self.setMinimumHeight(CONTROL_HEIGHT)
         apply_scaled_font(self, offset=2)
         self.apply_professional_style()
 
@@ -186,12 +205,12 @@ class ModernLineEdit(QLineEdit):
         self.setStyleSheet(
             f"""
             QLineEdit {{
-                background: #FFFFFF;
-                border: 1px solid #D1D5DB;
-                border-radius: 6px;
-                padding: 10px 14px;
+                background: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
+                padding: {SPACE_8}px {SPACE_12}px;
                 font-size: {font_size}px;
-                color: #1F2937;
+                color: {COLOR_TEXT_PRIMARY};
                 selection-background-color: #DBEAFE;
             }}
             QLineEdit::placeholder {{
@@ -199,13 +218,13 @@ class ModernLineEdit(QLineEdit):
                 font-size: {placeholder_font_size}px;
             }}
             QLineEdit:focus {{
-                border-color: #3B82F6;
-                background: #FFFFFF;
+                border-color: {COLOR_PRIMARY};
+                background: {COLOR_SURFACE};
                 outline: none;
 
             }}
             QLineEdit:hover {{
-                border-color: #9CA3AF;
+                border-color: {COLOR_BORDER_STRONG};
             }}
             QLineEdit:disabled {{
                 background-color: #F9FAFB;
@@ -233,7 +252,7 @@ class ModernLineEdit(QLineEdit):
 class ModernComboBox(QComboBox):
     def __init__(self):
         super().__init__()
-        self.setMinimumHeight(40)
+        self.setMinimumHeight(CONTROL_HEIGHT)
         apply_scaled_font(self)
         self.apply_professional_style()
 
@@ -243,21 +262,21 @@ class ModernComboBox(QComboBox):
         self.setStyleSheet(
             f"""
             QComboBox {{
-                background: #FFFFFF;
-                border: 1px solid #D1D5DB;
-                border-radius: 6px;
-                padding: 10px 14px;
+                background: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
+                padding: {SPACE_8}px {SPACE_12}px;
                 font-size: {font_size}px;
-                color: #1F2937;
+                color: {COLOR_TEXT_PRIMARY};
                 min-width: 140px;
                 selection-background-color: #DBEAFE;
             }}
             QComboBox:focus {{
-                border-color: #3B82F6;
+                border-color: {COLOR_PRIMARY};
                 outline: none;
             }}
             QComboBox:hover {{
-                border-color: #9CA3AF;
+                border-color: {COLOR_BORDER_STRONG};
             }}
             QComboBox::drop-down {{
                 border: none;
@@ -278,9 +297,9 @@ class ModernComboBox(QComboBox):
                 border-top-color: #3B82F6;
             }}
             QComboBox QAbstractItemView {{
-                border: 1px solid #D1D5DB;
-                border-radius: 6px;
-                background: #FFFFFF;
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
+                background: {COLOR_SURFACE};
                 selection-background-color: #EFF6FF;
                 selection-color: #1F2937;
                 padding: 4px;
@@ -288,7 +307,7 @@ class ModernComboBox(QComboBox):
             }}
             QComboBox QAbstractItemView::item {{
                 padding: 8px 12px;
-                border-radius: 4px;
+                border-radius: {SPACE_8}px;
                 margin: 1px;
             }}
             QComboBox QAbstractItemView::item:selected {{
@@ -325,23 +344,23 @@ class ProfessionalCard(QFrame):
         
         # Layout de la tarjeta
         self.card_layout = QVBoxLayout(self)
-        self.card_layout.setContentsMargins(20, 16, 20, 20)
-        self.card_layout.setSpacing(12)
+        self.card_layout.setContentsMargins(SPACE_20, SPACE_16, SPACE_20, SPACE_20)
+        self.card_layout.setSpacing(SPACE_12)
         
         # Título si se proporciona
         if title:
             self.title_label = QLabel(title)
             apply_scaled_font(self.title_label, offset=4, weight=QFont.Weight.DemiBold)
-            self.title_label.setStyleSheet("color: #1F2937; margin-bottom: 8px;")
+            self.title_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; margin-bottom: {SPACE_8}px;")
             self.card_layout.addWidget(self.title_label)
     
     def apply_card_style(self):
         """Aplicar estilo de tarjeta profesional"""
-        self.setStyleSheet("""
+        self.setStyleSheet(f"""
             QFrame {
-                background: #FFFFFF;
-                border: 1px solid #E5E7EB;
-                border-radius: 8px;
+                background: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
             }
         """)
     

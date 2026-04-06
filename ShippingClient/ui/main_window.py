@@ -82,6 +82,25 @@ from .date_filter_dialog import DateFilterPopup
 from .date_filter_header import DateFilterHeader
 from .settings_dialog import SettingsDialog
 from .tracking_dialog import TrackingDetailsDialog
+from .style_tokens import (
+    COLOR_BG_APP,
+    COLOR_BG_SUBTLE,
+    COLOR_BORDER,
+    COLOR_BORDER_STRONG,
+    COLOR_PRIMARY,
+    COLOR_SUCCESS,
+    COLOR_SURFACE,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    CONTROL_HEIGHT,
+    CONTROL_HEIGHT_COMPACT,
+    RADIUS_MD,
+    SPACE_12,
+    SPACE_16,
+    SPACE_20,
+    SPACE_24,
+    SPACE_8,
+)
 from core.websocket_client import WebSocketClient
 from core.config import (
     get_server_url,
@@ -562,8 +581,8 @@ class ModernShippingMainWindow(QMainWindow):
             
             # Layout principal
             main_layout = QVBoxLayout(central_widget)
-            main_layout.setContentsMargins(24, 28, 24, 24)
-            main_layout.setSpacing(16)
+            main_layout.setContentsMargins(SPACE_24, SPACE_24, SPACE_24, SPACE_24)
+            main_layout.setSpacing(SPACE_16)
             
             # Header profesional
             self.create_professional_header(main_layout)
@@ -610,11 +629,11 @@ class ModernShippingMainWindow(QMainWindow):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
         header_frame.setStyleSheet(
-            """
+            f"""
             QFrame#topHeaderBar {
-                background-color: #F7F9FC;
+                background-color: {COLOR_BG_SUBTLE};
                 border: none;
-                border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+                border-bottom: 1px solid {COLOR_BORDER};
             }
         """
         )
@@ -626,8 +645,8 @@ class ModernShippingMainWindow(QMainWindow):
         header_frame.setGraphicsEffect(header_shadow)
 
         header_layout = QGridLayout(header_frame)
-        header_layout.setContentsMargins(24, 18, 24, 18)
-        header_layout.setHorizontalSpacing(24)
+        header_layout.setContentsMargins(SPACE_24, SPACE_16, SPACE_24, SPACE_16)
+        header_layout.setHorizontalSpacing(SPACE_24)
         header_layout.setVerticalSpacing(0)
         header_layout.setColumnStretch(0, 0)
         header_layout.setColumnStretch(1, 1)
@@ -669,7 +688,7 @@ class ModernShippingMainWindow(QMainWindow):
         title_label = QLabel("Shipping Schedule")
         apply_scaled_font(title_label, offset=10, weight=QFont.Weight.Bold)
         title_label.setStyleSheet(
-            "color: #102A56; text-decoration: none; letter-spacing: 0.3px;"
+            f"color: {COLOR_TEXT_PRIMARY}; text-decoration: none; letter-spacing: 0.3px;"
         )
 
         left_layout.addWidget(logo_label)
@@ -679,7 +698,7 @@ class ModernShippingMainWindow(QMainWindow):
         # Buscador unificado en el centro
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
-        search_container.setMinimumHeight(48)
+        search_container.setMinimumHeight(CONTROL_HEIGHT)
         search_container.setMaximumWidth(680)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -687,14 +706,14 @@ class ModernShippingMainWindow(QMainWindow):
         )
         search_container.setProperty("focused", False)
         search_container.setStyleSheet(
-            """
+            f"""
             QFrame#commandSearchContainer {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 12px;
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
             }
             QFrame#commandSearchContainer[focused="true"] {
-                border: 1px solid #94A3B8;
+                border: 1px solid {COLOR_PRIMARY};
             }
         """
         )
@@ -706,12 +725,12 @@ class ModernShippingMainWindow(QMainWindow):
         search_container.setGraphicsEffect(search_shadow)
 
         search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(16, 0, 16, 0)
-        search_layout.setSpacing(12)
+        search_layout.setContentsMargins(SPACE_16, 0, SPACE_16, 0)
+        search_layout.setSpacing(SPACE_12)
 
         search_icon = QLabel("🔍")
         apply_scaled_font(search_icon)
-        search_icon.setStyleSheet("color: #6B7280; font-size: 14px;")
+        search_icon.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 14px;")
         search_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.search_edit = QLineEdit()
@@ -721,15 +740,15 @@ class ModernShippingMainWindow(QMainWindow):
         self.search_edit.setFrame(False)
         self.search_edit.setMinimumWidth(0)
         self.search_edit.setStyleSheet(
-            """
+            f"""
             QLineEdit {
                 border: none;
                 background: transparent;
-                color: #1F2937;
+                color: {COLOR_TEXT_PRIMARY};
                 padding: 0;
             }
             QLineEdit::placeholder {
-                color: #9CA3AF;
+                color: {COLOR_TEXT_SECONDARY};
             }
         """
         )
@@ -816,7 +835,7 @@ class ModernShippingMainWindow(QMainWindow):
         button_min_width = 88
 
         self.refresh_top_btn = ModernButton(
-            "Refresh", "outline", min_height=34, min_width=button_min_width
+            "Refresh", "outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=button_min_width
         )
         self.refresh_top_btn.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
@@ -831,7 +850,7 @@ class ModernShippingMainWindow(QMainWindow):
         button_group_layout.addWidget(self.refresh_top_btn)
 
         self.print_top_btn = ModernButton(
-            "Print", "outline", min_height=34, min_width=button_min_width
+            "Print", "outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=button_min_width
         )
         print_icon_enum = getattr(
             QStyle.StandardPixmap,
@@ -863,11 +882,11 @@ class ModernShippingMainWindow(QMainWindow):
         self.avatar_label.setFixedSize(26, 26)
         self.avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.avatar_label.setStyleSheet(
-            """
+            f"""
             background-color: #FFFFFF;
-            color: #1F2937;
-            border-radius: 14px;
-            border: 1px solid #E2E8F0;
+            color: {COLOR_TEXT_PRIMARY};
+            border-radius: {RADIUS_MD}px;
+            border: 1px solid {COLOR_BORDER};
             font-weight: 600;
             """
         )
@@ -879,7 +898,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         user_name_label = QLabel(self.user_info.get("username", ""))
         apply_scaled_font(user_name_label, offset=1, weight=QFont.Weight.Medium)
-        user_name_label.setStyleSheet("color: #1F2937;")
+        user_name_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
 
         role_map = {
             "admin": "System Administrator",
@@ -889,7 +908,7 @@ class ModernShippingMainWindow(QMainWindow):
         role_text = role_map.get(self.user_info.get("role"), "Read Only")
         user_role_label = QLabel(role_text)
         apply_scaled_font(user_role_label, offset=-2)
-        user_role_label.setStyleSheet("color: #6B7280;")
+        user_role_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
 
         text_layout.addWidget(user_name_label)
         text_layout.addWidget(user_role_label)
@@ -897,7 +916,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.connection_indicator = QLabel()
         self.connection_indicator.setFixedSize(8, 8)
         self.connection_indicator.setStyleSheet(
-            "background-color: #22C55E; border: 1px solid #FFFFFF; border-radius: 4px;"
+            f"background-color: {COLOR_SUCCESS}; border: 1px solid #FFFFFF; border-radius: {SPACE_8 // 2}px;"
         )
         self.connection_indicator.setToolTip(f"Connected · {self.server_host}")
 
@@ -911,19 +930,19 @@ class ModernShippingMainWindow(QMainWindow):
         self.settings_btn.setFixedSize(28, 28)
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.setStyleSheet(
-            """
+            f"""
             QToolButton {
-                border: 1px solid #E2E8F0;
-                background-color: #FFFFFF;
-                border-radius: 10px;
+                border: 1px solid {COLOR_BORDER};
+                background-color: {COLOR_SURFACE};
+                border-radius: {RADIUS_MD}px;
             }
             QToolButton:hover {
                 background-color: #F8FAFC;
-                border-color: #CBD5E1;
+                border-color: {COLOR_BORDER_STRONG};
             }
             QToolButton:pressed {
                 background-color: #E2E8F0;
-                border-color: #CBD5E1;
+                border-color: {COLOR_BORDER_STRONG};
             }
         """
         )
@@ -967,34 +986,33 @@ class ModernShippingMainWindow(QMainWindow):
         toolbar_frame.setObjectName(f"actionBar_{module.id}")
         toolbar_frame.setMinimumHeight(48)
         toolbar_frame.setStyleSheet(
-            """
+            f"""
             QFrame {
-                background: #F8FAFC;
-                border-top: 1px solid rgba(148, 163, 184, 0.25);
-                border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-                border-radius: 6px;
+                background: {COLOR_BG_SUBTLE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
             }
         """
         )
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(16, 10, 16, 10)
+        toolbar_layout.setContentsMargins(SPACE_16, SPACE_8, SPACE_16, SPACE_8)
         toolbar_layout.setSpacing(10)
 
-        add_btn = ModernButton("New Shipment", "primary", min_height=36, min_width=104)
+        add_btn = ModernButton("New Shipment", "primary", min_height=CONTROL_HEIGHT_COMPACT, min_width=104)
         apply_scaled_font(add_btn, offset=2, weight=QFont.Weight.Medium)
         add_btn.clicked.connect(self.add_shipment)
 
-        delete_btn = ModernButton("Delete", "danger-outline", min_height=36, min_width=0, padding=(6, 10))
+        delete_btn = ModernButton("Delete", "danger-outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=0, padding=(SPACE_8, 10))
         apply_scaled_font(delete_btn, offset=1, weight=QFont.Weight.Medium)
         delete_btn.setMinimumWidth(92)
         delete_btn.clicked.connect(self.delete_shipment)
         delete_btn.setEnabled(False)
 
-        columns_btn = ModernButton("Columns", "outline", min_height=36, min_width=0, padding=(6, 10))
+        columns_btn = ModernButton("Columns", "outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=0, padding=(SPACE_8, 10))
         columns_btn.clicked.connect(lambda _, module_id=module.id: self.open_columns_menu(module_id))
 
-        export_btn = ModernButton("Export", "outline", min_height=36, min_width=0, padding=(6, 10))
+        export_btn = ModernButton("Export", "outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=0, padding=(SPACE_8, 10))
         export_btn.clicked.connect(lambda _, module_id=module.id: self.show_export_menu(module_id))
 
         primary_layout = QHBoxLayout()
@@ -1033,11 +1051,11 @@ class ModernShippingMainWindow(QMainWindow):
     def create_professional_tabs(self, layout):
         """Crear módulo Shipping con subtabs internas."""
         tabs_container = QFrame()
-        tabs_container.setStyleSheet("""
+        tabs_container.setStyleSheet(f"""
             QFrame {
-                background: #FFFFFF;
-                border: 1px solid #E5E7EB;
-                border-radius: 6px;
+                background: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
             }
         """)
 
@@ -2641,8 +2659,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.status_bar.setStyleSheet("""
             QStatusBar {
                 background: #F9FAFB;
-                border-top: 1px solid #E5E7EB;
-                padding: 6px 15px;
+                border-top: 1px solid #DDE3EA;
+                padding: 8px 16px;
             }
         """)
     
@@ -2650,7 +2668,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Aplicar tema profesional"""
         self.setStyleSheet(f"""
             QMainWindow {{
-                background: #F7F9FC;
+                background: {COLOR_BG_APP};
             }}
             QWidget {{
                 font-family: '{MODERN_FONT}', 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
