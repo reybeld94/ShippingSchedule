@@ -84,45 +84,45 @@ class ModernButton(QPushButton):
 
         if self.button_type == "primary":
             style = base_style + f"""
-                QPushButton {
+                QPushButton {{
                     background-color: {COLOR_PRIMARY};
                     color: #FFFFFF;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: {COLOR_PRIMARY_HOVER};
-                }
-                QPushButton:pressed {
+                }}
+                QPushButton:pressed {{
                     background-color: {COLOR_PRIMARY_PRESSED};
-                }
+                }}
             """
         elif self.button_type in ("secondary", "outline"):
             style = base_style + f"""
-                QPushButton {
+                QPushButton {{
                     background-color: {COLOR_SURFACE};
                     color: {COLOR_TEXT_SECONDARY};
                     border-color: {COLOR_BORDER};
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: #F8FAFC;
                     border-color: {COLOR_BORDER_STRONG};
-                }
-                QPushButton:pressed {
+                }}
+                QPushButton:pressed {{
                     background-color: #E2E8F0;
                     border-color: {COLOR_BORDER_STRONG};
-                }
+                }}
             """
         elif self.button_type == "success":
             style = base_style + f"""
-                QPushButton {
+                QPushButton {{
                     background-color: {COLOR_SUCCESS};
                     color: #FFFFFF;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: {COLOR_SUCCESS_HOVER};
-                }
-                QPushButton:pressed {
+                }}
+                QPushButton:pressed {{
                     background-color: {COLOR_SUCCESS_PRESSED};
-                }
+                }}
             """
         elif self.button_type == "danger":
             style = base_style + """
@@ -357,11 +357,11 @@ class ProfessionalCard(QFrame):
     def apply_card_style(self):
         """Aplicar estilo de tarjeta profesional"""
         self.setStyleSheet(f"""
-            QFrame {
+            QFrame {{
                 background: {COLOR_SURFACE};
                 border: 1px solid {COLOR_BORDER};
                 border-radius: {RADIUS_MD}px;
-            }
+            }}
         """)
     
     def add_widget(self, widget):
