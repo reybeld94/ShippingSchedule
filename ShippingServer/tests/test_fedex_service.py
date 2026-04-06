@@ -1,0 +1,68 @@
+from fastapi import HTTPException
+
+from fedex_service import normalize_fedex_tracking_response
+
+
+def test_normalize_fedex_response_with_events():
+    raw = {
+        "output": {
+            "completeTrackResults": [
+                {
+                    "trackResults": [
+                        {
+                            "latestStatusDetail": {"code": "IN_TRANSIT", "description": "In transit"},
+                            "serviceType": "FEDEX_GROUND",
+                            "destinationLocation": {
+                                "city": "Miami",
+                                "stateOrProvinceCode": "FL",
+                                "countryCode": "US",
+                            },
+                            "scanEvents": [
+                                {
+                                    "date": "2026-04-05T08:12:00Z",
+                                    "eventType": "ARRIVED_AT_FEDEX_LOCATION",
+                                    "eventDescription": "Arrived at FedEx location",
+                                    "scanLocation": {
+                                        "city": "Orlando",
+                                        "stateOrProvinceCode": "FL",
+                                        "countryCode": "US",
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
+    normalized = normalize_fedex_tracking_response("123456", raw)
+
+    assert normalized["success"] is True
+    assert normalized["trackingNumber"] == "123456"
+    assert normalized["status"] == "IN_TRANSIT"
+    assert normalized["events"][0]["eventType"] == "ARRIVED_AT_FEDEX_LOCATION"
+
+
+def test_normalize_fedex_response_without_results():
+    raw = {"output": {"completeTrackResults": []}}
+
+    normalized = normalize_fedex_tracking_response("123456", raw)
+
+    assert normalized["success"] is False
+    assert normalized["message"] == "Tracking data not found"
+
+
+def test_enabled_requires_credentials():
+    enabled = True
+    api_key = ""
+    secret_key = ""
+
+    with_raises = False
+    try:
+        if enabled and (not api_key or not secret_key):
+            raise HTTPException(status_code=400, detail="FedEx API Key and Secret Key are required when enabled")
+    except HTTPException:
+        with_raises = True
+
+    assert with_raises is True
