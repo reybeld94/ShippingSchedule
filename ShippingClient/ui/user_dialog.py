@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import (
     QDialog,
+    QWidget,
     QVBoxLayout,
     QLabel,
     QHBoxLayout,
@@ -160,6 +161,17 @@ class UserManagementDialog(QDialog):
         self.token = token
         self.setWindowTitle("User Management")
         self.setMinimumSize(500, 400)
+        layout = QVBoxLayout(self)
+        self.user_management_widget = UserManagementWidget(self.token)
+        layout.addWidget(self.user_management_widget)
+
+
+class UserManagementWidget(QWidget):
+    """Reusable user management widget for dialogs/tabs."""
+
+    def __init__(self, token, parent=None):
+        super().__init__(parent)
+        self.token = token
         self.setup_ui()
         self.load_users()
 
