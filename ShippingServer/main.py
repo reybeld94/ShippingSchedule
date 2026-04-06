@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocke
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, date
 import json
 import asyncio
 import logging
@@ -12,7 +12,7 @@ from sqlalchemy.orm.exc import StaleDataError
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
-from models import User, Shipment, AuditLog, AppConnectionSettings
+from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings
 from auth import authenticate_user, create_access_token, get_current_user, get_current_admin_user, Token, UserLogin, UserCreate
 from pydantic import BaseModel
 from fedex_service import FedExService
@@ -141,6 +141,51 @@ class FedExConnectionSettingsUpdate(BaseModel):
 
 class FedExTrackRequest(BaseModel):
     trackingNumber: str
+
+
+class ShippingLogResponse(BaseModel):
+    id: int
+    shipment_id: int | None = None
+    job_number: str = ""
+    changed_by: int
+    username: str
+    action: str
+    field_name: str
+    old_value: str
+    new_value: str
+    changed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+def _safe_text(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _append_shipping_logs(
+    db: Session,
+    *,
+    shipment_id: int | None,
+    action: str,
+    user_id: int,
+    changes: dict[str, dict[str, str]],
+):
+    for field_name, diff in changes.items():
+        db.add(
+            ShippingLog(
+                shipment_id=shipment_id,
+                changed_by=user_id,
+                action=action,
+                field_name=field_name,
+                old_value=_safe_text(diff.get("old")),
+                new_value=_safe_text(diff.get("new")),
+            )
+        )
 
 # ============ ENDPOINTS DE AUTENTICACIÓN ============
 
@@ -402,8 +447,6 @@ async def get_shipment_by_id(
         raise HTTPException(status_code=404, detail="Shipment not found")
     return shipment
 
-from models import AuditLog  # asegúrate de importar AuditLog arriba
-
 # Utilidad para limpiar un job_number sin generar sufijos únicos
 def clean_job_number(job_number: str) -> str:
     """Limpiar job number sin generar únicos"""
@@ -456,6 +499,19 @@ async def create_shipment(
                     changes=json.dumps(audit_changes)
                 )
                 db.add(log)
+
+                shipping_changes = {
+                    field_name: {"old": "", "new": _safe_text(value)}
+                    for field_name, value in shipment_data.items()
+                    if value not in (None, "")
+                }
+                _append_shipping_logs(
+                    db,
+                    shipment_id=new_shipment.id,
+                    action="create",
+                    user_id=current_user.id,
+                    changes=shipping_changes,
+                )
             except ValueError as e:
                 db.rollback()
                 logger.warning(f"Validation error creating shipment: {e}")
@@ -601,6 +657,13 @@ async def update_shipment(
             changes=json.dumps(changes_made)
         )
         db.add(log)
+        _append_shipping_logs(
+            db,
+            shipment_id=shipment.id,
+            action="update",
+            user_id=current_user.id,
+            changes=changes_made,
+        )
 
         logger.info(f"Successfully updated shipment {shipment_id} to version {shipment.version}")
         db.commit()
@@ -679,6 +742,17 @@ async def delete_shipment(
     }
     
     job_number = shipment.job_number
+    shipping_changes = {
+        field_name: {"old": _safe_text(value), "new": ""}
+        for field_name, value in backup_data.items()
+    }
+    _append_shipping_logs(
+        db,
+        shipment_id=shipment.id,
+        action="delete",
+        user_id=current_user.id,
+        changes=shipping_changes,
+    )
     db.delete(shipment)
     db.commit()
 
@@ -755,6 +829,56 @@ async def get_audit_logs(limit: int = Query(100), db: Session = Depends(get_db),
         }
         for log in logs
     ]    
+
+
+@app.get("/shipping-logs", response_model=List[ShippingLogResponse])
+async def get_shipping_logs(
+    start_date: date | None = Query(None, description="Start date in YYYY-MM-DD format"),
+    end_date: date | None = Query(None, description="End date in YYYY-MM-DD format"),
+    limit: int = Query(1000, ge=1, le=5000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    today = datetime.utcnow().date()
+    effective_end_date = end_date or today
+    effective_start_date = start_date or (effective_end_date - timedelta(days=30))
+
+    if effective_start_date > effective_end_date:
+        raise HTTPException(status_code=400, detail="start_date must be before or equal to end_date")
+
+    start_dt = datetime.combine(effective_start_date, datetime.min.time())
+    end_dt = datetime.combine(effective_end_date + timedelta(days=1), datetime.min.time())
+
+    logs = (
+        db.query(ShippingLog)
+        .filter(ShippingLog.changed_at >= start_dt)
+        .filter(ShippingLog.changed_at < end_dt)
+        .order_by(ShippingLog.changed_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    shipment_ids = {log.shipment_id for log in logs if log.shipment_id is not None}
+    shipments_by_id = {}
+    if shipment_ids:
+        shipments = db.query(Shipment.id, Shipment.job_number).filter(Shipment.id.in_(shipment_ids)).all()
+        shipments_by_id = {shipment.id: shipment.job_number for shipment in shipments}
+
+    return [
+        ShippingLogResponse(
+            id=log.id,
+            shipment_id=log.shipment_id,
+            job_number=shipments_by_id.get(log.shipment_id, ""),
+            changed_by=log.changed_by,
+            username=log.user.username if log.user else "Unknown",
+            action=log.action,
+            field_name=log.field_name,
+            old_value=log.old_value or "",
+            new_value=log.new_value or "",
+            changed_at=log.changed_at,
+        )
+        for log in logs
+    ]
 
 if __name__ == "__main__":
     import uvicorn
