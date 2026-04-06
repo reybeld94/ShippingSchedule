@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QMessageBox,
     QStyle,
+    QCheckBox,
 )
 from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtCore import Qt
@@ -275,12 +276,34 @@ class ModernShipmentDialog(QDialog):
         # Invoice Number
         details_layout.addWidget(self.create_field_label("Invoice Number"), 0, 0)
         self.invoice_edit = ModernLineEdit("Invoice number")
-        details_layout.addWidget(self.invoice_edit, 0, 1, 1, 3)
-        
-        # Notes
-        details_layout.addWidget(self.create_field_label("Notes"), 1, 0)
+        details_layout.addWidget(self.invoice_edit, 0, 1)
+
+        # Tracking Number
+        details_layout.addWidget(self.create_field_label("Tracking Number"), 0, 2)
+        self.tracking_edit = ModernLineEdit("Tracking number")
+        details_layout.addWidget(self.tracking_edit, 0, 3)
+
+        # Address flag
+        details_layout.addWidget(self.create_field_label("Address"), 1, 0)
+        self.address_checkbox = QCheckBox("Address available")
+        self.address_checkbox.setStyleSheet(
+            """
+            QCheckBox {
+                color: #374151;
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+            """
+        )
+        details_layout.addWidget(self.address_checkbox, 1, 1, 1, 3)
+
+        # Shipping notes
+        details_layout.addWidget(self.create_field_label("Shipping Notes"), 2, 0)
         self.notes_edit = self.create_professional_text_edit(60)
-        details_layout.addWidget(self.notes_edit, 1, 1, 1, 3)
+        details_layout.addWidget(self.notes_edit, 2, 1, 1, 3)
         
         details_card.add_layout(details_layout)
         layout.addWidget(details_card)
@@ -418,6 +441,8 @@ class ModernShipmentDialog(QDialog):
             self.ship_plan_edit.setText(safe_str(data.get("ship_plan")))
             self.shipped_edit.setText(safe_str(data.get("shipped")))
             self.invoice_edit.setText(safe_str(data.get("invoice_number")))
+            self.tracking_edit.setText(safe_str(data.get("tracking_number")))
+            self.address_checkbox.setChecked(bool(data.get("address")))
             self.notes_edit.setPlainText(safe_str(data.get("shipping_notes")))
             
             print("Formulario poblado con datos existentes")
@@ -463,6 +488,8 @@ class ModernShipmentDialog(QDialog):
                 "ship_plan": self.ship_plan_edit.text().strip(),
                 "shipped": self.shipped_edit.text().strip(),
                 "invoice_number": self.invoice_edit.text().strip(),
+                "tracking_number": self.tracking_edit.text().strip(),
+                "address": self.address_checkbox.isChecked(),
                 "shipping_notes": self.notes_edit.toPlainText().strip()
             }
             
