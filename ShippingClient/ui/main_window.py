@@ -13,6 +13,7 @@ from core.api_client import RobustApiClient
 from core.mie_trak_client import get_mie_trak_address
 from PyQt6.QtWidgets import (
     QApplication,
+    QAbstractItemView,
     QMainWindow,
     QWidget,
     QVBoxLayout,
@@ -2634,6 +2635,10 @@ class ModernShippingMainWindow(QMainWindow):
     def on_table_cell_clicked(self, table, row: int, column: int):
         if column != self.TRACKING_COLUMN_INDEX:
             return
+        if table.state() == QAbstractItemView.State.EditingState:
+            return
+        if QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier:
+            return
         item = table.item(row, column)
         if not item:
             return
@@ -2945,10 +2950,12 @@ class ModernShippingMainWindow(QMainWindow):
                 tracking_font.setUnderline(True)
                 item.setFont(tracking_font)
                 item.setForeground(QBrush(QColor("#1D4ED8")))
-                item.setToolTip("Click to view FedEx tracking details")
+                item.setToolTip("Ctrl+Click to view FedEx tracking details")
 
             tooltip = metadata["tooltip"]
-            if tooltip:
+            if col == self.TRACKING_COLUMN_INDEX and metadata["normalized"]:
+                pass
+            elif tooltip:
                 item.setToolTip(tooltip)
             else:
                 item.setToolTip("")
