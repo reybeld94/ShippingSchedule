@@ -92,11 +92,11 @@ class ModernLoginDialog(QDialog):
         login_card = QFrame()
         login_card.setFixedWidth(420)
         login_card.setStyleSheet(f"""
-            QFrame {
+            QFrame {{
                 background: #FFFFFF;
                 border: 1px solid #E5EAF0;
                 border-radius: {RADIUS_MD}px;
-            }
+            }}
         """)
         
         card_layout = QVBoxLayout(login_card)
