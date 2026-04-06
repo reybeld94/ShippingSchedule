@@ -52,8 +52,9 @@ class FedExService:
                 raise HTTPException(status_code=502, detail="Unable to authenticate with FedEx right now") from exc
 
             if response.status_code != 200:
-                logger.warning("FedEx auth failed: status=%s", response.status_code)
-                raise HTTPException(status_code=502, detail="FedEx authentication failed")
+                body_preview = _safe_body_preview(response.text)
+                logger.warning("FedEx auth failed: status=%s body=%s", response.status_code, body_preview)
+                raise HTTPException(status_code=502, detail=_build_auth_error_detail(response.status_code))
 
             data = response.json()
             token = str(data.get("access_token") or "").strip()
@@ -197,3 +198,19 @@ def _extract_date_time(entries: list[dict[str, Any]], date_type: str) -> str | N
         if entry.get("type") == date_type and entry.get("dateTime"):
             return str(entry["dateTime"])
     return None
+
+
+def _safe_body_preview(raw_text: str, max_chars: int = 300) -> str:
+    text = (raw_text or "").strip().replace("\n", " ")
+    if len(text) <= max_chars:
+        return text
+    return f"{text[:max_chars]}..."
+
+
+def _build_auth_error_detail(status_code: int) -> str:
+    if status_code in (401, 403):
+        return (
+            "FedEx authentication failed: verify API Key/Secret Key and FEDEX_BASE_URL "
+            "(sandbox credentials require https://apis-sandbox.fedex.com)"
+        )
+    return "FedEx authentication failed"

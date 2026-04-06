@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 
-from fedex_service import normalize_fedex_tracking_response
+from fedex_service import _build_auth_error_detail, _safe_body_preview, normalize_fedex_tracking_response
 
 
 def test_normalize_fedex_response_with_events():
@@ -66,3 +66,15 @@ def test_enabled_requires_credentials():
         with_raises = True
 
     assert with_raises is True
+
+
+def test_build_auth_error_detail_for_forbidden_status():
+    detail = _build_auth_error_detail(403)
+    assert "FEDEX_BASE_URL" in detail
+    assert "apis-sandbox.fedex.com" in detail
+
+
+def test_safe_body_preview_truncates_long_payload():
+    preview = _safe_body_preview("x" * 350, max_chars=25)
+    assert preview.endswith("...")
+    assert len(preview) == 28
