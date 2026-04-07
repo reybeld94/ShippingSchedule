@@ -437,6 +437,63 @@ class StatusChipDelegate(QStyledItemDelegate):
         hint = super().sizeHint(option, index)
         return QSize(hint.width(), max(hint.height(), 40))
 
+
+class WrapAnywhereDelegate(QStyledItemDelegate):
+    """Paint and measure table text allowing breaks inside long words."""
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        if not text:
+            super().paint(painter, option, index)
+            return
+
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+
+        text_rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, widget)
+        text_rect = text_rect.adjusted(2, 1, -2, -1)
+
+        text_flags = int(
+            opt.displayAlignment
+            | Qt.TextFlag.TextDontClip
+            | Qt.TextFlag.TextWordWrap
+            | Qt.TextFlag.TextWrapAnywhere
+            | Qt.TextFlag.TextExpandTabs
+        )
+
+        pen = (
+            opt.palette.highlightedText().color()
+            if opt.state & QStyle.StateFlag.State_Selected
+            else opt.palette.text().color()
+        )
+
+        painter.save()
+        painter.setPen(pen)
+        painter.setFont(opt.font)
+        painter.drawText(text_rect, text_flags, text)
+        painter.restore()
+
+    def sizeHint(self, option, index):  # type: ignore[override]
+        hint = super().sizeHint(option, index)
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        if not text:
+            return hint
+
+        available_width = max(24, option.rect.width() - 12)
+        metrics = QFontMetrics(option.font)
+        bounding = metrics.boundingRect(
+            QRect(0, 0, available_width, 1000),
+            int(Qt.TextFlag.TextWordWrap | Qt.TextFlag.TextWrapAnywhere),
+            text,
+        )
+        return QSize(hint.width(), max(hint.height(), bounding.height() + 12))
+
+
 class ModernShippingMainWindow(QMainWindow):
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
@@ -567,6 +624,7 @@ class ModernShippingMainWindow(QMainWindow):
         }
         self._pinned_views: Dict[str, dict[str, object]] = {}
         self.status_chip_delegate = StatusChipDelegate(self)
+        self.wrap_anywhere_delegate = WrapAnywhereDelegate(self)
         self._refresh_animation: Optional[QVariantAnimation] = None
         self._refresh_icon_base: Optional[QPixmap] = None
         self._refresh_animating = False
@@ -1824,9 +1882,9 @@ class ModernShippingMainWindow(QMainWindow):
         table.setAlternatingRowColors(True)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
-        table.setWordWrap(False)
+        table.setWordWrap(True)
         table.setMouseTracking(True)
-        table.setTextElideMode(Qt.TextElideMode.ElideRight)
+        table.setTextElideMode(Qt.TextElideMode.ElideNone)
         # Ajustar altura de filas en función del tamaño de fuente sin penalizar rendimiento
         self._configure_table_row_metrics(table)
 
@@ -1852,6 +1910,7 @@ class ModernShippingMainWindow(QMainWindow):
                 width = min(width, max_width)
             table.setColumnWidth(index, width)
 
+        table.setItemDelegate(self.wrap_anywhere_delegate)
         table.setItemDelegateForColumn(0, self.status_chip_delegate)
 
         # Delegates para campos de fecha
@@ -1982,7 +2041,8 @@ class ModernShippingMainWindow(QMainWindow):
         pinned_view.setAlternatingRowColors(True)
         pinned_view.horizontalHeader().setVisible(False)
         pinned_view.verticalHeader().setVisible(False)
-        pinned_view.setTextElideMode(Qt.TextElideMode.ElideRight)
+        pinned_view.setWordWrap(True)
+        pinned_view.setTextElideMode(Qt.TextElideMode.ElideNone)
         pinned_view.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         pinned_view.viewport().setAutoFillBackground(True)
         pinned_view.setStyleSheet(
@@ -2138,6 +2198,7 @@ class ModernShippingMainWindow(QMainWindow):
                         header.blockSignals(False)
 
         self.save_table_column_widths(table, name)
+        self._refresh_visible_row_heights(table)
         self.refresh_pinned_columns(table, name)
         if column < table.columnCount():
             self.update_pinned_column_width(table, name, column)
@@ -2745,6 +2806,24 @@ class ModernShippingMainWindow(QMainWindow):
 
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         vertical_header.setDefaultSectionSize(default_height)
+
+    def _refresh_visible_row_heights(self, table):
+        """Resize only visible rows so wrapped text adapts when columns change."""
+        if table is None:
+            return
+
+        row_count = table.rowCount()
+        if row_count <= 0:
+            return
+
+        top_row = table.rowAt(0)
+        bottom_row = table.rowAt(table.viewport().height() - 1)
+        if top_row < 0 or bottom_row < 0:
+            table.resizeRowsToContents()
+            return
+
+        for row in range(top_row, min(bottom_row + 1, row_count)):
+            table.resizeRowToContents(row)
 
     def _refresh_table_item_fonts(self, table):
         """Update table item fonts according to the active preference."""
@@ -3625,9 +3704,8 @@ class ModernShippingMainWindow(QMainWindow):
                 self.update_search_visibility(table, table_name)
             self.apply_row_filters(table, table_name)
 
-            # El ajuste de filas a su contenido puede ser costoso para miles de
-            # registros. Dejamos un tamaño fijo establecido en la configuración
             table.setUpdatesEnabled(True)
+            self._refresh_visible_row_heights(table)
             self.refresh_pinned_columns(table, table_name)
             self.updating_table = False
             print(
