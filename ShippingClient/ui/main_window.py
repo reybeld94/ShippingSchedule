@@ -497,6 +497,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.print_shortcut: Optional[QShortcut] = None
         self.clear_filters_shortcut: Optional[QShortcut] = None
         self._session_expired = False
+        self._is_loading_shipments = False
+        self._pending_shipment_reload = False
         self.shipping_logs = []
 
         # Mapa de columna a campo de API para ediciones inline
@@ -2892,13 +2894,14 @@ class ModernShippingMainWindow(QMainWindow):
             if msg_type in ["shipment_created", "shipment_updated", "shipment_deleted"]:
                 action_by = data["data"].get("action_by", "User")
                 job_number = data["data"].get("job_number", "")
+                is_own_action = self._is_action_from_current_user(action_by)
 
                 # Solo recargar para actualizaciones realizadas por otros usuarios
-                if msg_type != "shipment_updated" or action_by != self.user_info.get("username"):
+                if msg_type != "shipment_updated" or not is_own_action:
                     self.load_shipments_async()
 
                 # Notificación discreta solo si la acción la realizó otro usuario
-                if action_by != self.user_info.get("username"):
+                if not is_own_action:
                     if msg_type == "shipment_created":
                         self.show_toast(f"New shipment created: Job #{job_number}")
                     elif msg_type == "shipment_updated":
@@ -3042,13 +3045,15 @@ class ModernShippingMainWindow(QMainWindow):
         if self._session_expired:
             print("Expired session detected; skipping shipment reload.")
             return
+        if self._is_loading_shipments:
+            self._pending_shipment_reload = True
+            print("Shipment load already in progress; queuing reload.")
+            return
+
+        self._is_loading_shipments = True
         print("Starting asynchronous shipment load...")
         self.record_count_label.setText("Loading records...")
         self._show_loading_indicator()
-        # Detener hilo previo si todavía se está ejecutando
-        if hasattr(self, "shipment_loader") and self.shipment_loader.isRunning():
-            self.shipment_loader.quit()
-            self.shipment_loader.wait()
 
         self.shipment_loader = ShipmentLoader(self.api_client)
         self.shipment_loader.data_loaded.connect(self.on_shipments_loaded)
@@ -3057,6 +3062,7 @@ class ModernShippingMainWindow(QMainWindow):
 
     def on_shipments_loaded(self, shipments):
         """Callback cuando se cargan los shipments"""
+        self._is_loading_shipments = False
         self._hide_loading_indicator()
         print(f"Shipments cargados: {len(shipments)}")
         self.shipments = shipments
@@ -3080,9 +3086,11 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.update_status()
         self.update_filter_button_state()
+        self._trigger_pending_shipment_reload_if_needed()
 
     def on_shipments_error(self, error_msg):
         """Callback cuando hay error cargando shipments"""
+        self._is_loading_shipments = False
         self._hide_loading_indicator()
         print(f"Error loading shipments: {error_msg}")
         normalized_error = str(error_msg or "").lower()
@@ -3116,6 +3124,26 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.show_error(f"Failed to load shipments: {error_msg}")
         self.record_count_label.setText("Error loading records")
+        self._trigger_pending_shipment_reload_if_needed()
+
+    def _trigger_pending_shipment_reload_if_needed(self):
+        if self._session_expired or not self._pending_shipment_reload:
+            return
+        self._pending_shipment_reload = False
+        self.load_shipments_async()
+
+    def _is_action_from_current_user(self, action_by) -> bool:
+        action_value = str(action_by or "").strip().lower()
+        if not action_value:
+            return False
+
+        candidates = {
+            str(self.user_info.get("username", "")).strip().lower(),
+            str(self.user_info.get("id", "")).strip().lower(),
+            str(self.user_info.get("user_id", "")).strip().lower(),
+        }
+        candidates.discard("")
+        return action_value in candidates
     
     def populate_active_table(self):
         """Poblar tabla activa"""
