@@ -437,6 +437,63 @@ class StatusChipDelegate(QStyledItemDelegate):
         hint = super().sizeHint(option, index)
         return QSize(hint.width(), max(hint.height(), 40))
 
+
+class WrapAnywhereDelegate(QStyledItemDelegate):
+    """Paint and measure table text allowing breaks inside long words."""
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        if not text:
+            super().paint(painter, option, index)
+            return
+
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+
+        text_rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, widget)
+        text_rect = text_rect.adjusted(2, 1, -2, -1)
+
+        text_flags = int(
+            opt.displayAlignment
+            | Qt.TextFlag.TextDontClip
+            | Qt.TextFlag.TextWordWrap
+            | Qt.TextFlag.TextWrapAnywhere
+            | Qt.TextFlag.TextExpandTabs
+        )
+
+        pen = (
+            opt.palette.highlightedText().color()
+            if opt.state & QStyle.StateFlag.State_Selected
+            else opt.palette.text().color()
+        )
+
+        painter.save()
+        painter.setPen(pen)
+        painter.setFont(opt.font)
+        painter.drawText(text_rect, text_flags, text)
+        painter.restore()
+
+    def sizeHint(self, option, index):  # type: ignore[override]
+        hint = super().sizeHint(option, index)
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        if not text:
+            return hint
+
+        available_width = max(24, option.rect.width() - 12)
+        metrics = QFontMetrics(option.font)
+        bounding = metrics.boundingRect(
+            QRect(0, 0, available_width, 1000),
+            int(Qt.TextFlag.TextWordWrap | Qt.TextFlag.TextWrapAnywhere),
+            text,
+        )
+        return QSize(hint.width(), max(hint.height(), bounding.height() + 12))
+
+
 class ModernShippingMainWindow(QMainWindow):
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
@@ -567,6 +624,7 @@ class ModernShippingMainWindow(QMainWindow):
         }
         self._pinned_views: Dict[str, dict[str, object]] = {}
         self.status_chip_delegate = StatusChipDelegate(self)
+        self.wrap_anywhere_delegate = WrapAnywhereDelegate(self)
         self._refresh_animation: Optional[QVariantAnimation] = None
         self._refresh_icon_base: Optional[QPixmap] = None
         self._refresh_animating = False
@@ -1852,6 +1910,7 @@ class ModernShippingMainWindow(QMainWindow):
                 width = min(width, max_width)
             table.setColumnWidth(index, width)
 
+        table.setItemDelegate(self.wrap_anywhere_delegate)
         table.setItemDelegateForColumn(0, self.status_chip_delegate)
 
         # Delegates para campos de fecha
