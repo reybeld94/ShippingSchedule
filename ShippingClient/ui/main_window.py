@@ -460,7 +460,7 @@ class ModernShippingMainWindow(QMainWindow):
             date_filter_columns=[3, 5, 6],
             toolbar_actions={
                 "allow_add": True,
-                "visible": ["add", "delete", "columns", "export"],
+                "visible": ["add", "delete", "print", "columns", "export"],
             },
             context_actions=[
                 "refresh",
@@ -879,7 +879,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.print_shortcut = QShortcut(QKeySequence("Ctrl+P"), self)
         self.print_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        self.print_shortcut.activated.connect(self.print_table_to_pdf)
+        self.print_shortcut.activated.connect(self.handle_print_shortcut)
 
         self.clear_filters_shortcut = QShortcut(QKeySequence("Ctrl+L"), self)
         self.clear_filters_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -927,20 +927,6 @@ class ModernShippingMainWindow(QMainWindow):
         )
         button_group_layout.addWidget(self.refresh_top_btn)
 
-        self.print_top_btn = ModernButton(
-            "Print", "secondary", min_height=CONTROL_HEIGHT, min_width=button_min_width, padding=(SPACE_8, SPACE_16)
-        )
-        print_icon_enum = getattr(
-            QStyle.StandardPixmap,
-            "SP_DialogPrintButton",
-            QStyle.StandardPixmap.SP_FileDialogDetailedView,
-        )
-        self.print_top_btn.setIcon(self.style().standardIcon(print_icon_enum))
-        self.print_top_btn.setIconSize(QSize(16, 16))
-        self.print_top_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.print_top_btn.clicked.connect(self.print_table_to_pdf)
-        button_group_layout.addWidget(self.print_top_btn)
-
         subtle_action_style = f"""
             QPushButton {{
                 background-color: {COLOR_BG_SUBTLE};
@@ -959,7 +945,6 @@ class ModernShippingMainWindow(QMainWindow):
             }}
         """
         self.refresh_top_btn.setStyleSheet(self.refresh_top_btn.styleSheet() + subtle_action_style)
-        self.print_top_btn.setStyleSheet(self.print_top_btn.styleSheet() + subtle_action_style)
 
         right_layout.addWidget(button_group)
 
@@ -1227,6 +1212,22 @@ class ModernShippingMainWindow(QMainWindow):
         )
         export_btn.clicked.connect(lambda _, module_id=module.id: self.show_export_menu(module_id))
 
+        print_btn = ModernButton(
+            "Print",
+            "outline",
+            min_height=32,
+            min_width=78,
+            padding=(6, 10),
+        )
+        print_icon_enum = getattr(
+            QStyle.StandardPixmap,
+            "SP_DialogPrintButton",
+            QStyle.StandardPixmap.SP_FileDialogDetailedView,
+        )
+        print_btn.setIcon(self.style().standardIcon(print_icon_enum))
+        print_btn.setIconSize(QSize(16, 16))
+        print_btn.clicked.connect(self.print_active_shipments_to_pdf)
+
         primary_layout = QHBoxLayout()
         primary_layout.setContentsMargins(0, 0, 0, 0)
         primary_layout.setSpacing(10)
@@ -1236,6 +1237,7 @@ class ModernShippingMainWindow(QMainWindow):
         secondary_layout = QHBoxLayout()
         secondary_layout.setContentsMargins(0, 0, 0, 0)
         secondary_layout.setSpacing(10)
+        secondary_layout.addWidget(print_btn)
         secondary_layout.addWidget(columns_btn)
         secondary_layout.addWidget(export_btn)
 
@@ -1255,6 +1257,7 @@ class ModernShippingMainWindow(QMainWindow):
             "delete": delete_btn,
             "columns": columns_btn,
             "export": export_btn,
+            "print": print_btn,
             "export_menu": export_menu,
             "export_visible_action": export_visible_action,
             "export_all_filtered_action": export_all_filtered_action,
@@ -1589,6 +1592,14 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         self.sills_refresh_btn = ModernButton("Refresh", "outline", min_height=32, min_width=84, padding=(6, 10))
+        self.sills_print_btn = ModernButton("Print", "outline", min_height=32, min_width=84, padding=(6, 10))
+        sills_print_icon_enum = getattr(
+            QStyle.StandardPixmap,
+            "SP_DialogPrintButton",
+            QStyle.StandardPixmap.SP_FileDialogDetailedView,
+        )
+        self.sills_print_btn.setIcon(self.style().standardIcon(sills_print_icon_enum))
+        self.sills_print_btn.setIconSize(QSize(16, 16))
 
         primary_actions = QHBoxLayout()
         primary_actions.setContentsMargins(0, 0, 0, 0)
@@ -1600,6 +1611,7 @@ class ModernShippingMainWindow(QMainWindow):
         secondary_actions = QHBoxLayout()
         secondary_actions.setContentsMargins(0, 0, 0, 0)
         secondary_actions.setSpacing(10)
+        secondary_actions.addWidget(self.sills_print_btn)
         secondary_actions.addWidget(self.sills_refresh_btn)
 
         actions_layout.addLayout(primary_actions)
@@ -1666,6 +1678,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_edit_btn.clicked.connect(self.open_edit_sill_dialog)
         self.sills_delete_btn.clicked.connect(self.delete_sill)
         self.sills_refresh_btn.clicked.connect(self.load_sills)
+        self.sills_print_btn.clicked.connect(self.print_sills_sheet_to_pdf)
         self.sills_logs_refresh_btn.clicked.connect(self.load_sills_logs)
         self.sills_table.itemDoubleClicked.connect(lambda _: self.open_edit_sill_dialog())
         tabs.currentChanged.connect(lambda idx: self.load_sills_logs() if idx == 1 else self.load_sills())
@@ -2378,8 +2391,8 @@ class ModernShippingMainWindow(QMainWindow):
         if not controls or module is None:
             return
 
-        visible_actions = set(module.toolbar_actions.get("visible", ["add", "delete", "columns", "export"]))
-        for action_name in ("add", "delete", "columns", "export"):
+        visible_actions = set(module.toolbar_actions.get("visible", ["add", "delete", "print", "columns", "export"]))
+        for action_name in ("add", "delete", "print", "columns", "export"):
             widget = controls.get(action_name)
             if isinstance(widget, QWidget):
                 widget.setVisible(action_name in visible_actions)
@@ -3425,10 +3438,9 @@ class ModernShippingMainWindow(QMainWindow):
         widgets = [
             *self.tab_tables.values(),
             self.refresh_top_btn,
-            self.print_top_btn,
         ]
         for controls in self.tab_toolbars.values():
-            for key in ("add", "delete", "columns", "export"):
+            for key in ("add", "delete", "print", "columns", "export"):
                 widget = controls.get(key)
                 if isinstance(widget, QWidget):
                     widgets.append(widget)
@@ -4199,8 +4211,67 @@ class ModernShippingMainWindow(QMainWindow):
             self.setup_websocket()
             self.load_shipments_async()
 
-    def print_table_to_pdf(self):
-        """Export current table view to a professional PDF that fits on one page"""
+    def handle_print_shortcut(self):
+        """Dispatch Ctrl+P based on the active module/subtab."""
+        if self.main_tab_widget.currentWidget() == self.sills_page:
+            if self.sills_tab_widget.currentIndex() == 0:
+                self.print_sills_sheet_to_pdf()
+                return
+            self.show_toast("Print is available only in Sills Sheet.", color="#F59E0B")
+            return
+
+        if self.get_current_tab_id() == "active":
+            self.print_active_shipments_to_pdf()
+            return
+
+        self.show_toast("Print is available only in Active Shipments.", color="#F59E0B")
+
+    def print_active_shipments_to_pdf(self):
+        """Export Active Shipments table to PDF."""
+        self._print_table_to_pdf(
+            table=self.active_table,
+            tab_name="Active_Shipments",
+            title="Shipping Schedule - Active Shipments",
+            headers=[
+                "Job Number",
+                "Job Name",
+                "Description",
+                "QC Release",
+                "Crated",
+                "Ship Plan",
+            ],
+            column_map=[0, 1, 2, 3, 5, 6],
+        )
+
+    def print_sills_sheet_to_pdf(self):
+        """Export Sills Sheet in horizontal 11x17 format."""
+        self._print_table_to_pdf(
+            table=self.sills_table,
+            tab_name="Sills_Sheet",
+            title="Sills Sheet",
+            headers=[
+                "Material",
+                "Dimension",
+                "Location",
+                "Die #",
+                "Type",
+                "Speed",
+                "Width",
+                "Sales Order",
+                "Work Order",
+                "Assembly Number",
+                "Description",
+                "Qty",
+                "Dimension Needed",
+                "Notes",
+                "Week to Print",
+            ],
+            column_map=list(range(15)),
+            page_size=(17, 11),
+        )
+
+    def _print_table_to_pdf(self, table, tab_name: str, title: str, headers: list[str], column_map: list[int], page_size: tuple[float, float] = (8.5, 14)):
+        """Generic PDF exporter used by Active Shipments and Sills Sheet."""
         # Verificar dependencias antes de continuar
         missing_deps = []
 
@@ -4247,64 +4318,39 @@ class ModernShippingMainWindow(QMainWindow):
             )
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-            # Determinar nombre según tab actual
-            current_module = self.get_tab_module_config(self.get_current_tab_id())
-            tab_name = (current_module.label if current_module else "Tab").replace(" ", "_")
             file_path = os.path.join(
                 docs_dir, f"Shipping_Schedule_{tab_name}_{timestamp}.pdf"
             )
 
-            # Usar formato vertical con papel Legal (8.5" x 14")
-            page_width, page_height = LEGAL
+            # Formato configurable; por defecto Legal vertical 8.5x14
+            if page_size == (8.5, 14):
+                page_width, page_height = LEGAL
+            else:
+                page_width, page_height = (page_size[0] * inch, page_size[1] * inch)
 
             # Márgenes mínimos para maximizar espacio disponible
             margin = 20
             doc = SimpleDocTemplate(
                 file_path,
-                pagesize=LEGAL,
+                pagesize=(page_width, page_height),
                 leftMargin=margin,
                 rightMargin=margin,
                 topMargin=margin,
                 bottomMargin=margin,
             )
 
-            # Obtener tabla actual y datos
-            current_table = self.get_current_table()
-            rows = current_table.rowCount()
+            rows = table.rowCount()
 
             if rows == 0:
                 self.show_error("No data to export")
                 return
-
-            # Solo las columnas necesarias
-            headers = [
-                "Job Number",
-                "Job Name",
-                "Description",
-                "QC Release",
-                "Crated",
-                "Ship Plan",
-            ]
-
-            # Mapeo de columnas: posición en el PDF -> columna en la tabla original
-            # La tabla principal tiene las columnas en el siguiente orden:
-            # 0: Job Number, 1: Job Name, 2: Description, 3: QC Release,
-            # 4: QC Notes, 5: Crated, 6: Ship Plan, 7: Shipped, 8: Invoice Number, 9: Notes
-            # Para el PDF solo exportamos seis columnas específicas y es importante
-            # que los índices coincidan exactamente con el orden de la tabla para
-            # evitar desalineaciones.  El mapeo anterior usaba los índices
-            # [0, 1, 2, 4, 6, 7], lo que provocaba que la columna "QC Release"
-            # mostrara los datos de "QC Notes" y que las columnas siguientes se
-            # desplazaran.  Ajustamos el mapeo para que cada encabezado apunte a la
-            # columna correcta.
-            column_map = [0, 1, 2, 3, 5, 6]
 
             # Preparar datos con solo las columnas seleccionadas
             raw_data = [headers]
             for row in range(rows):
                 row_data = []
                 for col_index in column_map:
-                    item = current_table.item(row, col_index)
+                    item = table.item(row, col_index)
                     text = item.text() if item else ""
                     row_data.append(text)
                 raw_data.append(row_data)
@@ -4326,7 +4372,7 @@ class ModernShippingMainWindow(QMainWindow):
                 alignment=1,  # Center
             )
 
-            title = Paragraph(f"Shipping Schedule - {tab_name}", title_style)
+            title = Paragraph(title, title_style)
             title_height = 25  # Estimado para el título compacto
 
             # Espacio disponible para la tabla
@@ -4339,11 +4385,7 @@ class ModernShippingMainWindow(QMainWindow):
 
             # === ALGORITMO DE AJUSTE AUTOMÁTICO ===
 
-            # Anchos relativos optimizados para las 6 columnas en formato vertical
-            relative_widths = [0.12, 0.25, 0.30, 0.12, 0.11, 0.10]
-
-            # Calcular anchos absolutos
-            col_widths = [available_width * w for w in relative_widths]
+            col_widths = [available_width / len(headers)] * len(headers)
 
             # Función para crear tabla con parámetros dados
             def create_table_with_params(font_size, padding, row_height_factor=1.0):
@@ -4395,8 +4437,7 @@ class ModernShippingMainWindow(QMainWindow):
                         ("FONTSIZE", (0, 1), (-1, -1), font_size),
                         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
 
-                        # Alineación optimizada para las 6 columnas
-                        ("ALIGN", (3, 0), (5, -1), "CENTER"),
+                        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
 
                         # Padding
