@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget,
     QTabWidget,
     QCheckBox,
+    QFrame,
 )
 from PyQt6.QtGui import QFont
 
@@ -18,6 +19,19 @@ from core.settings_manager import SettingsManager
 from core.config import MODERN_FONT
 from core.api_client import RobustApiClient
 from .utils import apply_scaled_font
+from .style_tokens import (
+    COLOR_BG_SUBTLE,
+    COLOR_BORDER,
+    COLOR_SURFACE,
+    COLOR_TEXT_PRIMARY,
+    COLOR_TEXT_SECONDARY,
+    CONTROL_HEIGHT,
+    RADIUS_LG,
+    SPACE_12,
+    SPACE_16,
+    SPACE_20,
+    SPACE_8,
+)
 
 
 class SettingsDialog(QDialog):
@@ -41,7 +55,28 @@ class SettingsDialog(QDialog):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(SPACE_20, SPACE_20, SPACE_20, SPACE_16)
+        layout.setSpacing(SPACE_12)
+        self._apply_dialog_style()
+
+        header = QFrame()
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(SPACE_8, 0, SPACE_8, SPACE_8)
+        header_layout.setSpacing(4)
+        title = QLabel("Settings")
+        apply_scaled_font(title, offset=5, weight=QFont.Weight.DemiBold)
+        title.setObjectName("settingsDialogTitle")
+        header_layout.addWidget(title)
+        layout.addWidget(header)
+
+        header_divider = QFrame()
+        header_divider.setObjectName("sectionDivider")
+        header_divider.setFrameShape(QFrame.Shape.HLine)
+        layout.addWidget(header_divider)
+
         self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+        self.tabs.setObjectName("settingsTabs")
 
         self.general_tab = QWidget()
         self.connections_tab = QWidget()
@@ -57,17 +92,41 @@ class SettingsDialog(QDialog):
             self._setup_users_tab()
             self.tabs.addTab(self.users_tab, "Users")
 
+        content_wrapper = QFrame()
+        content_wrapper.setObjectName("contentWrapper")
+        content_layout = QVBoxLayout(content_wrapper)
+        content_layout.setContentsMargins(SPACE_12, SPACE_12, SPACE_12, SPACE_12)
+        content_layout.setSpacing(0)
+        content_layout.addWidget(self.tabs)
+
         btn_layout = QHBoxLayout()
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(SPACE_12)
         save_btn = ModernButton("Save", "primary")
         cancel_btn = ModernButton("Cancel", "secondary")
+        save_btn.setMinimumHeight(CONTROL_HEIGHT)
+        cancel_btn.setMinimumHeight(CONTROL_HEIGHT)
+        save_btn.setMinimumWidth(108)
+        cancel_btn.setMinimumWidth(108)
         save_btn.clicked.connect(self.save)
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addStretch()
         btn_layout.addWidget(cancel_btn)
         btn_layout.addWidget(save_btn)
 
-        layout.addWidget(self.tabs)
-        layout.addLayout(btn_layout)
+        footer_divider = QFrame()
+        footer_divider.setObjectName("sectionDivider")
+        footer_divider.setFrameShape(QFrame.Shape.HLine)
+
+        footer = QFrame()
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(SPACE_8, SPACE_8, SPACE_8, 0)
+        footer_layout.setSpacing(0)
+        footer_layout.addLayout(btn_layout)
+
+        layout.addWidget(content_wrapper, 1)
+        layout.addWidget(footer_divider)
+        layout.addWidget(footer)
 
     def _setup_general_tab(self):
         layout = QVBoxLayout(self.general_tab)
@@ -123,6 +182,49 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(self.users_tab)
         self.user_management = UserManagementWidget(self.token, parent=self.users_tab)
         layout.addWidget(self.user_management)
+
+    def _apply_dialog_style(self):
+        self.setStyleSheet(
+            f"""
+            QDialog {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_LG}px;
+                font-family: "{MODERN_FONT}";
+            }}
+            QLabel#settingsDialogTitle {{
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+            QFrame#sectionDivider {{
+                background-color: {COLOR_BORDER};
+                max-height: 1px;
+            }}
+            QFrame#contentWrapper {{
+                background-color: {COLOR_BG_SUBTLE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_LG}px;
+            }}
+            QTabWidget#settingsTabs::pane {{
+                border: none;
+                background: transparent;
+            }}
+            QTabWidget#settingsTabs::tab-bar {{
+                left: 0px;
+            }}
+            QTabBar::tab {{
+                background: transparent;
+                color: {COLOR_TEXT_SECONDARY};
+                border: none;
+                padding: {SPACE_8}px {SPACE_12}px;
+                margin-right: {SPACE_8}px;
+            }}
+            QTabBar::tab:selected {{
+                color: {COLOR_TEXT_PRIMARY};
+                border-bottom: 2px solid #2563EB;
+                font-weight: 600;
+            }}
+            """
+        )
 
     def load_values(self):
         self.server_edit.setText(self.settings_mgr.get_server_url())
