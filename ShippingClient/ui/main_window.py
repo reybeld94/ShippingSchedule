@@ -4372,18 +4372,18 @@ class ModernShippingMainWindow(QMainWindow):
             # Calcular espacio disponible
             styles = getSampleStyleSheet()
 
-            # Título compacto
+            # Título más legible manteniendo la misma estructura general
             title_style = ParagraphStyle(
                 "CustomTitle",
                 parent=styles["Title"],
-                fontSize=14,
+                fontSize=20,
                 spaceBefore=0,
-                spaceAfter=6,
+                spaceAfter=10,
                 alignment=1,  # Center
             )
 
             title = Paragraph(title, title_style)
-            title_height = 25  # Estimado para el título compacto
+            title_height = 36  # Estimado para el título más grande
 
             # Espacio disponible para la tabla
             available_width = doc.width
@@ -4395,7 +4395,21 @@ class ModernShippingMainWindow(QMainWindow):
 
             # === ALGORITMO DE AJUSTE AUTOMÁTICO ===
 
-            col_widths = [available_width / len(headers)] * len(headers)
+            # Mantener el orden/estructura de columnas, pero redistribuir ancho
+            # proporcionalmente para mejorar legibilidad y reducir compresión.
+            total_cols = len(headers)
+            col_weights = []
+            for idx, header_text in enumerate(headers):
+                max_len = len(str(header_text))
+                for data_row in raw_data[1:]:
+                    if idx < len(data_row):
+                        max_len = max(max_len, len(str(data_row[idx])))
+                col_weights.append(max(6, min(max_len, 40)))
+
+            total_weight = sum(col_weights) or total_cols
+            col_widths = [
+                available_width * (weight / total_weight) for weight in col_weights
+            ]
 
             # Función para crear tabla con parámetros dados
             def create_table_with_params(font_size, padding, row_height_factor=1.0):
@@ -4404,7 +4418,7 @@ class ModernShippingMainWindow(QMainWindow):
                     "CellStyle",
                     parent=styles["BodyText"],
                     fontSize=font_size,
-                    leading=font_size * 1.1,
+                    leading=font_size * 1.35,
                     wordWrap="CJK",
                     alignment=0,  # Left align
                     spaceBefore=0,
@@ -4425,9 +4439,17 @@ class ModernShippingMainWindow(QMainWindow):
                     processed_data.append(processed_row)
 
                 # Crear tabla
+                # Altura base de filas y header para que no se vea "aplastado"
+                body_row_height = max(20, font_size * 2.0 * row_height_factor)
+                header_row_height = max(24, font_size * 2.4 * row_height_factor)
+                row_heights = [header_row_height] + [body_row_height] * (
+                    len(processed_data) - 1
+                )
+
                 table = Table(
                     processed_data,
                     colWidths=col_widths,
+                    rowHeights=row_heights,
                     repeatRows=1,  # Repetir header si se extiende a múltiples páginas
                 )
 
@@ -4440,7 +4462,7 @@ class ModernShippingMainWindow(QMainWindow):
                         # Header styling
                         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")),
                         ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                        ("FONTSIZE", (0, 0), (-1, 0), font_size),
+                        ("FONTSIZE", (0, 0), (-1, 0), font_size + 1),
                         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
 
                         # Datos
@@ -4453,8 +4475,8 @@ class ModernShippingMainWindow(QMainWindow):
                         # Padding
                         ("TOPPADDING", (0, 0), (-1, -1), padding),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), padding),
-                        ("LEFTPADDING", (0, 0), (-1, -1), padding * 0.7),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), padding * 0.7),
+                        ("LEFTPADDING", (0, 0), (-1, -1), padding * 0.9),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), padding * 0.9),
 
                         # Filas alternas para mejor legibilidad
                         (
@@ -4472,18 +4494,21 @@ class ModernShippingMainWindow(QMainWindow):
             # === BÚSQUEDA BINARIA PARA EL TAMAÑO ÓPTIMO ===
 
             min_font = min_font_size
-            max_font = 12
+            max_font = 22
             optimal_font = min_font
-            optimal_padding = 1
+            optimal_padding = max(3, min_font * 0.45)
+            optimal_row_factor = 1.0
 
             print("🔍 Searching for optimal size...")
 
             # Búsqueda binaria del tamaño de fuente óptimo
             while max_font - min_font > 0.5:
                 test_font = (min_font + max_font) / 2
-                test_padding = max(1, test_font * 0.3)
+                test_padding = max(3, test_font * 0.45)
 
-                test_table = create_table_with_params(test_font, test_padding)
+                test_table = create_table_with_params(
+                    test_font, test_padding, row_height_factor=1.0
+                )
 
                 # Medir la tabla
                 table_width, table_height = test_table.wrap(
@@ -4503,12 +4528,26 @@ class ModernShippingMainWindow(QMainWindow):
                 else:
                     max_font = test_font  # Debe ser más pequeño
 
+            # Expandir verticalmente cuando hay poca data para evitar banda pequeña arriba.
+            test_table = create_table_with_params(
+                optimal_font, optimal_padding, row_height_factor=1.0
+            )
+            _, fitted_height = test_table.wrap(available_width, available_height)
+            target_fill = available_height * 0.82
+            if fitted_height < target_fill:
+                remaining_rows = max(1, len(raw_data) - 1)
+                extra_per_row = (target_fill - fitted_height) / remaining_rows
+                base_row_height = max(20, optimal_font * 2.0)
+                optimal_row_factor = max(1.0, (base_row_height + extra_per_row) / base_row_height)
+
             print(
-                f"✅ Optimal size found: font={optimal_font:.1f}, padding={optimal_padding:.1f}"
+                f"✅ Optimal size found: font={optimal_font:.1f}, padding={optimal_padding:.1f}, row_factor={optimal_row_factor:.2f}"
             )
 
             # Crear tabla final con parámetros óptimos
-            final_table = create_table_with_params(optimal_font, optimal_padding)
+            final_table = create_table_with_params(
+                optimal_font, optimal_padding, row_height_factor=optimal_row_factor
+            )
 
             # Verificar medidas finales
             final_width, final_height = final_table.wrap(
