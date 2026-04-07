@@ -4425,32 +4425,42 @@ class ModernShippingMainWindow(QMainWindow):
                     spaceAfter=0,
                 )
 
+                def clamp_cell_text(cell_text, col_width):
+                    """Limitar altura de celdas para evitar filas imposibles de dividir entre páginas."""
+                    text_value = str(cell_text or "")
+                    if not text_value:
+                        return text_value
+
+                    normalized = " ".join(text_value.split())
+                    chars_per_line = max(10, int(col_width / max(1.0, font_size * 0.56)))
+                    max_lines = max(4, int(8 * row_height_factor))
+                    max_chars = chars_per_line * max_lines
+
+                    if len(normalized) <= max_chars:
+                        return normalized
+                    return normalized[: max_chars - 3].rstrip() + "..."
+
                 # Convertir datos a Paragraphs con el estilo apropiado
                 processed_data = []
                 for r, row in enumerate(raw_data):
                     processed_row = []
                     for c, cell_text in enumerate(row):
-                        # Truncar texto muy largo para optimizar
-                        if len(str(cell_text)) > 100:
-                            cell_text = str(cell_text)[:97] + "..."
+                        safe_text = (
+                            str(cell_text)
+                            if r == 0
+                            else clamp_cell_text(cell_text, col_widths[c])
+                        )
 
-                        para = Paragraph(str(cell_text), cell_style)
+                        para = Paragraph(safe_text, cell_style)
                         processed_row.append(para)
                     processed_data.append(processed_row)
 
-                # Crear tabla
-                # Altura base de filas y header para que no se vea "aplastado"
-                body_row_height = max(20, font_size * 2.0 * row_height_factor)
-                header_row_height = max(24, font_size * 2.4 * row_height_factor)
-                row_heights = [header_row_height] + [body_row_height] * (
-                    len(processed_data) - 1
-                )
-
+                # Crear tabla sin alturas fijas para que ReportLab ajuste automáticamente
                 table = Table(
                     processed_data,
                     colWidths=col_widths,
-                    rowHeights=row_heights,
                     repeatRows=1,  # Repetir header si se extiende a múltiples páginas
+                    splitByRow=1,
                 )
 
                 # Aplicar estilo
