@@ -135,8 +135,8 @@ class TabPage(QWidget):
         self.module_table = QTableWidget(self)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        layout.setContentsMargins(SPACE_16, SPACE_12, SPACE_16, SPACE_16)
+        layout.setSpacing(SPACE_12)
         layout.addWidget(self.module_toolbar)
         layout.addWidget(self.module_table)
 
@@ -581,7 +581,7 @@ class ModernShippingMainWindow(QMainWindow):
             
             # Layout principal
             main_layout = QVBoxLayout(central_widget)
-            main_layout.setContentsMargins(SPACE_24, SPACE_24, SPACE_24, SPACE_24)
+            main_layout.setContentsMargins(SPACE_20, SPACE_20, SPACE_20, SPACE_20)
             main_layout.setSpacing(SPACE_16)
             
             # Header profesional
@@ -1158,16 +1158,18 @@ class ModernShippingMainWindow(QMainWindow):
     def create_professional_tabs(self, layout):
         """Crear módulo Shipping con subtabs internas."""
         tabs_container = QFrame()
+        tabs_container.setObjectName("contentShell")
         tabs_container.setStyleSheet(f"""
-            QFrame {{
-                background: {COLOR_SURFACE};
-                border: 1px solid {COLOR_BORDER};
-                border-radius: {RADIUS_MD}px;
+            QFrame#contentShell {{
+                background: {COLOR_BG_SUBTLE};
+                border: none;
+                border-radius: {RADIUS_MD + 2}px;
             }}
         """)
 
         tabs_layout = QVBoxLayout(tabs_container)
-        tabs_layout.setContentsMargins(1, 1, 1, 1)
+        tabs_layout.setContentsMargins(SPACE_12, SPACE_12, SPACE_12, SPACE_12)
+        tabs_layout.setSpacing(SPACE_12)
 
         # Tab principal: módulo Shipping
         self.main_tab_widget = QTabWidget()
@@ -1178,7 +1180,7 @@ class ModernShippingMainWindow(QMainWindow):
                 f"""
                 QTabWidget::pane {{
                     border: none;
-                    background: #FFFFFF;
+                    background: transparent;
                 }}
                 QTabBar::tab {{
                     background: #F8FAFC;
@@ -1204,8 +1206,8 @@ class ModernShippingMainWindow(QMainWindow):
 
         shipping_page = QWidget()
         shipping_layout = QVBoxLayout(shipping_page)
-        shipping_layout.setContentsMargins(8, 8, 8, 8)
-        shipping_layout.setSpacing(8)
+        shipping_layout.setContentsMargins(0, 0, 0, 0)
+        shipping_layout.setSpacing(SPACE_12)
 
         # Subtabs internas del módulo Shipping
         self.tab_widget = QTabWidget()
@@ -1216,8 +1218,8 @@ class ModernShippingMainWindow(QMainWindow):
                 QTabWidget::pane {{
                     border: none;
                     background: #FFFFFF;
-                    border-top: 1px solid #E2E8F0;
-                    margin-top: 8px;
+                    margin-top: 10px;
+                    border-radius: {RADIUS_MD}px;
                 }}
                 QTabBar::tab {{
                     background: transparent;
@@ -1235,7 +1237,7 @@ class ModernShippingMainWindow(QMainWindow):
                 QTabBar::tab:selected {{
                     background: #EFF6FF;
                     color: #1E3A8A;
-                    border: 1px solid #DBEAFE;
+                    border: 1px solid #BFDBFE;
                     border-bottom: 2px solid #2563EB;
                     font-weight: 700;
                 }}
@@ -1283,8 +1285,8 @@ class ModernShippingMainWindow(QMainWindow):
     def create_shipping_logs_page(self):
         logs_page = QWidget()
         logs_layout = QVBoxLayout(logs_page)
-        logs_layout.setContentsMargins(8, 8, 8, 8)
-        logs_layout.setSpacing(8)
+        logs_layout.setContentsMargins(SPACE_16, SPACE_12, SPACE_16, SPACE_16)
+        logs_layout.setSpacing(SPACE_12)
 
         filters_frame = QFrame()
         filters_layout = QHBoxLayout(filters_frame)
