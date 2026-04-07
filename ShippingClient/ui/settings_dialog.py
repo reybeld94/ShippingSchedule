@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QCheckBox,
     QFrame,
+    QScrollArea,
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
@@ -167,7 +168,16 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _setup_connections_tab(self):
-        layout = QVBoxLayout(self.connections_tab)
+        tab_layout = QVBoxLayout(self.connections_tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_12)
         layout.setSpacing(SPACE_16)
 
@@ -208,11 +218,9 @@ class SettingsDialog(QDialog):
         fedex_header_row.addWidget(self.fedex_enabled)
         fedex_content.addLayout(fedex_header_row)
 
-        fedex_form = self._create_form_layout()
-        self._add_form_field(fedex_form, "API Key", self.fedex_api_key_edit)
-        self._add_form_field(fedex_form, "Secret Key", self.fedex_secret_key_edit)
-        self._add_form_field(fedex_form, "Base URL", self.fedex_base_url_edit)
-        fedex_content.addLayout(fedex_form)
+        self._add_form_row(fedex_content, "API Key", self.fedex_api_key_edit)
+        self._add_form_row(fedex_content, "Secret Key", self.fedex_secret_key_edit)
+        self._add_form_row(fedex_content, "Base URL", self.fedex_base_url_edit)
 
         test_row = QHBoxLayout()
         test_row.setContentsMargins(0, 0, 0, 0)
@@ -225,6 +233,9 @@ class SettingsDialog(QDialog):
         layout.addWidget(ws_section)
         layout.addWidget(fedex_section)
         layout.addStretch()
+
+        scroll.setWidget(content)
+        tab_layout.addWidget(scroll)
 
     def _create_connection_section(self, title: str, subtitle: str) -> tuple[QFrame, QVBoxLayout]:
         section = QFrame()
