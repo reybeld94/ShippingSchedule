@@ -89,6 +89,9 @@ from .style_tokens import (
     COLOR_BORDER_STRONG,
     COLOR_PRIMARY,
     COLOR_SUCCESS,
+    COLOR_SUCCESS_SOFT_BG,
+    COLOR_SUCCESS_SOFT_BORDER,
+    COLOR_SUCCESS_SOFT_TEXT,
     COLOR_SURFACE,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
@@ -253,17 +256,17 @@ class StatusChipDelegate(QStyledItemDelegate):
     SUCCESS = (
         "Full",
         QColor("#166534"),
-        QColor(22, 101, 52, int(255 * 0.16)),
+        QColor("#ECFDF5"),
     )
     WARNING = (
         "Partial",
-        QColor("#8A5A00"),
-        QColor(194, 122, 0, int(255 * 0.14)),
+        QColor("#92400E"),
+        QColor("#FFFBEB"),
     )
     MUTED = (
         "—",
         QColor("#475569"),
-        QColor(71, 85, 105, int(255 * 0.12)),
+        QColor("#F1F5F9"),
     )
 
     STATUS_MAP = {
@@ -280,7 +283,7 @@ class StatusChipDelegate(QStyledItemDelegate):
 
     CHIP_SPACING = 6
     CHIP_PADDING_H = 10
-    CHIP_PADDING_V = 3
+    CHIP_PADDING_V = 4
 
     def _resolve_style(self, status):
         normalized = str(status or "").strip().lower()
@@ -928,27 +931,37 @@ class ModernShippingMainWindow(QMainWindow):
         self.connection_indicator.setStyleSheet(
             f"background-color: {COLOR_SUCCESS}; border-radius: {SPACE_8 // 2}px;"
         )
-        self.connection_indicator.setToolTip(f"Connected · {self.server_host}")
+        self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
 
-        self.connection_state_label = QLabel("Online")
+        self.connection_state_label = QLabel("Connected")
         apply_scaled_font(self.connection_state_label, offset=-2, weight=QFont.Weight.Medium)
-        self.connection_state_label.setStyleSheet("color: #0F766E;")
+        self.connection_state_label.setStyleSheet(f"color: {COLOR_SUCCESS_SOFT_TEXT};")
+
+        self.connection_host_label = QLabel(self.server_host)
+        apply_scaled_font(self.connection_host_label, offset=-3, weight=QFont.Weight.Normal)
+        self.connection_host_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
 
         self.connection_badge = QFrame()
         self.connection_badge.setStyleSheet(
-            """
+            f"""
             QFrame {
-                background-color: #ECFDF5;
-                border: 1px solid #A7F3D0;
+                background-color: {COLOR_SUCCESS_SOFT_BG};
+                border: 1px solid {COLOR_SUCCESS_SOFT_BORDER};
                 border-radius: 9px;
             }
             """
         )
-        connection_layout = QHBoxLayout(self.connection_badge)
-        connection_layout.setContentsMargins(8, 3, 8, 3)
-        connection_layout.setSpacing(6)
-        connection_layout.addWidget(self.connection_indicator)
-        connection_layout.addWidget(self.connection_state_label)
+        connection_layout = QVBoxLayout(self.connection_badge)
+        connection_layout.setContentsMargins(8, 4, 8, 4)
+        connection_layout.setSpacing(1)
+        connection_top_row = QHBoxLayout()
+        connection_top_row.setContentsMargins(0, 0, 0, 0)
+        connection_top_row.setSpacing(6)
+        connection_top_row.addWidget(self.connection_indicator)
+        connection_top_row.addWidget(self.connection_state_label)
+        connection_top_row.addStretch()
+        connection_layout.addLayout(connection_top_row)
+        connection_layout.addWidget(self.connection_host_label)
 
         self.settings_btn = QToolButton()
         self.settings_btn.setIcon(
@@ -2770,8 +2783,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.last_update_label.setToolTip("No updates yet")
 
         self.connection_status_label = QLabel("Disconnected")
-        apply_scaled_font(self.connection_status_label, offset=1, weight=QFont.Weight.DemiBold)
-        self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 600;")
+        apply_scaled_font(self.connection_status_label, offset=0, weight=QFont.Weight.Medium)
+        self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 500;")
         
         self.status_bar.addWidget(self.record_count_label)
         self.status_bar.addPermanentWidget(self.last_update_label)
@@ -2816,20 +2829,23 @@ class ModernShippingMainWindow(QMainWindow):
             )
             self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
             if hasattr(self, "connection_state_label"):
-                self.connection_state_label.setText("Online")
-                self.connection_state_label.setStyleSheet("color: #0F766E;")
+                self.connection_state_label.setText("Connected")
+                self.connection_state_label.setStyleSheet(f"color: {COLOR_SUCCESS_SOFT_TEXT};")
+            if hasattr(self, "connection_host_label"):
+                self.connection_host_label.setText(self.server_host)
+                self.connection_host_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
             if hasattr(self, "connection_badge"):
                 self.connection_badge.setStyleSheet(
-                    """
+                    f"""
                     QFrame {
-                        background-color: #ECFDF5;
-                        border: 1px solid #A7F3D0;
+                        background-color: {COLOR_SUCCESS_SOFT_BG};
+                        border: 1px solid {COLOR_SUCCESS_SOFT_BORDER};
                         border-radius: 9px;
                     }
                     """
                 )
             self.connection_status_label.setText(f"Connected · {self.server_host}")
-            self.connection_status_label.setStyleSheet("color: #10B981; font-weight: 600;")
+            self.connection_status_label.setStyleSheet("color: #15803D; font-weight: 500;")
         else:
             self.connection_indicator.setStyleSheet(
                 "background-color: #EF4444; border-radius: 4px;"
@@ -2838,6 +2854,9 @@ class ModernShippingMainWindow(QMainWindow):
             if hasattr(self, "connection_state_label"):
                 self.connection_state_label.setText("Offline")
                 self.connection_state_label.setStyleSheet("color: #B91C1C;")
+            if hasattr(self, "connection_host_label"):
+                self.connection_host_label.setText(self.server_host)
+                self.connection_host_label.setStyleSheet("color: #9CA3AF;")
             if hasattr(self, "connection_badge"):
                 self.connection_badge.setStyleSheet(
                     """
@@ -2849,7 +2868,7 @@ class ModernShippingMainWindow(QMainWindow):
                     """
                 )
             self.connection_status_label.setText("Disconnected")
-            self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 600;")
+            self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 500;")
     
     def handle_websocket_message(self, message):
         """Manejar mensajes del WebSocket"""

@@ -32,6 +32,7 @@ from .style_tokens import (
     COLOR_BORDER,
     COLOR_PRIMARY,
     COLOR_SUCCESS,
+    COLOR_SUCCESS_SOFT_TEXT,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
     COLOR_SURFACE,
@@ -266,7 +267,7 @@ class ModernLoginDialog(QDialog):
             if response.is_success():
                 self.connection_indicator.setStyleSheet("color: #10B981;")
                 self.connection_text.setText("Connected")
-                self.connection_text.setStyleSheet("color: #10B981;")
+                self.connection_text.setStyleSheet(f"color: {COLOR_SUCCESS_SOFT_TEXT};")
             else:
                 self.connection_indicator.setStyleSheet("color: #EF4444;")
                 self.connection_text.setText("Disconnected")
