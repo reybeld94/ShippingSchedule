@@ -167,6 +167,26 @@ def _safe_text(value) -> str:
     return str(value)
 
 
+def _normalize_for_compare(field_name: str, value):
+    """Normaliza valores para evitar updates/logs por cambios equivalentes."""
+    if isinstance(value, str):
+        value = value.strip()
+    if field_name in {"qc_release", "created", "ship_plan", "shipped"}:
+        if value in (None, "", "—", "-", "N/A", "n/a", "null", "None"):
+            return ""
+    if field_name in {
+        "description",
+        "qc_notes",
+        "shipping_notes",
+        "invoice_number",
+        "tracking_number",
+        "status",
+        "week",
+    }:
+        return "" if value is None else value
+    return value
+
+
 def _append_shipping_logs(
     db: Session,
     *,
@@ -611,9 +631,11 @@ async def update_shipment(
                 new_value = clean_job_number(new_value)
 
             old_value = getattr(shipment, field, None)
+            old_value_normalized = _normalize_for_compare(field, old_value)
+            new_value_normalized = _normalize_for_compare(field, new_value)
 
             # Solo actualizar si el valor cambió
-            if old_value != new_value:
+            if old_value_normalized != new_value_normalized:
                 changes_made[field] = {
                     "old": old_value,
                     "new": new_value
