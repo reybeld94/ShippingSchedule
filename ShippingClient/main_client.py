@@ -22,11 +22,11 @@ def main():
     
     try:
         # Login
-        print("Iniciando aplicación...")
+        print("Starting application...")
         login_dialog = ModernLoginDialog()
         
         if login_dialog.exec() == QDialog.DialogCode.Accepted:
-            print("Login exitoso, abriendo ventana principal...")
+            print("Login successful, opening main window...")
             
             # Importar dinámicamente para evitar problemas de inicialización
             from ui.main_window import ModernShippingMainWindow
@@ -41,7 +41,7 @@ def main():
             return 0
             
     except Exception as e:
-        print(f"Error crítico en la aplicación: {e}")
+        print(f"Critical application error: {e}")
         import traceback
         traceback.print_exc()
         return 1

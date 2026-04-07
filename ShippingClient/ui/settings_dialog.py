@@ -138,12 +138,7 @@ class SettingsDialog(QDialog):
         section_title.setObjectName("generalSectionTitle")
         apply_scaled_font(section_title, offset=2, weight=QFont.Weight.DemiBold)
 
-        section_subtitle = QLabel("Customize the text size used across the application.")
-        section_subtitle.setObjectName("generalSectionSubtitle")
-        apply_scaled_font(section_subtitle, offset=0)
-
         text_section_layout.addWidget(section_title)
-        text_section_layout.addWidget(section_subtitle)
 
         font_label = QLabel("Text size")
         font_label.setObjectName("generalFieldLabel")
@@ -196,22 +191,13 @@ class SettingsDialog(QDialog):
         self.test_fedex_btn.clicked.connect(self.test_fedex_connection)
         self.test_fedex_btn.setEnabled(self.is_admin)
 
-        server_section, server_content = self._create_connection_section(
-            "Server",
-            "Configura la URL base del backend.",
-        )
+        server_section, server_content = self._create_connection_section("Server")
         self._add_form_row(server_content, "Server URL", self.server_edit)
 
-        ws_section, ws_content = self._create_connection_section(
-            "WebSocket",
-            "Endpoint para notificaciones y actualizaciones en tiempo real.",
-        )
+        ws_section, ws_content = self._create_connection_section("WebSocket")
         self._add_form_row(ws_content, "WebSocket URL", self.ws_edit)
 
-        fedex_section, fedex_content = self._create_connection_section(
-            "FedEx",
-            "Credenciales y conectividad para integración de tracking.",
-        )
+        fedex_section, fedex_content = self._create_connection_section("FedEx")
         fedex_header_row = QHBoxLayout()
         fedex_header_row.setContentsMargins(0, 0, 0, 0)
         fedex_header_row.addStretch()
@@ -237,7 +223,7 @@ class SettingsDialog(QDialog):
         scroll.setWidget(content)
         tab_layout.addWidget(scroll)
 
-    def _create_connection_section(self, title: str, subtitle: str) -> tuple[QFrame, QVBoxLayout]:
+    def _create_connection_section(self, title: str) -> tuple[QFrame, QVBoxLayout]:
         section = QFrame()
         section.setObjectName("connectionSection")
 
@@ -249,12 +235,7 @@ class SettingsDialog(QDialog):
         title_label.setObjectName("connectionSectionTitle")
         apply_scaled_font(title_label, offset=2, weight=QFont.Weight.DemiBold)
 
-        subtitle_label = QLabel(subtitle)
-        subtitle_label.setObjectName("connectionSectionSubtitle")
-        apply_scaled_font(subtitle_label, offset=0)
-
         section_layout.addWidget(title_label)
-        section_layout.addWidget(subtitle_label)
 
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)

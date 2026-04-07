@@ -549,7 +549,7 @@ class ModernShippingMainWindow(QMainWindow):
         # Flag para evitar disparar eventos al poblar tablas
         self.updating_table = False
         
-        print(f"Inicializando ventana principal para usuario: {user_info['username']}")
+        print(f"Initializing main window for user: {user_info['username']}")
         
         self.setWindowTitle("Shipping Schedule")
         if os.path.exists(ICON_PATH):
@@ -569,9 +569,9 @@ class ModernShippingMainWindow(QMainWindow):
             self.status_timer.timeout.connect(self.update_status)
             self.status_timer.start(10000)  # Cada 10 segundos
             
-            print("Ventana principal inicializada exitosamente")
+            print("Main window initialized successfully")
         except Exception as e:
-            print(f"Error inicializando ventana principal: {e}")
+            print(f"Error initializing main window: {e}")
             import traceback
             traceback.print_exc()
     
@@ -601,9 +601,9 @@ class ModernShippingMainWindow(QMainWindow):
 
             self.update_filter_button_state()
 
-            print("UI profesional configurada exitosamente")
+            print("Professional UI configured successfully")
         except Exception as e:
-            print(f"Error configurando UI: {e}")
+            print(f"Error configuring UI: {e}")
             raise
 
     def apply_global_font_preferences(self):
@@ -2830,7 +2830,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.ws_client.start()
             print("WebSocket client iniciado")
         except Exception as e:
-            print(f"Error configurando WebSocket: {e}")
+            print(f"Error configuring WebSocket: {e}")
     
     def update_connection_status(self, connected):
         """Actualizar status de conexión profesional"""
@@ -3040,9 +3040,9 @@ class ModernShippingMainWindow(QMainWindow):
     def load_shipments_async(self):
         """Cargar shipments de forma asíncrona"""
         if self._session_expired:
-            print("Sesión expirada detectada, se omite recarga de shipments.")
+            print("Expired session detected; skipping shipment reload.")
             return
-        print("Iniciando carga asíncrona de shipments...")
+        print("Starting asynchronous shipment load...")
         self.record_count_label.setText("Loading records...")
         self._show_loading_indicator()
         # Detener hilo previo si todavía se está ejecutando
@@ -3084,7 +3084,7 @@ class ModernShippingMainWindow(QMainWindow):
     def on_shipments_error(self, error_msg):
         """Callback cuando hay error cargando shipments"""
         self._hide_loading_indicator()
-        print(f"Error cargando shipments: {error_msg}")
+        print(f"Error loading shipments: {error_msg}")
         normalized_error = str(error_msg or "").lower()
         auth_error_markers = [
             "could not validate credentials",
@@ -4001,7 +4001,7 @@ class ModernShippingMainWindow(QMainWindow):
             optimal_font = min_font
             optimal_padding = 1
 
-            print("🔍 Buscando tamaño óptimo...")
+            print("🔍 Searching for optimal size...")
 
             # Búsqueda binaria del tamaño de fuente óptimo
             while max_font - min_font > 0.5:
@@ -4028,7 +4028,7 @@ class ModernShippingMainWindow(QMainWindow):
                     max_font = test_font  # Debe ser más pequeño
 
             print(
-                f"✅ Tamaño óptimo encontrado: font={optimal_font:.1f}, padding={optimal_padding:.1f}"
+                f"✅ Optimal size found: font={optimal_font:.1f}, padding={optimal_padding:.1f}"
             )
 
             # Crear tabla final con parámetros óptimos
@@ -4077,7 +4077,7 @@ class ModernShippingMainWindow(QMainWindow):
             error_msg += "And that you're running from the correct virtual environment."
             self.show_error(error_msg)
         except Exception as e:
-            print(f"❌ Error al generar PDF: {e}")
+            print(f"❌ Error generating PDF: {e}")
             import traceback
 
             traceback.print_exc()
@@ -4101,8 +4101,8 @@ class ModernShippingMainWindow(QMainWindow):
             if hasattr(self, 'shipment_loader') and self.shipment_loader.isRunning():
                 self.shipment_loader.quit()
                 self.shipment_loader.wait()
-            print("Ventana principal cerrada")
+            print("Main window closed")
             event.accept()
         except Exception as e:
-            print(f"Error cerrando ventana: {e}")
+            print(f"Error closing window: {e}")
             event.accept()
