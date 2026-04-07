@@ -134,15 +134,51 @@ class SettingsDialog(QDialog):
 
     def _setup_general_tab(self):
         layout = QVBoxLayout(self.general_tab)
+        layout.setContentsMargins(SPACE_8, SPACE_12, SPACE_8, SPACE_8)
+        layout.setSpacing(SPACE_16)
+
+        text_section = QFrame()
+        text_section.setObjectName("generalSection")
+        text_section_layout = QVBoxLayout(text_section)
+        text_section_layout.setContentsMargins(SPACE_16, SPACE_12, SPACE_16, SPACE_16)
+        text_section_layout.setSpacing(SPACE_12)
+
+        section_title = QLabel("Appearance")
+        section_title.setObjectName("generalSectionTitle")
+        apply_scaled_font(section_title, offset=2, weight=QFont.Weight.DemiBold)
+
+        section_subtitle = QLabel("Customize the text size used across the application.")
+        section_subtitle.setObjectName("generalSectionSubtitle")
+        apply_scaled_font(section_subtitle, offset=0)
+
+        divider = QFrame()
+        divider.setObjectName("generalSectionDivider")
+        divider.setFrameShape(QFrame.Shape.HLine)
+
+        text_section_layout.addWidget(section_title)
+        text_section_layout.addWidget(section_subtitle)
+        text_section_layout.addWidget(divider)
+
         font_label = QLabel("Text size")
+        font_label.setObjectName("generalFieldLabel")
         apply_scaled_font(font_label, offset=1, weight=QFont.Weight.Medium)
         self.font_spin = QSpinBox()
         self.font_spin.setRange(8, 20)
         self.font_spin.setSingleStep(1)
+        self.font_spin.setMinimumHeight(CONTROL_HEIGHT)
+        self.font_spin.setMaximumWidth(180)
         apply_scaled_font(self.font_spin)
 
-        layout.addWidget(font_label)
-        layout.addWidget(self.font_spin)
+        font_row = QFormLayout()
+        font_row.setContentsMargins(0, 0, 0, 0)
+        font_row.setHorizontalSpacing(SPACE_12)
+        font_row.setVerticalSpacing(0)
+        font_row.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        font_row.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        font_row.addRow(font_label, self.font_spin)
+
+        text_section_layout.addLayout(font_row)
+        layout.addWidget(text_section)
         layout.addStretch()
 
     def _setup_connections_tab(self):
@@ -282,17 +318,36 @@ class SettingsDialog(QDialog):
                 border: 1px solid {COLOR_BORDER};
                 border-radius: {RADIUS_MD}px;
             }}
+            QFrame#generalSection {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
+            }}
             QLabel#connectionSectionTitle {{
                 color: {COLOR_TEXT_PRIMARY};
             }}
             QLabel#connectionSectionSubtitle {{
                 color: {COLOR_TEXT_SECONDARY};
             }}
+            QLabel#generalSectionTitle {{
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+            QLabel#generalSectionSubtitle {{
+                color: {COLOR_TEXT_SECONDARY};
+            }}
             QFrame#connectionSectionDivider {{
                 background-color: {COLOR_BORDER};
                 max-height: 1px;
             }}
+            QFrame#generalSectionDivider {{
+                background-color: {COLOR_BORDER};
+                max-height: 1px;
+            }}
             QLabel#connectionFieldLabel {{
+                color: {COLOR_TEXT_SECONDARY};
+                min-width: 118px;
+            }}
+            QLabel#generalFieldLabel {{
                 color: {COLOR_TEXT_SECONDARY};
                 min-width: 118px;
             }}
