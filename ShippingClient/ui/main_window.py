@@ -4268,9 +4268,19 @@ class ModernShippingMainWindow(QMainWindow):
             ],
             column_map=list(range(15)),
             page_size=(17, 11),
+            min_font_size=8,
         )
 
-    def _print_table_to_pdf(self, table, tab_name: str, title: str, headers: list[str], column_map: list[int], page_size: tuple[float, float] = (8.5, 14)):
+    def _print_table_to_pdf(
+        self,
+        table,
+        tab_name: str,
+        title: str,
+        headers: list[str],
+        column_map: list[int],
+        page_size: tuple[float, float] = (8.5, 14),
+        min_font_size: float = 6,
+    ):
         """Generic PDF exporter used by Active Shipments and Sills Sheet."""
         # Verificar dependencias antes de continuar
         missing_deps = []
@@ -4461,7 +4471,7 @@ class ModernShippingMainWindow(QMainWindow):
 
             # === BÚSQUEDA BINARIA PARA EL TAMAÑO ÓPTIMO ===
 
-            min_font = 4
+            min_font = min_font_size
             max_font = 12
             optimal_font = min_font
             optimal_padding = 1
@@ -4484,8 +4494,9 @@ class ModernShippingMainWindow(QMainWindow):
                     f"   Probando font={test_font:.1f}, padding={test_padding:.1f} -> {table_width:.0f}x{table_height:.0f}"
                 )
 
-                # Verificar si cabe
-                if table_width <= available_width and table_height <= available_height:
+                # Verificar ajuste solo por ancho.
+                # La altura puede continuar en páginas siguientes para evitar texto diminuto.
+                if table_width <= available_width:
                     optimal_font = test_font
                     optimal_padding = test_padding
                     min_font = test_font  # Puede ser más grande
