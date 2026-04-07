@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QCheckBox,
     QFrame,
+    QScrollArea,
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
@@ -167,7 +168,16 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _setup_connections_tab(self):
-        layout = QVBoxLayout(self.connections_tab)
+        tab_layout = QVBoxLayout(self.connections_tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_12)
         layout.setSpacing(SPACE_16)
 
@@ -223,6 +233,9 @@ class SettingsDialog(QDialog):
         layout.addWidget(ws_section)
         layout.addWidget(fedex_section)
         layout.addStretch()
+
+        scroll.setWidget(content)
+        tab_layout.addWidget(scroll)
 
     def _create_connection_section(self, title: str, subtitle: str) -> tuple[QFrame, QVBoxLayout]:
         section = QFrame()
