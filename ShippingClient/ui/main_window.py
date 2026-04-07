@@ -438,62 +438,6 @@ class StatusChipDelegate(QStyledItemDelegate):
         return QSize(hint.width(), max(hint.height(), 40))
 
 
-class WrapAnywhereDelegate(QStyledItemDelegate):
-    """Paint and measure table text allowing breaks inside long words."""
-
-    def paint(self, painter, option, index):  # type: ignore[override]
-        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
-        if not text:
-            super().paint(painter, option, index)
-            return
-
-        opt = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-        opt.text = ""
-
-        widget = opt.widget
-        style = widget.style() if widget else QApplication.style()
-        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
-
-        text_rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, widget)
-        text_rect = text_rect.adjusted(2, 1, -2, -1)
-
-        text_flags = int(
-            opt.displayAlignment
-            | Qt.TextFlag.TextDontClip
-            | Qt.TextFlag.TextWordWrap
-            | Qt.TextFlag.TextWrapAnywhere
-            | Qt.TextFlag.TextExpandTabs
-        )
-
-        pen = (
-            opt.palette.highlightedText().color()
-            if opt.state & QStyle.StateFlag.State_Selected
-            else opt.palette.text().color()
-        )
-
-        painter.save()
-        painter.setPen(pen)
-        painter.setFont(opt.font)
-        painter.drawText(text_rect, text_flags, text)
-        painter.restore()
-
-    def sizeHint(self, option, index):  # type: ignore[override]
-        hint = super().sizeHint(option, index)
-        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
-        if not text:
-            return hint
-
-        available_width = max(24, option.rect.width() - 12)
-        metrics = QFontMetrics(option.font)
-        bounding = metrics.boundingRect(
-            QRect(0, 0, available_width, 1000),
-            int(Qt.TextFlag.TextWordWrap | Qt.TextFlag.TextWrapAnywhere),
-            text,
-        )
-        return QSize(hint.width(), max(hint.height(), bounding.height() + 12))
-
-
 class ModernShippingMainWindow(QMainWindow):
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
@@ -687,7 +631,7 @@ class ModernShippingMainWindow(QMainWindow):
             10: 100,
             11: 200,
         }
-        self._column_max_widths: Dict[int, int] = {1: 360}
+        self._column_max_widths: Dict[int, int] = {}
 
         # Flag para evitar disparar eventos al poblar tablas
         self.updating_table = False
@@ -2041,7 +1985,7 @@ class ModernShippingMainWindow(QMainWindow):
         pinned_view.setAlternatingRowColors(True)
         pinned_view.horizontalHeader().setVisible(False)
         pinned_view.verticalHeader().setVisible(False)
-        pinned_view.setWordWrap(True)
+        pinned_view.setWordWrap(False)
         pinned_view.setTextElideMode(Qt.TextElideMode.ElideNone)
         pinned_view.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         pinned_view.viewport().setAutoFillBackground(True)
@@ -2181,13 +2125,12 @@ class ModernShippingMainWindow(QMainWindow):
         header = table.horizontalHeader()
         if column < table.columnCount():
             min_width = self._column_min_widths.get(column)
-            max_width = self._column_max_widths.get(column)
             current_width = new_width if new_width is not None else table.columnWidth(column)
             desired_width = current_width
+            content_width = self._get_column_content_width(table, column)
             if min_width is not None and current_width < min_width:
                 desired_width = max(current_width, min_width)
-            if max_width is not None and desired_width > max_width:
-                desired_width = max_width
+            desired_width = max(desired_width, content_width)
             if desired_width != current_width:
                 if header is not None:
                     header.blockSignals(True)
@@ -2806,6 +2749,32 @@ class ModernShippingMainWindow(QMainWindow):
 
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         vertical_header.setDefaultSectionSize(default_height)
+
+    def _get_column_content_width(self, table, column: int) -> int:
+        """Return a width that can display the full column content in one line."""
+        width = max(70, table.sizeHintForColumn(column) + 22)
+        min_width = self._column_min_widths.get(column)
+        if min_width is not None:
+            width = max(width, min_width)
+        return width
+
+    def _ensure_columns_fit_content(self, table):
+        """Expand columns so cell text is never clipped."""
+        if table is None:
+            return
+        header = table.horizontalHeader()
+        if header is not None:
+            header.blockSignals(True)
+        try:
+            for col in range(table.columnCount()):
+                if table.isColumnHidden(col):
+                    continue
+                required = self._get_column_content_width(table, col)
+                if table.columnWidth(col) < required:
+                    table.setColumnWidth(col, required)
+        finally:
+            if header is not None:
+                header.blockSignals(False)
 
     def _refresh_visible_row_heights(self, table):
         """Resize only visible rows so wrapped text adapts when columns change."""
@@ -3705,6 +3674,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.apply_row_filters(table, table_name)
 
             table.setUpdatesEnabled(True)
+            self._ensure_columns_fit_content(table)
             self._refresh_visible_row_heights(table)
             self.refresh_pinned_columns(table, table_name)
             self.updating_table = False
