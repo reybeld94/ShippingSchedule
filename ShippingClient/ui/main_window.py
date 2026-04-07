@@ -4268,21 +4268,21 @@ class ModernShippingMainWindow(QMainWindow):
             ],
             column_map=list(range(15)),
             column_weights=[
-                7,   # Mat
-                7,   # Dim
-                7,   # Loc
-                7,   # Die #
-                7,   # Type
-                6,   # SPD
-                6,   # Width
-                7,   # Job
-                6,   # WO
-                14,  # Assembly (wider)
-                12,  # Description
-                6,   # Qty
-                7,   # Dim
-                18,  # Notes (wider)
-                6,   # Week
+                3,   # Mat (narrow)
+                3,   # Dim (narrow)
+                3,   # Loc (narrow)
+                4,   # Die #
+                4,   # Type
+                3,   # SPD (narrow)
+                4,   # Width
+                4,   # Job (narrow)
+                3,   # WO (narrow)
+                22,  # Assembly (much wider)
+                14,  # Description
+                3,   # Qty
+                3,   # Dim (narrow)
+                30,  # Notes (widest)
+                3,   # Week (narrow)
             ],
             page_size=(17, 11),
             min_font_size=12,
