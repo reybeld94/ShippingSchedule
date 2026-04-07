@@ -4250,23 +4250,40 @@ class ModernShippingMainWindow(QMainWindow):
             tab_name="Sills_Sheet",
             title="Sills Sheet",
             headers=[
-                "Material",
-                "Dimension",
-                "Location",
+                "Mat",
+                "Dim",
+                "Loc",
                 "Die #",
                 "Type",
-                "Speed",
+                "SPD",
                 "Width",
-                "Sales Order",
-                "Work Order",
-                "Assembly Number",
+                "Job",
+                "WO",
+                "Assembly",
                 "Description",
                 "Qty",
-                "Dimension Needed",
+                "Dim",
                 "Notes",
-                "Week to Print",
+                "Week",
             ],
             column_map=list(range(15)),
+            column_weights=[
+                3,   # Mat (narrow)
+                3,   # Dim (narrow)
+                3,   # Loc (narrow)
+                4,   # Die #
+                4,   # Type
+                3,   # SPD (narrow)
+                4,   # Width
+                4,   # Job (narrow)
+                3,   # WO (narrow)
+                22,  # Assembly (much wider)
+                14,  # Description
+                3,   # Qty
+                3,   # Dim (narrow)
+                30,  # Notes (widest)
+                3,   # Week (narrow)
+            ],
             page_size=(17, 11),
             min_font_size=12,
             min_title_font_size=18,
@@ -4286,6 +4303,7 @@ class ModernShippingMainWindow(QMainWindow):
         title: str,
         headers: list[str],
         column_map: list[int],
+        column_weights: list[float] | None = None,
         page_size: tuple[float, float] = (8.5, 14),
         min_font_size: float = 9,
         min_title_font_size: float = 20,
@@ -4420,7 +4438,11 @@ class ModernShippingMainWindow(QMainWindow):
                 for data_row in raw_data[1:]:
                     if idx < len(data_row):
                         max_len = max(max_len, len(str(data_row[idx])))
-                col_weights.append(max(6, min(max_len, 40)))
+
+                base_weight = max(6, min(max_len, 40))
+                if column_weights and idx < len(column_weights):
+                    base_weight = max(3, float(column_weights[idx]))
+                col_weights.append(base_weight)
 
             total_weight = sum(col_weights) or total_cols
             col_widths = [
