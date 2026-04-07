@@ -568,6 +568,7 @@ class ModernShippingMainWindow(QMainWindow):
         }
         self._pinned_views: Dict[str, dict[str, object]] = {}
         self.status_chip_delegate = StatusChipDelegate(self)
+        self.wrap_anywhere_delegate = WrapAnywhereDelegate(self)
         self._refresh_animation: Optional[QVariantAnimation] = None
         self._refresh_icon_base: Optional[QPixmap] = None
         self._refresh_animating = False
@@ -1825,7 +1826,7 @@ class ModernShippingMainWindow(QMainWindow):
         table.setAlternatingRowColors(True)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
-        table.setWordWrap(False)
+        table.setWordWrap(True)
         table.setMouseTracking(True)
         table.setTextElideMode(Qt.TextElideMode.ElideNone)
         # Ajustar altura de filas en función del tamaño de fuente sin penalizar rendimiento
@@ -1853,6 +1854,7 @@ class ModernShippingMainWindow(QMainWindow):
                 width = min(width, max_width)
             table.setColumnWidth(index, width)
 
+        table.setItemDelegate(self.wrap_anywhere_delegate)
         table.setItemDelegateForColumn(0, self.status_chip_delegate)
 
         # Delegates para campos de fecha
