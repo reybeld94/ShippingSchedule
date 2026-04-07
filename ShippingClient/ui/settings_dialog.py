@@ -208,9 +208,11 @@ class SettingsDialog(QDialog):
         fedex_header_row.addWidget(self.fedex_enabled)
         fedex_content.addLayout(fedex_header_row)
 
-        self._add_form_row(fedex_content, "API Key", self.fedex_api_key_edit)
-        self._add_form_row(fedex_content, "Secret Key", self.fedex_secret_key_edit)
-        self._add_form_row(fedex_content, "Base URL", self.fedex_base_url_edit)
+        fedex_form = self._create_form_layout()
+        self._add_form_field(fedex_form, "API Key", self.fedex_api_key_edit)
+        self._add_form_field(fedex_form, "Secret Key", self.fedex_secret_key_edit)
+        self._add_form_field(fedex_form, "Base URL", self.fedex_base_url_edit)
+        fedex_content.addLayout(fedex_form)
 
         test_row = QHBoxLayout()
         test_row.setContentsMargins(0, 0, 0, 0)
@@ -251,21 +253,26 @@ class SettingsDialog(QDialog):
         return section, content_layout
 
     def _add_form_row(self, parent_layout: QVBoxLayout, label_text: str, field: QWidget):
-        row = QFormLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setHorizontalSpacing(SPACE_12)
-        row.setVerticalSpacing(SPACE_8)
-        row.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-        row.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        row = self._create_form_layout()
+        self._add_form_field(row, label_text, field)
+        parent_layout.addLayout(row)
 
+    def _create_form_layout(self) -> QFormLayout:
+        layout = QFormLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setHorizontalSpacing(SPACE_12)
+        layout.setVerticalSpacing(SPACE_8)
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        return layout
+
+    def _add_form_field(self, form_layout: QFormLayout, label_text: str, field: QWidget):
         label = QLabel(label_text)
         label.setObjectName("connectionFieldLabel")
         apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
-
         field.setMinimumHeight(CONTROL_HEIGHT)
-
-        row.addRow(label, field)
-        parent_layout.addLayout(row)
+        form_layout.addRow(label, field)
 
     def _setup_users_tab(self):
         layout = QVBoxLayout(self.users_tab)
