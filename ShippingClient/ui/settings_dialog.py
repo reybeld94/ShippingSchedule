@@ -208,11 +208,9 @@ class SettingsDialog(QDialog):
         fedex_header_row.addWidget(self.fedex_enabled)
         fedex_content.addLayout(fedex_header_row)
 
-        fedex_form = self._create_form_layout()
-        self._add_form_field(fedex_form, "API Key", self.fedex_api_key_edit)
-        self._add_form_field(fedex_form, "Secret Key", self.fedex_secret_key_edit)
-        self._add_form_field(fedex_form, "Base URL", self.fedex_base_url_edit)
-        fedex_content.addLayout(fedex_form)
+        self._add_form_row(fedex_content, "API Key", self.fedex_api_key_edit)
+        self._add_form_row(fedex_content, "Secret Key", self.fedex_secret_key_edit)
+        self._add_form_row(fedex_content, "Base URL", self.fedex_base_url_edit)
 
         test_row = QHBoxLayout()
         test_row.setContentsMargins(0, 0, 0, 0)
