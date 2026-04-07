@@ -358,18 +358,18 @@ class StatusChipDelegate(QStyledItemDelegate):
 
 class ModernShippingMainWindow(QMainWindow):
     DEFAULT_TABLE_COLUMNS = [
-        "JOB NUMBER",
-        "JOB NAME",
-        "DESCRIPTION",
-        "QC REL.",
-        "QC NOTES",
-        "CRATED",
-        "SHIP PLAN",
-        "SHIPPED",
-        "INVOICE",
-        "TRACKING #",
-        "ADDRESS",
-        "SHIPPING NOTES",
+        "Job Number",
+        "Job Name",
+        "Description",
+        "QC Rel.",
+        "QC Notes",
+        "Crated",
+        "Ship Plan",
+        "Shipped",
+        "Invoice",
+        "Tracking #",
+        "Address",
+        "Shipping Notes",
     ]
     TAB_MODULE_CONFIGS = [
         TabModuleConfig(
@@ -1346,7 +1346,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.logs_table = QTableWidget()
         self.logs_table.setColumnCount(8)
         self.logs_table.setHorizontalHeaderLabels(
-            ["DATE", "USER", "ACTION", "JOB NUMBER", "FIELD", "OLD VALUE", "NEW VALUE", "SHIPMENT ID"]
+            ["Date", "User", "Action", "Job Number", "Field", "Old Value", "New Value", "Shipment ID"]
         )
         self.logs_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.logs_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -2264,7 +2264,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Apply the dynamic table styling based on the global font size."""
         base_size = get_base_font_size()
         table_font_size = max(14, base_size + 4)
-        header_font_size = max(15, base_size + 5)
+        header_font_size = max(13, base_size + 3)
         table.setStyleSheet(
             f"""
     QTableWidget {{
