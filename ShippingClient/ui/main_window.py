@@ -163,7 +163,7 @@ class SillDialog(QDialog):
         ("qty", "Qty"),
         ("dimension_needed", "Dimension Needed"),
         ("notes", "Notes"),
-        ("week_to_print", "Week to Print (yyyy-mm-dd)"),
+        ("week_to_print", "Week to Print"),
     ]
 
     def __init__(self, parent: Optional[QWidget] = None, sill_data: Optional[dict] = None):
@@ -184,6 +184,10 @@ class SillDialog(QDialog):
             elif key == "type":
                 input_widget = QComboBox()
                 input_widget.addItems(["Hatch", "Car"])
+            elif key == "week_to_print":
+                input_widget = QDateEdit()
+                input_widget.setCalendarPopup(True)
+                input_widget.setDisplayFormat("yyyy-MM-dd")
             else:
                 input_widget = QLineEdit()
             value = str(self._edit_data.get(key, ""))
@@ -191,6 +195,9 @@ class SillDialog(QDialog):
                 idx = input_widget.findText(value)
                 if idx >= 0:
                     input_widget.setCurrentIndex(idx)
+            elif isinstance(input_widget, QDateEdit):
+                parsed_date = QDate.fromString(value, "yyyy-MM-dd")
+                input_widget.setDate(parsed_date if parsed_date.isValid() else QDate.currentDate())
             else:
                 input_widget.setText(value)
             form.addRow(QLabel(label), input_widget)
@@ -211,6 +218,8 @@ class SillDialog(QDialog):
             widget = self.inputs[key]
             if isinstance(widget, QComboBox):
                 payload[key] = widget.currentText().strip()
+            elif isinstance(widget, QDateEdit):
+                payload[key] = widget.date().toString("yyyy-MM-dd")
             else:
                 payload[key] = widget.text().strip()
         return payload
@@ -1361,7 +1370,7 @@ class ModernShippingMainWindow(QMainWindow):
             setattr(self, f"{module.id}_table", table)
 
         logs_page = self.create_shipping_logs_page()
-        logs_index = self.tab_widget.addTab(logs_page, "Shipping Logs")
+        logs_index = self.tab_widget.addTab(logs_page, "Activity Log")
         self.tab_tables["logs"] = self.logs_table
         self.table_to_tab_id[id(self.logs_table)] = "logs"
         self.tab_index_to_id[logs_index] = "logs"
@@ -1598,9 +1607,9 @@ class ModernShippingMainWindow(QMainWindow):
         actions_layout.addLayout(secondary_actions)
 
         self.sills_table = QTableWidget()
-        self.sills_table.setColumnCount(16)
+        self.sills_table.setColumnCount(15)
         self.sills_table.setHorizontalHeaderLabels([
-            "ID", "Material", "Dimension", "Location", "Die #", "Type", "Speed", "Width",
+            "Material", "Dimension", "Location", "Die #", "Type", "Speed", "Width",
             "Sales Order", "Work Order", "Assembly Number", "Description", "Qty",
             "Dimension Needed", "Notes", "Week to Print",
         ])
@@ -1676,7 +1685,7 @@ class ModernShippingMainWindow(QMainWindow):
         rows = self.sills or []
         self.sills_table.setRowCount(len(rows))
         field_order = [
-            "id", "material", "dimension", "location", "die_number", "type", "speed", "width",
+            "material", "dimension", "location", "die_number", "type", "speed", "width",
             "sales_order", "work_order", "assembly_number", "description", "qty",
             "dimension_needed", "notes", "week_to_print",
         ]
@@ -1719,11 +1728,9 @@ class ModernShippingMainWindow(QMainWindow):
         row = self.sills_table.currentRow()
         if row < 0:
             return None
-        id_item = self.sills_table.item(row, 0)
-        if not id_item:
+        if row >= len(self.sills):
             return None
-        sill_id = int(id_item.text())
-        return next((s for s in self.sills if int(s.get("id", 0)) == sill_id), None)
+        return self.sills[row]
 
     def open_add_sill_dialog(self):
         if self.read_only:
