@@ -136,7 +136,7 @@ class TabPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(10)
+        layout.setSpacing(6)
         layout.addWidget(self.module_toolbar)
         layout.addWidget(self.module_table)
 
@@ -1012,46 +1012,125 @@ class ModernShippingMainWindow(QMainWindow):
     def create_module_toolbar(self, toolbar_frame: QFrame, module: TabModuleConfig):
         """Create toolbar controls inside each tab."""
         toolbar_frame.setObjectName(f"actionBar_{module.id}")
-        toolbar_frame.setMinimumHeight(48)
+        toolbar_frame.setMinimumHeight(44)
         toolbar_frame.setStyleSheet(
             f"""
             QFrame {{
-                background: {COLOR_BG_SUBTLE};
-                border: 1px solid {COLOR_BORDER};
-                border-radius: {RADIUS_MD}px;
+                background: transparent;
+                border: none;
             }}
         """
         )
 
         toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(SPACE_16, SPACE_8, SPACE_16, SPACE_8)
-        toolbar_layout.setSpacing(10)
+        toolbar_layout.setContentsMargins(0, 0, 0, SPACE_8)
+        toolbar_layout.setSpacing(12)
 
-        add_btn = ModernButton("New Shipment", "primary", min_height=CONTROL_HEIGHT_COMPACT, min_width=104)
+        add_btn = ModernButton(
+            "New Shipment",
+            "primary",
+            min_height=CONTROL_HEIGHT_COMPACT,
+            min_width=112,
+            padding=(SPACE_8, SPACE_16),
+        )
         apply_scaled_font(add_btn, offset=2, weight=QFont.Weight.Medium)
+        add_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: #2563EB;
+                color: #FFFFFF;
+                border: 1px solid #1D4ED8;
+                border-radius: {RADIUS_MD}px;
+                padding: {SPACE_8}px {SPACE_16}px;
+                font-weight: 600;
+                letter-spacing: 0.2px;
+                min-height: {CONTROL_HEIGHT_COMPACT}px;
+                min-width: 112px;
+            }}
+            QPushButton:hover {{
+                background-color: #1D4ED8;
+                border-color: #1E40AF;
+            }}
+            QPushButton:pressed {{
+                background-color: #1E40AF;
+                border-color: #1E3A8A;
+            }}
+            QPushButton:disabled {{
+                background-color: #BFDBFE;
+                border-color: #93C5FD;
+                color: #EFF6FF;
+            }}
+        """
+        )
         add_btn.clicked.connect(self.add_shipment)
 
-        delete_btn = ModernButton("Delete", "danger-outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=0, padding=(SPACE_8, 10))
+        delete_btn = ModernButton(
+            "Delete",
+            "danger-outline",
+            min_height=CONTROL_HEIGHT_COMPACT,
+            min_width=88,
+            padding=(SPACE_8, 12),
+        )
         apply_scaled_font(delete_btn, offset=1, weight=QFont.Weight.Medium)
-        delete_btn.setMinimumWidth(92)
+        delete_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: #FFFFFF;
+                color: #B91C1C;
+                border: 1px solid #FECACA;
+                border-radius: {RADIUS_MD}px;
+                padding: {SPACE_8}px 12px;
+                font-weight: 500;
+                min-height: {CONTROL_HEIGHT_COMPACT}px;
+                min-width: 88px;
+            }}
+            QPushButton:hover {{
+                background-color: #FEF2F2;
+                border-color: #FCA5A5;
+                color: #991B1B;
+            }}
+            QPushButton:pressed {{
+                background-color: #FEE2E2;
+                border-color: #F87171;
+                color: #7F1D1D;
+            }}
+            QPushButton:disabled {{
+                background-color: #F8FAFC;
+                border-color: {COLOR_BORDER};
+                color: #94A3B8;
+            }}
+        """
+        )
         delete_btn.clicked.connect(self.delete_shipment)
         delete_btn.setEnabled(False)
 
-        columns_btn = ModernButton("Columns", "outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=0, padding=(SPACE_8, 10))
+        columns_btn = ModernButton(
+            "Columns",
+            "outline",
+            min_height=CONTROL_HEIGHT_COMPACT,
+            min_width=88,
+            padding=(SPACE_8, 12),
+        )
         columns_btn.clicked.connect(lambda _, module_id=module.id: self.open_columns_menu(module_id))
 
-        export_btn = ModernButton("Export", "outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=0, padding=(SPACE_8, 10))
+        export_btn = ModernButton(
+            "Export",
+            "outline",
+            min_height=CONTROL_HEIGHT_COMPACT,
+            min_width=82,
+            padding=(SPACE_8, 12),
+        )
         export_btn.clicked.connect(lambda _, module_id=module.id: self.show_export_menu(module_id))
 
         primary_layout = QHBoxLayout()
         primary_layout.setContentsMargins(0, 0, 0, 0)
-        primary_layout.setSpacing(8)
+        primary_layout.setSpacing(10)
         primary_layout.addWidget(add_btn)
         primary_layout.addWidget(delete_btn)
 
         secondary_layout = QHBoxLayout()
         secondary_layout.setContentsMargins(0, 0, 0, 0)
-        secondary_layout.setSpacing(8)
+        secondary_layout.setSpacing(10)
         secondary_layout.addWidget(columns_btn)
         secondary_layout.addWidget(export_btn)
 
