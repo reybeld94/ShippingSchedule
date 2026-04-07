@@ -1455,6 +1455,43 @@ class ModernShippingMainWindow(QMainWindow):
 
         tabs = QTabWidget()
         self.sills_tab_widget = tabs
+        sub_tab_font_size = max(8, get_base_font_size() + 1)
+        tabs.setStyleSheet(
+            textwrap.dedent(
+                f"""
+                QTabWidget::pane {{
+                    border: none;
+                    background: #FFFFFF;
+                    margin-top: 16px;
+                    border-radius: {RADIUS_MD}px;
+                }}
+                QTabBar::tab {{
+                    background: transparent;
+                    color: #64748B;
+                    padding: 10px 18px;
+                    margin-right: 6px;
+                    border-top-left-radius: 8px;
+                    border-top-right-radius: 8px;
+                    font-weight: 500;
+                    font-size: {sub_tab_font_size}px;
+                    min-width: 92px;
+                    border: 1px solid transparent;
+                    border-bottom: 2px solid transparent;
+                }}
+                QTabBar::tab:selected {{
+                    background: #EFF6FF;
+                    color: #1E3A8A;
+                    border: 1px solid #BFDBFE;
+                    border-bottom: 2px solid #2563EB;
+                    font-weight: 700;
+                }}
+                QTabBar::tab:hover:!selected {{
+                    background: #F8FAFC;
+                    color: #334155;
+                }}
+            """
+            )
+        )
 
         sheet_page = QWidget()
         sheet_layout = QVBoxLayout(sheet_page)
