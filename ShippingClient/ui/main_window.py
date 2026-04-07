@@ -252,8 +252,8 @@ class StatusChipDelegate(QStyledItemDelegate):
 
     SUCCESS = (
         "Full",
-        QColor("#0E5D34"),
-        QColor(31, 140, 77, int(255 * 0.12)),
+        QColor("#166534"),
+        QColor(22, 101, 52, int(255 * 0.16)),
     )
     WARNING = (
         "Partial",
@@ -279,8 +279,8 @@ class StatusChipDelegate(QStyledItemDelegate):
     }
 
     CHIP_SPACING = 6
-    CHIP_PADDING_H = 8
-    CHIP_PADDING_V = 2
+    CHIP_PADDING_H = 10
+    CHIP_PADDING_V = 3
 
     def _resolve_style(self, status):
         normalized = str(status or "").strip().lower()
@@ -1539,17 +1539,22 @@ class ModernShippingMainWindow(QMainWindow):
             """
             QTableView,
             QTableView::viewport {
-                background: #F8FAFC;
-                border-right: 1px solid #E5E9F2;
+                background: #FFFFFF;
+                border-right: 1px solid #E7ECF3;
             }
             QTableView::item {
-                background: #F8FAFC;
+                padding: 10px 14px;
+                border-bottom: 1px solid #EFF3F8;
             }
             QTableView::item:!selected:alternate {
-                background: #F7FAFC;
+                background: #FBFCFE;
             }
-            QTableView::item:hover {
-                background: #EEF5FB;
+            QTableView::item:selected {
+                background: #DCE8FF;
+                color: #0F2A57;
+            }
+            QTableView::item:hover:!selected {
+                background: #F3F7FF;
             }
         """
         )
@@ -2240,33 +2245,38 @@ class ModernShippingMainWindow(QMainWindow):
         font-family: '{MODERN_FONT}';
         font-size: {table_font_size}px;
         background: #FFFFFF;
-        gridline-color: #E5E9F2;
-        border: 1px solid #E5E9F2;
+        gridline-color: #EDF1F7;
+        border: 1px solid #E7ECF3;
+        border-radius: 10px;
+        outline: none;
     }}
     QHeaderView::section {{
-        background-color: #FFFFFF;
-        color: #475569;
-        padding: 8px 12px;
+        background-color: #F8FAFD;
+        color: #334155;
+        padding: 10px 14px;
         border: none;
-        border-bottom: 1px solid #E5E9F2;
-        border-right: 1px solid #E5E9F2;
+        border-bottom: 1px solid #E7ECF3;
+        border-right: 1px solid #EDF1F7;
         font-weight: 600;
         font-size: {header_font_size}px;
         text-transform: none;
     }}
+    QHeaderView::section:hover {{
+        background-color: #F3F7FC;
+    }}
     QTableWidget::item {{
-        padding: 8px 12px;
-        border-bottom: 1px solid #E5E9F2;
+        padding: 10px 14px;
+        border-bottom: 1px solid #EFF3F8;
     }}
     QTableWidget::item:!selected:alternate {{
-        background: #F7FAFC;
+        background: #FBFCFE;
     }}
     QTableWidget::item:selected {{
-        background: #DBEAFE;
-        color: #1E3A8A;
+        background: #DCE8FF;
+        color: #0F2A57;
     }}
-    QTableWidget::item:hover {{
-        background: #EEF5FB;
+    QTableWidget::item:hover:!selected {{
+        background: #F3F7FF;
     }}
         """
         )
@@ -2281,7 +2291,7 @@ class ModernShippingMainWindow(QMainWindow):
         table_font_size = max(14, base_size + 4)
         metrics = QFontMetrics(QFont(MODERN_FONT, table_font_size))
 
-        default_height = max(42, int(metrics.lineSpacing() * 1.6))
+        default_height = max(46, int(metrics.lineSpacing() * 1.72))
 
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         vertical_header.setDefaultSectionSize(default_height)
@@ -3230,6 +3240,9 @@ class ModernShippingMainWindow(QMainWindow):
                 item.setFont(tracking_font)
                 item.setForeground(QBrush(QColor("#1D4ED8")))
                 item.setToolTip("Ctrl+Click to view FedEx tracking details")
+            elif col in (1, 2) and metadata["normalized"]:
+                item.setToolTip(str(metadata["normalized"]))
+                item.setData(Qt.ItemDataRole.UserRole + 5, 1)
 
             tooltip = metadata["tooltip"]
             if col == self.TRACKING_COLUMN_INDEX and metadata["normalized"]:
