@@ -614,18 +614,18 @@ class ModernShippingMainWindow(QMainWindow):
             11: "shipping_notes",
         }
 
-        self._default_column_widths = [120, 300, 220, 120, 160, 120, 140, 120, 140, 170, 110, 260]
+        self._default_column_widths = [120, 300, 220, 135, 160, 120, 140, 120, 155, 185, 110, 260]
         self._column_min_widths: Dict[int, int] = {
             0: 120,
             1: 260,
             2: 200,
-            3: 110,
+            3: 130,
             4: 140,
             5: 120,
             6: 120,
             7: 120,
-            8: 120,
-            9: 140,
+            8: 140,
+            9: 160,
             10: 100,
             11: 200,
         }
