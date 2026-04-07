@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QGridLayout,
+    QFormLayout,
     QTableWidget,
     QTableWidgetItem,
     QTableView,
@@ -28,6 +29,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QStatusBar,
     QDialog,
+    QDialogButtonBox,
     QTabWidget,
     QStyle,
     QFileDialog,
@@ -37,6 +39,7 @@ from PyQt6.QtWidgets import (
     QToolButton,
     QSizePolicy,
     QLineEdit,
+    QComboBox,
     QDateEdit,
     QStyleOptionViewItem,
     QStyledItemDelegate,
@@ -142,6 +145,75 @@ class TabPage(QWidget):
         layout.setSpacing(SPACE_12)
         layout.addWidget(self.module_toolbar)
         layout.addWidget(self.module_table)
+
+
+class SillDialog(QDialog):
+    FIELDS = [
+        ("material", "Material"),
+        ("dimension", "Dimension"),
+        ("location", "Location"),
+        ("die_number", "Die #"),
+        ("type", "Type"),
+        ("speed", "Speed"),
+        ("width", "Width"),
+        ("sales_order", "Sales Order"),
+        ("work_order", "Work Order"),
+        ("assembly_number", "Assembly Number"),
+        ("description", "Description"),
+        ("qty", "Qty"),
+        ("dimension_needed", "Dimension Needed"),
+        ("notes", "Notes"),
+        ("week_to_print", "Week to Print (yyyy-mm-dd)"),
+    ]
+
+    def __init__(self, parent: Optional[QWidget] = None, sill_data: Optional[dict] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Sill")
+        self.setMinimumWidth(520)
+        self._edit_data = sill_data or {}
+        self.inputs: Dict[str, QWidget] = {}
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        for key, label in self.FIELDS:
+            if key == "material":
+                input_widget = QComboBox()
+                input_widget.addItems(["NS", "SS", "SS316", "BR", "AL"])
+            elif key == "type":
+                input_widget = QComboBox()
+                input_widget.addItems(["Hatch", "Car"])
+            else:
+                input_widget = QLineEdit()
+            value = str(self._edit_data.get(key, ""))
+            if isinstance(input_widget, QComboBox):
+                idx = input_widget.findText(value)
+                if idx >= 0:
+                    input_widget.setCurrentIndex(idx)
+            else:
+                input_widget.setText(value)
+            form.addRow(QLabel(label), input_widget)
+            self.inputs[key] = input_widget
+
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def get_payload(self) -> dict:
+        payload = {}
+        for key, _ in self.FIELDS:
+            widget = self.inputs[key]
+            if isinstance(widget, QComboBox):
+                payload[key] = widget.currentText().strip()
+            else:
+                payload[key] = widget.text().strip()
+        return payload
 
 class ShipmentLoader(QThread):
     """Thread para cargar datos en background"""
@@ -500,6 +572,8 @@ class ModernShippingMainWindow(QMainWindow):
         self._is_loading_shipments = False
         self._pending_shipment_reload = False
         self.shipping_logs = []
+        self.sills = []
+        self.sills_logs = []
 
         # Mapa de columna a campo de API para ediciones inline
         self.column_field_map = {
@@ -1299,6 +1373,8 @@ class ModernShippingMainWindow(QMainWindow):
 
         shipping_layout.addWidget(self.tab_widget)
         self.main_tab_widget.addTab(shipping_page, "Shipping")
+        self.sills_page = self.create_sills_module_page()
+        self.main_tab_widget.addTab(self.sills_page, "Sills")
         self.main_tab_widget.currentChanged.connect(self.on_main_tab_changed)
 
         tabs_layout.addWidget(self.main_tab_widget)
@@ -1370,6 +1446,207 @@ class ModernShippingMainWindow(QMainWindow):
         logs_layout.addWidget(filters_frame)
         logs_layout.addWidget(self.logs_table)
         return logs_page
+
+    def create_sills_module_page(self):
+        page = QWidget()
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(SPACE_16, SPACE_12, SPACE_16, SPACE_16)
+        page_layout.setSpacing(SPACE_12)
+
+        tabs = QTabWidget()
+        self.sills_tab_widget = tabs
+
+        sheet_page = QWidget()
+        sheet_layout = QVBoxLayout(sheet_page)
+        sheet_layout.setContentsMargins(0, 0, 0, 0)
+        sheet_layout.setSpacing(SPACE_12)
+
+        actions_layout = QHBoxLayout()
+        self.sills_add_btn = ModernButton("Add Sill", "primary", min_height=32, min_width=96, padding=(6, 10))
+        self.sills_edit_btn = ModernButton("Edit Selected", "outline", min_height=32, min_width=112, padding=(6, 10))
+        self.sills_delete_btn = ModernButton("Delete Selected", "outline", min_height=32, min_width=120, padding=(6, 10))
+        self.sills_refresh_btn = ModernButton("Refresh", "outline", min_height=32, min_width=84, padding=(6, 10))
+        actions_layout.addWidget(self.sills_add_btn)
+        actions_layout.addWidget(self.sills_edit_btn)
+        actions_layout.addWidget(self.sills_delete_btn)
+        actions_layout.addWidget(self.sills_refresh_btn)
+        actions_layout.addStretch(1)
+
+        self.sills_table = QTableWidget()
+        self.sills_table.setColumnCount(16)
+        self.sills_table.setHorizontalHeaderLabels([
+            "ID", "Material", "Dimension", "Location", "Die #", "Type", "Speed", "Width",
+            "Sales Order", "Work Order", "Assembly Number", "Description", "Qty",
+            "Dimension Needed", "Notes", "Week to Print",
+        ])
+        self.sills_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.sills_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sills_table.verticalHeader().setVisible(False)
+        self.sills_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._apply_table_style(self.sills_table)
+
+        sheet_layout.addLayout(actions_layout)
+        sheet_layout.addWidget(self.sills_table)
+
+        logs_page = QWidget()
+        logs_layout = QVBoxLayout(logs_page)
+        logs_layout.setContentsMargins(0, 0, 0, 0)
+        logs_layout.setSpacing(SPACE_12)
+
+        log_filters = QHBoxLayout()
+        self.sills_logs_start_date = QDateEdit()
+        self.sills_logs_start_date.setCalendarPopup(True)
+        self.sills_logs_start_date.setDisplayFormat("yyyy-MM-dd")
+        self.sills_logs_start_date.setDate(QDate.currentDate().addDays(-30))
+        self.sills_logs_end_date = QDateEdit()
+        self.sills_logs_end_date.setCalendarPopup(True)
+        self.sills_logs_end_date.setDisplayFormat("yyyy-MM-dd")
+        self.sills_logs_end_date.setDate(QDate.currentDate())
+        self.sills_logs_refresh_btn = ModernButton("Load Logs", "primary", min_height=30, min_width=112, padding=(4, 10))
+        log_filters.addWidget(QLabel("Date Range:"))
+        log_filters.addWidget(self.sills_logs_start_date)
+        log_filters.addWidget(QLabel("to"))
+        log_filters.addWidget(self.sills_logs_end_date)
+        log_filters.addWidget(self.sills_logs_refresh_btn)
+        log_filters.addStretch(1)
+
+        self.sills_logs_table = QTableWidget()
+        self.sills_logs_table.setColumnCount(8)
+        self.sills_logs_table.setHorizontalHeaderLabels(
+            ["Date", "User", "Action", "Sill ID", "Field", "Old Value", "New Value", "Changed By ID"]
+        )
+        self.sills_logs_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sills_logs_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.sills_logs_table.verticalHeader().setVisible(False)
+        self.sills_logs_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._apply_table_style(self.sills_logs_table)
+
+        logs_layout.addLayout(log_filters)
+        logs_layout.addWidget(self.sills_logs_table)
+
+        tabs.addTab(sheet_page, "Sills Sheet")
+        tabs.addTab(logs_page, "Activity Log")
+        page_layout.addWidget(tabs)
+
+        self.sills_add_btn.clicked.connect(self.open_add_sill_dialog)
+        self.sills_edit_btn.clicked.connect(self.open_edit_sill_dialog)
+        self.sills_delete_btn.clicked.connect(self.delete_sill)
+        self.sills_refresh_btn.clicked.connect(self.load_sills)
+        self.sills_logs_refresh_btn.clicked.connect(self.load_sills_logs)
+        self.sills_table.itemDoubleClicked.connect(lambda _: self.open_edit_sill_dialog())
+        tabs.currentChanged.connect(lambda idx: self.load_sills_logs() if idx == 1 else self.load_sills())
+
+        self.load_sills()
+        return page
+
+    def load_sills(self):
+        response = self.api_client.get_sills()
+        if not response.is_success():
+            self.show_error(response.get_error() or "Failed to load sills.")
+            return
+        self.sills = response.get_data() or []
+        self.populate_sills_table()
+
+    def populate_sills_table(self):
+        rows = self.sills or []
+        self.sills_table.setRowCount(len(rows))
+        field_order = [
+            "id", "material", "dimension", "location", "die_number", "type", "speed", "width",
+            "sales_order", "work_order", "assembly_number", "description", "qty",
+            "dimension_needed", "notes", "week_to_print",
+        ]
+        for row_index, sill in enumerate(rows):
+            for col_index, field in enumerate(field_order):
+                value = "" if sill.get(field) is None else str(sill.get(field))
+                self.sills_table.setItem(row_index, col_index, QTableWidgetItem(value))
+        self.sills_table.resizeColumnsToContents()
+
+    def load_sills_logs(self):
+        start_value = self.sills_logs_start_date.date().toString("yyyy-MM-dd")
+        end_value = self.sills_logs_end_date.date().toString("yyyy-MM-dd")
+        response = self.api_client.get_sills_logs(start_date=start_value, end_date=end_value, limit=3000)
+        if not response.is_success():
+            self.show_error(response.get_error() or "Failed to load sills logs.")
+            return
+        self.sills_logs = response.get_data() or []
+        self.populate_sills_logs_table()
+
+    def populate_sills_logs_table(self):
+        logs = self.sills_logs or []
+        self.sills_logs_table.setRowCount(len(logs))
+        for row_index, log in enumerate(logs):
+            changed_at = str(log.get("changed_at", "")).replace("T", " ")
+            values = [
+                changed_at,
+                str(log.get("username", "")),
+                str(log.get("action", "")),
+                str(log.get("sill_id", "")),
+                str(log.get("field_name", "")),
+                str(log.get("old_value", "")),
+                str(log.get("new_value", "")),
+                str(log.get("changed_by", "")),
+            ]
+            for col_index, value in enumerate(values):
+                self.sills_logs_table.setItem(row_index, col_index, QTableWidgetItem(value))
+        self.sills_logs_table.resizeColumnsToContents()
+
+    def _selected_sill(self) -> Optional[dict]:
+        row = self.sills_table.currentRow()
+        if row < 0:
+            return None
+        id_item = self.sills_table.item(row, 0)
+        if not id_item:
+            return None
+        sill_id = int(id_item.text())
+        return next((s for s in self.sills if int(s.get("id", 0)) == sill_id), None)
+
+    def open_add_sill_dialog(self):
+        if self.read_only:
+            self.show_error("You only have read permissions.")
+            return
+        dialog = SillDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            response = self.api_client.create_sill(dialog.get_payload())
+            if response.is_success():
+                self.load_sills()
+                self.load_sills_logs()
+            else:
+                self.show_error(response.get_error() or "Failed to create sill.")
+
+    def open_edit_sill_dialog(self):
+        if self.read_only:
+            self.show_error("You only have read permissions.")
+            return
+        sill = self._selected_sill()
+        if not sill:
+            self.show_error("Select a sill first.")
+            return
+        dialog = SillDialog(self, sill_data=sill)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            response = self.api_client.update_sill(int(sill["id"]), dialog.get_payload())
+            if response.is_success():
+                self.load_sills()
+                self.load_sills_logs()
+            else:
+                self.show_error(response.get_error() or "Failed to update sill.")
+
+    def delete_sill(self):
+        if self.read_only:
+            self.show_error("You only have read permissions.")
+            return
+        sill = self._selected_sill()
+        if not sill:
+            self.show_error("Select a sill first.")
+            return
+        answer = QMessageBox.question(self, "Delete Sill", f"Delete sill ID {sill['id']}?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        response = self.api_client.delete_sill(int(sill["id"]))
+        if response.is_success():
+            self.load_sills()
+            self.load_sills_logs()
+        else:
+            self.show_error(response.get_error() or "Failed to delete sill.")
     
     def setup_professional_table(self, table, module_config: TabModuleConfig):
         """Configurar tabla con estilo profesional y restaurar ancho de columnas"""
