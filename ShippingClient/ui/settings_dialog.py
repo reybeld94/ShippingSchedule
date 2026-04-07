@@ -73,11 +73,6 @@ class SettingsDialog(QDialog):
         header_layout.addWidget(title)
         layout.addWidget(header)
 
-        header_divider = QFrame()
-        header_divider.setObjectName("sectionDivider")
-        header_divider.setFrameShape(QFrame.Shape.HLine)
-        layout.addWidget(header_divider)
-
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setObjectName("settingsTabs")
@@ -118,10 +113,6 @@ class SettingsDialog(QDialog):
         btn_layout.addWidget(cancel_btn)
         btn_layout.addWidget(save_btn)
 
-        footer_divider = QFrame()
-        footer_divider.setObjectName("sectionDivider")
-        footer_divider.setFrameShape(QFrame.Shape.HLine)
-
         footer = QFrame()
         footer_layout = QVBoxLayout(footer)
         footer_layout.setContentsMargins(SPACE_8, SPACE_8, SPACE_8, 0)
@@ -129,12 +120,11 @@ class SettingsDialog(QDialog):
         footer_layout.addLayout(btn_layout)
 
         layout.addWidget(content_wrapper, 1)
-        layout.addWidget(footer_divider)
         layout.addWidget(footer)
 
     def _setup_general_tab(self):
         layout = QVBoxLayout(self.general_tab)
-        layout.setContentsMargins(SPACE_8, SPACE_12, SPACE_8, SPACE_8)
+        layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_12)
         layout.setSpacing(SPACE_16)
 
         text_section = QFrame()
@@ -151,13 +141,8 @@ class SettingsDialog(QDialog):
         section_subtitle.setObjectName("generalSectionSubtitle")
         apply_scaled_font(section_subtitle, offset=0)
 
-        divider = QFrame()
-        divider.setObjectName("generalSectionDivider")
-        divider.setFrameShape(QFrame.Shape.HLine)
-
         text_section_layout.addWidget(section_title)
         text_section_layout.addWidget(section_subtitle)
-        text_section_layout.addWidget(divider)
 
         font_label = QLabel("Text size")
         font_label.setObjectName("generalFieldLabel")
@@ -172,7 +157,7 @@ class SettingsDialog(QDialog):
         font_row = QFormLayout()
         font_row.setContentsMargins(0, 0, 0, 0)
         font_row.setHorizontalSpacing(SPACE_12)
-        font_row.setVerticalSpacing(0)
+        font_row.setVerticalSpacing(SPACE_8)
         font_row.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         font_row.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         font_row.addRow(font_label, self.font_spin)
@@ -183,7 +168,7 @@ class SettingsDialog(QDialog):
 
     def _setup_connections_tab(self):
         layout = QVBoxLayout(self.connections_tab)
-        layout.setContentsMargins(SPACE_8, SPACE_12, SPACE_8, SPACE_8)
+        layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_12)
         layout.setSpacing(SPACE_16)
 
         self.server_edit = ModernLineEdit()
@@ -255,13 +240,8 @@ class SettingsDialog(QDialog):
         subtitle_label.setObjectName("connectionSectionSubtitle")
         apply_scaled_font(subtitle_label, offset=0)
 
-        divider = QFrame()
-        divider.setObjectName("connectionSectionDivider")
-        divider.setFrameShape(QFrame.Shape.HLine)
-
         section_layout.addWidget(title_label)
         section_layout.addWidget(subtitle_label)
-        section_layout.addWidget(divider)
 
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -274,7 +254,7 @@ class SettingsDialog(QDialog):
         row = QFormLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setHorizontalSpacing(SPACE_12)
-        row.setVerticalSpacing(0)
+        row.setVerticalSpacing(SPACE_8)
         row.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         row.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
