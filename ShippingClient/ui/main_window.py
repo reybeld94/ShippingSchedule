@@ -4268,7 +4268,7 @@ class ModernShippingMainWindow(QMainWindow):
             ],
             column_map=list(range(15)),
             page_size=(17, 11),
-            min_font_size=8,
+            min_font_size=10,
         )
 
     def _print_table_to_pdf(
@@ -4279,7 +4279,7 @@ class ModernShippingMainWindow(QMainWindow):
         headers: list[str],
         column_map: list[int],
         page_size: tuple[float, float] = (8.5, 14),
-        min_font_size: float = 6,
+        min_font_size: float = 9,
     ):
         """Generic PDF exporter used by Active Shipments and Sills Sheet."""
         # Verificar dependencias antes de continuar
@@ -4504,7 +4504,7 @@ class ModernShippingMainWindow(QMainWindow):
             # === BÚSQUEDA BINARIA PARA EL TAMAÑO ÓPTIMO ===
 
             min_font = min_font_size
-            max_font = 22
+            max_font = 28
             optimal_font = min_font
             optimal_padding = max(3, min_font * 0.45)
             optimal_row_factor = 1.0
