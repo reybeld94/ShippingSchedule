@@ -624,29 +624,23 @@ class ModernShippingMainWindow(QMainWindow):
         """Crear header profesional con barra superior compacta"""
         header_frame = QFrame()
         header_frame.setObjectName("topHeaderBar")
-        header_frame.setMinimumHeight(88)
+        header_frame.setMinimumHeight(94)
         header_frame.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
         header_frame.setStyleSheet(
             f"""
             QFrame#topHeaderBar {{
-                background-color: {COLOR_BG_SUBTLE};
+                background-color: {COLOR_SURFACE};
                 border: none;
                 border-bottom: 1px solid {COLOR_BORDER};
             }}
         """
         )
 
-        header_shadow = QGraphicsDropShadowEffect(self)
-        header_shadow.setBlurRadius(20)
-        header_shadow.setOffset(0, 2)
-        header_shadow.setColor(QColor(15, 23, 42, 22))
-        header_frame.setGraphicsEffect(header_shadow)
-
         header_layout = QGridLayout(header_frame)
         header_layout.setContentsMargins(SPACE_24, SPACE_16, SPACE_24, SPACE_16)
-        header_layout.setHorizontalSpacing(SPACE_24)
+        header_layout.setHorizontalSpacing(SPACE_20)
         header_layout.setVerticalSpacing(0)
         header_layout.setColumnStretch(0, 0)
         header_layout.setColumnStretch(1, 1)
@@ -657,7 +651,7 @@ class ModernShippingMainWindow(QMainWindow):
         left_container.setMinimumHeight(48)
         left_layout = QHBoxLayout(left_container)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(8)
+        left_layout.setSpacing(SPACE_12)
         left_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         logo_label = QLabel()
@@ -686,9 +680,9 @@ class ModernShippingMainWindow(QMainWindow):
             logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         title_label = QLabel("Shipping Schedule")
-        apply_scaled_font(title_label, offset=10, weight=QFont.Weight.Bold)
+        apply_scaled_font(title_label, offset=8, weight=QFont.Weight.Bold)
         title_label.setStyleSheet(
-            f"color: {COLOR_TEXT_PRIMARY}; text-decoration: none; letter-spacing: 0.3px;"
+            f"color: {COLOR_TEXT_PRIMARY}; text-decoration: none; letter-spacing: 0.2px;"
         )
 
         left_layout.addWidget(logo_label)
@@ -699,7 +693,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
         search_container.setMinimumHeight(CONTROL_HEIGHT)
-        search_container.setMaximumWidth(680)
+        search_container.setMaximumWidth(640)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -708,30 +702,26 @@ class ModernShippingMainWindow(QMainWindow):
         search_container.setStyleSheet(
             f"""
             QFrame#commandSearchContainer {{
-                background-color: {COLOR_SURFACE};
+                background-color: {COLOR_BG_SUBTLE};
                 border: 1px solid {COLOR_BORDER};
                 border-radius: {RADIUS_MD}px;
             }}
             QFrame#commandSearchContainer[focused="true"] {{
                 border: 1px solid {COLOR_PRIMARY};
+                background-color: {COLOR_SURFACE};
             }}
         """
         )
 
-        search_shadow = QGraphicsDropShadowEffect(self)
-        search_shadow.setBlurRadius(14)
-        search_shadow.setOffset(0, 2)
-        search_shadow.setColor(QColor(15, 23, 42, 24))
-        search_container.setGraphicsEffect(search_shadow)
-
         search_layout = QHBoxLayout(search_container)
-        search_layout.setContentsMargins(SPACE_16, 0, SPACE_16, 0)
-        search_layout.setSpacing(SPACE_12)
+        search_layout.setContentsMargins(SPACE_12, 0, SPACE_16, 0)
+        search_layout.setSpacing(SPACE_8)
 
-        search_icon = QLabel("🔍")
+        search_icon = QLabel("⌕")
         apply_scaled_font(search_icon)
-        search_icon.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 14px;")
+        search_icon.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 15px;")
         search_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        search_icon.setFixedWidth(18)
 
         self.search_edit = QLineEdit()
         apply_scaled_font(self.search_edit, offset=2)
@@ -745,7 +735,7 @@ class ModernShippingMainWindow(QMainWindow):
                 border: none;
                 background: transparent;
                 color: {COLOR_TEXT_PRIMARY};
-                padding: 0;
+                padding: 0 0 1px 0;
             }}
             QLineEdit::placeholder {{
                 color: {COLOR_TEXT_SECONDARY};
@@ -830,12 +820,12 @@ class ModernShippingMainWindow(QMainWindow):
         )
         button_group_layout = QHBoxLayout(button_group)
         button_group_layout.setContentsMargins(0, 0, 0, 0)
-        button_group_layout.setSpacing(10)
+        button_group_layout.setSpacing(SPACE_8)
 
         button_min_width = 88
 
         self.refresh_top_btn = ModernButton(
-            "Refresh", "outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=button_min_width
+            "Refresh", "secondary", min_height=CONTROL_HEIGHT, min_width=button_min_width, padding=(SPACE_8, SPACE_16)
         )
         self.refresh_top_btn.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
@@ -850,7 +840,7 @@ class ModernShippingMainWindow(QMainWindow):
         button_group_layout.addWidget(self.refresh_top_btn)
 
         self.print_top_btn = ModernButton(
-            "Print", "outline", min_height=CONTROL_HEIGHT_COMPACT, min_width=button_min_width
+            "Print", "secondary", min_height=CONTROL_HEIGHT, min_width=button_min_width, padding=(SPACE_8, SPACE_16)
         )
         print_icon_enum = getattr(
             QStyle.StandardPixmap,
@@ -863,23 +853,43 @@ class ModernShippingMainWindow(QMainWindow):
         self.print_top_btn.clicked.connect(self.print_table_to_pdf)
         button_group_layout.addWidget(self.print_top_btn)
 
+        subtle_action_style = f"""
+            QPushButton {{
+                background-color: {COLOR_BG_SUBTLE};
+                color: {COLOR_TEXT_SECONDARY};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
+            }}
+            QPushButton:hover {{
+                background-color: #EEF2F7;
+                border-color: {COLOR_BORDER_STRONG};
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+            QPushButton:pressed {{
+                background-color: #E2E8F0;
+                border-color: {COLOR_BORDER_STRONG};
+            }}
+        """
+        self.refresh_top_btn.setStyleSheet(self.refresh_top_btn.styleSheet() + subtle_action_style)
+        self.print_top_btn.setStyleSheet(self.print_top_btn.styleSheet() + subtle_action_style)
+
         right_layout.addWidget(button_group)
 
         user_widget = QFrame()
         user_widget.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
         )
-        user_widget.setMinimumHeight(48)
+        user_widget.setMinimumHeight(CONTROL_HEIGHT)
         user_layout = QHBoxLayout(user_widget)
-        user_layout.setContentsMargins(0, 8, 0, 8)
-        user_layout.setSpacing(10)
+        user_layout.setContentsMargins(0, 0, 0, 0)
+        user_layout.setSpacing(SPACE_12)
 
         initials = "".join(
             part[0].upper()
             for part in self.user_info.get("username", "?").split()
         ) or "U"
         self.avatar_label = QLabel(initials[:2])
-        self.avatar_label.setFixedSize(26, 26)
+        self.avatar_label.setFixedSize(30, 30)
         self.avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.avatar_label.setStyleSheet(
             f"""
@@ -893,7 +903,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(2)
+        text_layout.setSpacing(0)
         text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         user_name_label = QLabel(self.user_info.get("username", ""))
@@ -916,9 +926,29 @@ class ModernShippingMainWindow(QMainWindow):
         self.connection_indicator = QLabel()
         self.connection_indicator.setFixedSize(8, 8)
         self.connection_indicator.setStyleSheet(
-            f"background-color: {COLOR_SUCCESS}; border: 1px solid #FFFFFF; border-radius: {SPACE_8 // 2}px;"
+            f"background-color: {COLOR_SUCCESS}; border-radius: {SPACE_8 // 2}px;"
         )
         self.connection_indicator.setToolTip(f"Connected · {self.server_host}")
+
+        self.connection_state_label = QLabel("Online")
+        apply_scaled_font(self.connection_state_label, offset=-2, weight=QFont.Weight.Medium)
+        self.connection_state_label.setStyleSheet("color: #0F766E;")
+
+        self.connection_badge = QFrame()
+        self.connection_badge.setStyleSheet(
+            """
+            QFrame {
+                background-color: #ECFDF5;
+                border: 1px solid #A7F3D0;
+                border-radius: 9px;
+            }
+            """
+        )
+        connection_layout = QHBoxLayout(self.connection_badge)
+        connection_layout.setContentsMargins(8, 3, 8, 3)
+        connection_layout.setSpacing(6)
+        connection_layout.addWidget(self.connection_indicator)
+        connection_layout.addWidget(self.connection_state_label)
 
         self.settings_btn = QToolButton()
         self.settings_btn.setIcon(
@@ -950,9 +980,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         user_layout.addWidget(self.avatar_label)
         user_layout.addLayout(text_layout)
-        user_layout.addWidget(
-            self.connection_indicator, alignment=Qt.AlignmentFlag.AlignVCenter
-        )
+        user_layout.addWidget(self.connection_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
         user_layout.addWidget(self.settings_btn)
 
         right_layout.addWidget(user_widget)
@@ -2691,16 +2719,42 @@ class ModernShippingMainWindow(QMainWindow):
         """Actualizar status de conexión profesional"""
         if connected:
             self.connection_indicator.setStyleSheet(
-                "background-color: #10B981; border-radius: 5px;"
+                "background-color: #10B981; border-radius: 4px;"
             )
             self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
+            if hasattr(self, "connection_state_label"):
+                self.connection_state_label.setText("Online")
+                self.connection_state_label.setStyleSheet("color: #0F766E;")
+            if hasattr(self, "connection_badge"):
+                self.connection_badge.setStyleSheet(
+                    """
+                    QFrame {
+                        background-color: #ECFDF5;
+                        border: 1px solid #A7F3D0;
+                        border-radius: 9px;
+                    }
+                    """
+                )
             self.connection_status_label.setText(f"Connected · {self.server_host}")
             self.connection_status_label.setStyleSheet("color: #10B981; font-weight: 600;")
         else:
             self.connection_indicator.setStyleSheet(
-                "background-color: #EF4444; border-radius: 5px;"
+                "background-color: #EF4444; border-radius: 4px;"
             )
             self.connection_indicator.setToolTip(f"Disconnected from {self.server_host}")
+            if hasattr(self, "connection_state_label"):
+                self.connection_state_label.setText("Offline")
+                self.connection_state_label.setStyleSheet("color: #B91C1C;")
+            if hasattr(self, "connection_badge"):
+                self.connection_badge.setStyleSheet(
+                    """
+                    QFrame {
+                        background-color: #FEF2F2;
+                        border: 1px solid #FECACA;
+                        border-radius: 9px;
+                    }
+                    """
+                )
             self.connection_status_label.setText("Disconnected")
             self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 600;")
     
