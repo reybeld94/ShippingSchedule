@@ -964,9 +964,13 @@ class ModernShippingMainWindow(QMainWindow):
         connection_layout.addWidget(self.connection_host_label)
 
         self.settings_btn = QToolButton()
-        self.settings_btn.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
-        )
+        settings_icon = QIcon.fromTheme("settings-configure")
+        if settings_icon.isNull():
+            settings_icon = QIcon.fromTheme("preferences-system")
+        if settings_icon.isNull():
+            self.settings_btn.setText("⚙")
+        else:
+            self.settings_btn.setIcon(settings_icon)
         self.settings_btn.setIconSize(QSize(16, 16))
         self.settings_btn.setAutoRaise(False)
         self.settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -978,6 +982,9 @@ class ModernShippingMainWindow(QMainWindow):
                 border: 1px solid {COLOR_BORDER};
                 background-color: {COLOR_SURFACE};
                 border-radius: {RADIUS_MD}px;
+                color: {COLOR_TEXT_SECONDARY};
+                font-size: 14px;
+                font-weight: 600;
             }}
             QToolButton:hover {{
                 background-color: #F8FAFC;
@@ -1025,7 +1032,7 @@ class ModernShippingMainWindow(QMainWindow):
     def create_module_toolbar(self, toolbar_frame: QFrame, module: TabModuleConfig):
         """Create toolbar controls inside each tab."""
         toolbar_frame.setObjectName(f"actionBar_{module.id}")
-        toolbar_frame.setMinimumHeight(44)
+        toolbar_frame.setMinimumHeight(38)
         toolbar_frame.setStyleSheet(
             f"""
             QFrame {{
@@ -1042,31 +1049,31 @@ class ModernShippingMainWindow(QMainWindow):
         add_btn = ModernButton(
             "New Shipment",
             "primary",
-            min_height=CONTROL_HEIGHT_COMPACT,
-            min_width=112,
-            padding=(SPACE_8, SPACE_16),
+            min_height=32,
+            min_width=104,
+            padding=(6, SPACE_12),
         )
-        apply_scaled_font(add_btn, offset=2, weight=QFont.Weight.Medium)
+        apply_scaled_font(add_btn, offset=1, weight=QFont.Weight.Medium)
         add_btn.setStyleSheet(
             f"""
             QPushButton {{
-                background-color: #2563EB;
+                background-color: #3B82F6;
                 color: #FFFFFF;
-                border: 1px solid #1D4ED8;
+                border: 1px solid #2563EB;
                 border-radius: {RADIUS_MD}px;
-                padding: {SPACE_8}px {SPACE_16}px;
-                font-weight: 600;
+                padding: 6px {SPACE_12}px;
+                font-weight: 500;
                 letter-spacing: 0.2px;
-                min-height: {CONTROL_HEIGHT_COMPACT}px;
-                min-width: 112px;
+                min-height: 32px;
+                min-width: 104px;
             }}
             QPushButton:hover {{
-                background-color: #1D4ED8;
-                border-color: #1E40AF;
+                background-color: #2563EB;
+                border-color: #1D4ED8;
             }}
             QPushButton:pressed {{
-                background-color: #1E40AF;
-                border-color: #1E3A8A;
+                background-color: #1D4ED8;
+                border-color: #1E40AF;
             }}
             QPushButton:disabled {{
                 background-color: #BFDBFE;
@@ -1080,9 +1087,9 @@ class ModernShippingMainWindow(QMainWindow):
         delete_btn = ModernButton(
             "Delete",
             "danger-outline",
-            min_height=CONTROL_HEIGHT_COMPACT,
-            min_width=88,
-            padding=(SPACE_8, 12),
+            min_height=32,
+            min_width=84,
+            padding=(6, 10),
         )
         apply_scaled_font(delete_btn, offset=1, weight=QFont.Weight.Medium)
         delete_btn.setStyleSheet(
@@ -1092,10 +1099,10 @@ class ModernShippingMainWindow(QMainWindow):
                 color: #B91C1C;
                 border: 1px solid #FECACA;
                 border-radius: {RADIUS_MD}px;
-                padding: {SPACE_8}px 12px;
+                padding: 6px 10px;
                 font-weight: 500;
-                min-height: {CONTROL_HEIGHT_COMPACT}px;
-                min-width: 88px;
+                min-height: 32px;
+                min-width: 84px;
             }}
             QPushButton:hover {{
                 background-color: #FEF2F2;
@@ -1120,18 +1127,18 @@ class ModernShippingMainWindow(QMainWindow):
         columns_btn = ModernButton(
             "Columns",
             "outline",
-            min_height=CONTROL_HEIGHT_COMPACT,
-            min_width=88,
-            padding=(SPACE_8, 12),
+            min_height=32,
+            min_width=84,
+            padding=(6, 10),
         )
         columns_btn.clicked.connect(lambda _, module_id=module.id: self.open_columns_menu(module_id))
 
         export_btn = ModernButton(
             "Export",
             "outline",
-            min_height=CONTROL_HEIGHT_COMPACT,
-            min_width=82,
-            padding=(SPACE_8, 12),
+            min_height=32,
+            min_width=78,
+            padding=(6, 10),
         )
         export_btn.clicked.connect(lambda _, module_id=module.id: self.show_export_menu(module_id))
 
@@ -1219,8 +1226,8 @@ class ModernShippingMainWindow(QMainWindow):
 
         shipping_page = QWidget()
         shipping_layout = QVBoxLayout(shipping_page)
-        shipping_layout.setContentsMargins(0, 0, 0, 0)
-        shipping_layout.setSpacing(SPACE_12)
+        shipping_layout.setContentsMargins(0, SPACE_8, 0, 0)
+        shipping_layout.setSpacing(SPACE_16)
 
         # Subtabs internas del módulo Shipping
         self.tab_widget = QTabWidget()
@@ -1231,7 +1238,7 @@ class ModernShippingMainWindow(QMainWindow):
                 QTabWidget::pane {{
                     border: none;
                     background: #FFFFFF;
-                    margin-top: 10px;
+                    margin-top: 16px;
                     border-radius: {RADIUS_MD}px;
                 }}
                 QTabBar::tab {{
@@ -1307,18 +1314,22 @@ class ModernShippingMainWindow(QMainWindow):
         filters_layout.setSpacing(8)
 
         date_label = QLabel("Date Range:")
+        apply_scaled_font(date_label, offset=1, weight=QFont.Weight.Medium)
         self.logs_start_date = QDateEdit()
         self.logs_start_date.setCalendarPopup(True)
         self.logs_start_date.setDisplayFormat("yyyy-MM-dd")
         self.logs_start_date.setDate(QDate.currentDate().addDays(-30))
+        apply_scaled_font(self.logs_start_date, offset=1)
 
         to_label = QLabel("to")
+        apply_scaled_font(to_label, offset=1, weight=QFont.Weight.Medium)
         self.logs_end_date = QDateEdit()
         self.logs_end_date.setCalendarPopup(True)
         self.logs_end_date.setDisplayFormat("yyyy-MM-dd")
         self.logs_end_date.setDate(QDate.currentDate())
+        apply_scaled_font(self.logs_end_date, offset=1)
 
-        self.logs_refresh_btn = ModernButton("Load Logs", "primary", min_height=34, min_width=120)
+        self.logs_refresh_btn = ModernButton("Load Logs", "primary", min_height=30, min_width=112, padding=(4, 10))
         self.logs_refresh_btn.clicked.connect(self.load_shipping_logs)
 
         self.logs_range_hint = QLabel("Default: Last 30 days - Present")

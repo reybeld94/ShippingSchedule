@@ -198,12 +198,12 @@ class ModernLineEdit(QLineEdit):
         super().__init__()
         self.setPlaceholderText(placeholder)
         self.setMinimumHeight(CONTROL_HEIGHT)
-        apply_scaled_font(self, offset=2)
+        apply_scaled_font(self, offset=3)
         self.apply_professional_style()
 
     def apply_professional_style(self):
         """Aplicar estilo profesional al input"""
-        font_size = max(10, self.font().pointSize() + 4)
+        font_size = max(13, self.font().pointSize() + 2)
         placeholder_font_size = font_size
         self.setStyleSheet(
             f"""
@@ -261,7 +261,7 @@ class ModernComboBox(QComboBox):
 
     def apply_professional_style(self):
         """Aplicar estilo profesional al combobox"""
-        font_size = max(8, self.font().pointSize() + 3)
+        font_size = max(12, self.font().pointSize() + 2)
         self.setStyleSheet(
             f"""
             QComboBox {{
