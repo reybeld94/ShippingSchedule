@@ -229,3 +229,28 @@ class RobustApiClient:
         if end_date:
             params["end_date"] = end_date
         return self.get("/shipping-logs", params=params)
+
+    def get_sills(self) -> ApiResponse:
+        return self.get("/sills")
+
+    def create_sill(self, sill_data: Dict) -> ApiResponse:
+        return self.post("/sills", data=sill_data)
+
+    def update_sill(self, sill_id: int, data: Dict) -> ApiResponse:
+        return self.put(f"/sills/{sill_id}", data=data)
+
+    def delete_sill(self, sill_id: int) -> ApiResponse:
+        return self.delete(f"/sills/{sill_id}")
+
+    def get_sills_logs(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 1000,
+    ) -> ApiResponse:
+        params: Dict[str, Any] = {"limit": limit}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        return self.get("/sills-logs", params=params)

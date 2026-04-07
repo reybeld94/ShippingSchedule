@@ -253,6 +253,64 @@ class ShippingLog(Base):
     shipment = relationship("Shipment")
 
 
+class Sill(Base):
+    __tablename__ = "sills"
+
+    __table_args__ = (
+        Index("ix_sills_week_to_print", "week_to_print"),
+        Index("ix_sills_sales_order", "sales_order"),
+        Index("ix_sills_work_order", "work_order"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    material = Column(String(20), nullable=False)
+    dimension = Column(String(30), nullable=False, default="", server_default=text("''"))
+    location = Column(String(40), nullable=False, default="", server_default=text("''"))
+    die_number = Column(String(50), nullable=False, default="", server_default=text("''"))
+    type = Column(String(20), nullable=False, default="", server_default=text("''"))
+    speed = Column(String(10), nullable=False, default="", server_default=text("''"))
+    width = Column(String(30), nullable=False, default="", server_default=text("''"))
+    sales_order = Column(String(30), nullable=False, default="", server_default=text("''"))
+    work_order = Column(String(30), nullable=False, default="", server_default=text("''"))
+    assembly_number = Column(String(50), nullable=False, default="", server_default=text("''"))
+    description = Column(Text, nullable=False, default="", server_default=text("''"))
+    qty = Column(String(20), nullable=False, default="", server_default=text("''"))
+    dimension_needed = Column(String(30), nullable=False, default="", server_default=text("''"))
+    notes = Column(Text, nullable=False, default="", server_default=text("''"))
+    week_to_print = Column(String(20), nullable=False, default="", server_default=text("''"))
+
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_modified_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    creator = relationship("User", foreign_keys=[created_by])
+    last_modifier = relationship("User", foreign_keys=[last_modified_by])
+
+
+class SillLog(Base):
+    __tablename__ = "sills_logs"
+
+    __table_args__ = (
+        Index("ix_sills_logs_changed_at", "changed_at"),
+        Index("ix_sills_logs_sill_changed_at", "sill_id", "changed_at"),
+        Index("ix_sills_logs_changed_by", "changed_by"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    sill_id = Column(Integer, ForeignKey("sills.id"), nullable=True)
+    changed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action = Column(String(20), nullable=False)  # create, update, delete
+    field_name = Column(String(100), nullable=False)
+    old_value = Column(Text, default="")
+    new_value = Column(Text, default="")
+    changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    module = Column(String(30), nullable=False, default="sills", server_default="sills")
+
+    user = relationship("User", foreign_keys=[changed_by])
+    sill = relationship("Sill")
+
+
 class AppConnectionSettings(Base):
     __tablename__ = "app_connection_settings"
 

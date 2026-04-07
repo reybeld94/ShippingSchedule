@@ -12,7 +12,7 @@ from sqlalchemy.orm.exc import StaleDataError
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
-from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings
+from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings, Sill, SillLog
 from auth import authenticate_user, create_access_token, get_current_user, get_current_admin_user, Token, UserLogin, UserCreate
 from pydantic import BaseModel
 from fedex_service import FedExService
@@ -159,6 +159,80 @@ class ShippingLogResponse(BaseModel):
         from_attributes = True
 
 
+class SillCreate(BaseModel):
+    material: str
+    dimension: str = ""
+    location: str = ""
+    die_number: str = ""
+    type: str = ""
+    speed: str = ""
+    width: str = ""
+    sales_order: str = ""
+    work_order: str = ""
+    assembly_number: str = ""
+    description: str = ""
+    qty: str = ""
+    dimension_needed: str = ""
+    notes: str = ""
+    week_to_print: str = ""
+
+
+class SillUpdate(BaseModel):
+    material: str | None = None
+    dimension: str | None = None
+    location: str | None = None
+    die_number: str | None = None
+    type: str | None = None
+    speed: str | None = None
+    width: str | None = None
+    sales_order: str | None = None
+    work_order: str | None = None
+    assembly_number: str | None = None
+    description: str | None = None
+    qty: str | None = None
+    dimension_needed: str | None = None
+    notes: str | None = None
+    week_to_print: str | None = None
+
+
+class SillResponse(BaseModel):
+    id: int
+    material: str
+    dimension: str
+    location: str
+    die_number: str
+    type: str
+    speed: str
+    width: str
+    sales_order: str
+    work_order: str
+    assembly_number: str
+    description: str
+    qty: str
+    dimension_needed: str
+    notes: str
+    week_to_print: str
+    created_by: int
+
+    class Config:
+        from_attributes = True
+
+
+class SillLogResponse(BaseModel):
+    id: int
+    sill_id: int | None = None
+    changed_by: int
+    username: str
+    action: str
+    field_name: str
+    old_value: str
+    new_value: str
+    changed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 def _safe_text(value) -> str:
     if value is None:
         return ""
@@ -199,6 +273,27 @@ def _append_shipping_logs(
         db.add(
             ShippingLog(
                 shipment_id=shipment_id,
+                changed_by=user_id,
+                action=action,
+                field_name=field_name,
+                old_value=_safe_text(diff.get("old")),
+                new_value=_safe_text(diff.get("new")),
+            )
+        )
+
+
+def _append_sills_logs(
+    db: Session,
+    *,
+    sill_id: int | None,
+    action: str,
+    user_id: int,
+    changes: dict[str, dict[str, str]],
+):
+    for field_name, diff in changes.items():
+        db.add(
+            SillLog(
+                sill_id=sill_id,
                 changed_by=user_id,
                 action=action,
                 field_name=field_name,
@@ -860,6 +955,174 @@ async def get_shipping_logs(
             id=log.id,
             shipment_id=log.shipment_id,
             job_number=shipments_by_id.get(log.shipment_id, ""),
+            changed_by=log.changed_by,
+            username=log.user.username if log.user else "Unknown",
+            action=log.action,
+            field_name=log.field_name,
+            old_value=log.old_value or "",
+            new_value=log.new_value or "",
+            changed_at=log.changed_at,
+        )
+        for log in logs
+    ]
+
+
+# ============ ENDPOINTS DE SILLS ============
+
+@app.get("/sills", response_model=List[SillResponse])
+async def get_sills(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(Sill).order_by(Sill.id.desc()).all()
+
+
+@app.post("/sills", response_model=SillResponse)
+async def create_sill(
+    sill: SillCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    sill_data = {k: _safe_text(v).strip() for k, v in sill.dict().items()}
+    new_sill = Sill(
+        **sill_data,
+        created_by=current_user.id,
+        last_modified_by=current_user.id,
+    )
+    db.add(new_sill)
+    db.flush()
+
+    changes = {
+        field_name: {"old": "", "new": value}
+        for field_name, value in sill_data.items()
+        if value != ""
+    }
+    _append_sills_logs(
+        db,
+        sill_id=new_sill.id,
+        action="create",
+        user_id=current_user.id,
+        changes=changes,
+    )
+
+    db.commit()
+    db.refresh(new_sill)
+    return new_sill
+
+
+@app.put("/sills/{sill_id}", response_model=SillResponse)
+async def update_sill(
+    sill_id: int,
+    sill_update: SillUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    sill = db.query(Sill).filter(Sill.id == sill_id).first()
+    if not sill:
+        raise HTTPException(status_code=404, detail="Sill not found")
+
+    update_data = sill_update.dict(exclude_unset=True)
+    changes_made = {}
+    for field, raw_value in update_data.items():
+        new_value = _safe_text(raw_value).strip()
+        old_value = _safe_text(getattr(sill, field, ""))
+        if old_value != new_value:
+            setattr(sill, field, new_value)
+            changes_made[field] = {"old": old_value, "new": new_value}
+
+    if not changes_made:
+        return sill
+
+    sill.last_modified_by = current_user.id
+    sill.updated_at = datetime.utcnow()
+    _append_sills_logs(
+        db,
+        sill_id=sill.id,
+        action="update",
+        user_id=current_user.id,
+        changes=changes_made,
+    )
+    db.commit()
+    db.refresh(sill)
+    return sill
+
+
+@app.delete("/sills/{sill_id}")
+async def delete_sill(
+    sill_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    sill = db.query(Sill).filter(Sill.id == sill_id).first()
+    if not sill:
+        raise HTTPException(status_code=404, detail="Sill not found")
+
+    backup_data = {
+        "material": sill.material,
+        "dimension": sill.dimension,
+        "location": sill.location,
+        "die_number": sill.die_number,
+        "type": sill.type,
+        "speed": sill.speed,
+        "width": sill.width,
+        "sales_order": sill.sales_order,
+        "work_order": sill.work_order,
+        "assembly_number": sill.assembly_number,
+        "description": sill.description,
+        "qty": sill.qty,
+        "dimension_needed": sill.dimension_needed,
+        "notes": sill.notes,
+        "week_to_print": sill.week_to_print,
+    }
+    _append_sills_logs(
+        db,
+        sill_id=sill.id,
+        action="delete",
+        user_id=current_user.id,
+        changes={key: {"old": _safe_text(value), "new": ""} for key, value in backup_data.items()},
+    )
+    db.delete(sill)
+    db.commit()
+    return {"message": "Sill deleted successfully"}
+
+
+@app.get("/sills-logs", response_model=List[SillLogResponse])
+async def get_sills_logs(
+    start_date: date | None = Query(None, description="Start date in YYYY-MM-DD format"),
+    end_date: date | None = Query(None, description="End date in YYYY-MM-DD format"),
+    limit: int = Query(1000, ge=1, le=5000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    today = datetime.utcnow().date()
+    effective_end_date = end_date or today
+    effective_start_date = start_date or (effective_end_date - timedelta(days=30))
+
+    if effective_start_date > effective_end_date:
+        raise HTTPException(status_code=400, detail="start_date must be before or equal to end_date")
+
+    start_dt = datetime.combine(effective_start_date, datetime.min.time())
+    end_dt = datetime.combine(effective_end_date + timedelta(days=1), datetime.min.time())
+
+    logs = (
+        db.query(SillLog)
+        .filter(SillLog.changed_at >= start_dt)
+        .filter(SillLog.changed_at < end_dt)
+        .order_by(SillLog.changed_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        SillLogResponse(
+            id=log.id,
+            sill_id=log.sill_id,
             changed_by=log.changed_by,
             username=log.user.username if log.user else "Unknown",
             action=log.action,
