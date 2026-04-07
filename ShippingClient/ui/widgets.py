@@ -22,6 +22,9 @@ from .style_tokens import (
     COLOR_SUCCESS,
     COLOR_SUCCESS_HOVER,
     COLOR_SUCCESS_PRESSED,
+    COLOR_SUCCESS_SOFT_BG,
+    COLOR_SUCCESS_SOFT_BORDER,
+    COLOR_SUCCESS_SOFT_TEXT,
     COLOR_SURFACE,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
@@ -385,8 +388,9 @@ class StatusBadge(QLabel):
         """Aplicar estilo según el tipo de status"""
         base_style = """
             QLabel {
-                padding: 4px 12px;
-                border-radius: 12px;
+                padding: 4px 10px;
+                border-radius: 10px;
+                border: 1px solid transparent;
                 font-weight: 500;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
@@ -394,38 +398,43 @@ class StatusBadge(QLabel):
         """
         
         if self.status_type == "success":
-            style = base_style + """
+            style = base_style + f"""
                 QLabel {
-                    background-color: #10B981;
-                    color: white;
+                    background-color: {COLOR_SUCCESS_SOFT_BG};
+                    border-color: {COLOR_SUCCESS_SOFT_BORDER};
+                    color: {COLOR_SUCCESS_SOFT_TEXT};
                 }
             """
         elif self.status_type == "warning":
             style = base_style + """
                 QLabel {
-                    background-color: #F59E0B;
-                    color: white;
+                    background-color: #FFFBEB;
+                    border-color: #FDE68A;
+                    color: #92400E;
                 }
             """
         elif self.status_type == "error":
             style = base_style + """
                 QLabel {
-                    background-color: #EF4444;
-                    color: white;
+                    background-color: #FEF2F2;
+                    border-color: #FECACA;
+                    color: #B91C1C;
                 }
             """
         elif self.status_type == "info":
             style = base_style + """
                 QLabel {
-                    background-color: #3B82F6;
-                    color: white;
+                    background-color: #EFF6FF;
+                    border-color: #BFDBFE;
+                    color: #1D4ED8;
                 }
             """
         else:  # default
             style = base_style + """
                 QLabel {
-                    background-color: #6B7280;
-                    color: white;
+                    background-color: #F1F5F9;
+                    border-color: #CBD5E1;
+                    color: #475569;
                 }
             """
         
