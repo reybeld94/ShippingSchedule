@@ -1498,16 +1498,104 @@ class ModernShippingMainWindow(QMainWindow):
         sheet_layout.setContentsMargins(0, 0, 0, 0)
         sheet_layout.setSpacing(SPACE_12)
 
-        actions_layout = QHBoxLayout()
+        actions_frame = QFrame()
+        actions_frame.setObjectName("actionBar_sills")
+        actions_frame.setMinimumHeight(38)
+        actions_frame.setStyleSheet(
+            """
+            QFrame {
+                background: transparent;
+                border: none;
+            }
+        """
+        )
+
+        actions_layout = QHBoxLayout(actions_frame)
+        actions_layout.setContentsMargins(0, 0, 0, SPACE_8)
+        actions_layout.setSpacing(12)
+
         self.sills_add_btn = ModernButton("Add Sill", "primary", min_height=32, min_width=96, padding=(6, 10))
+        apply_scaled_font(self.sills_add_btn, offset=1, weight=QFont.Weight.Medium)
+        self.sills_add_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: #3B82F6;
+                color: #FFFFFF;
+                border: 1px solid #2563EB;
+                border-radius: {RADIUS_MD}px;
+                padding: 6px 10px;
+                font-weight: 500;
+                letter-spacing: 0.2px;
+                min-height: 32px;
+                min-width: 96px;
+            }}
+            QPushButton:hover {{
+                background-color: #2563EB;
+                border-color: #1D4ED8;
+            }}
+            QPushButton:pressed {{
+                background-color: #1D4ED8;
+                border-color: #1E40AF;
+            }}
+            QPushButton:disabled {{
+                background-color: #BFDBFE;
+                border-color: #93C5FD;
+                color: #EFF6FF;
+            }}
+        """
+        )
+
         self.sills_edit_btn = ModernButton("Edit Selected", "outline", min_height=32, min_width=112, padding=(6, 10))
-        self.sills_delete_btn = ModernButton("Delete Selected", "outline", min_height=32, min_width=120, padding=(6, 10))
+
+        self.sills_delete_btn = ModernButton("Delete Selected", "danger-outline", min_height=32, min_width=120, padding=(6, 10))
+        apply_scaled_font(self.sills_delete_btn, offset=1, weight=QFont.Weight.Medium)
+        self.sills_delete_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: #FFFFFF;
+                color: #B91C1C;
+                border: 1px solid #FECACA;
+                border-radius: {RADIUS_MD}px;
+                padding: 6px 10px;
+                font-weight: 500;
+                min-height: 32px;
+                min-width: 120px;
+            }}
+            QPushButton:hover {{
+                background-color: #FEF2F2;
+                border-color: #FCA5A5;
+                color: #991B1B;
+            }}
+            QPushButton:pressed {{
+                background-color: #FEE2E2;
+                border-color: #F87171;
+                color: #7F1D1D;
+            }}
+            QPushButton:disabled {{
+                background-color: #F8FAFC;
+                border-color: {COLOR_BORDER};
+                color: #94A3B8;
+            }}
+        """
+        )
+
         self.sills_refresh_btn = ModernButton("Refresh", "outline", min_height=32, min_width=84, padding=(6, 10))
-        actions_layout.addWidget(self.sills_add_btn)
-        actions_layout.addWidget(self.sills_edit_btn)
-        actions_layout.addWidget(self.sills_delete_btn)
-        actions_layout.addWidget(self.sills_refresh_btn)
+
+        primary_actions = QHBoxLayout()
+        primary_actions.setContentsMargins(0, 0, 0, 0)
+        primary_actions.setSpacing(10)
+        primary_actions.addWidget(self.sills_add_btn)
+        primary_actions.addWidget(self.sills_edit_btn)
+        primary_actions.addWidget(self.sills_delete_btn)
+
+        secondary_actions = QHBoxLayout()
+        secondary_actions.setContentsMargins(0, 0, 0, 0)
+        secondary_actions.setSpacing(10)
+        secondary_actions.addWidget(self.sills_refresh_btn)
+
+        actions_layout.addLayout(primary_actions)
         actions_layout.addStretch(1)
+        actions_layout.addLayout(secondary_actions)
 
         self.sills_table = QTableWidget()
         self.sills_table.setColumnCount(16)
@@ -1522,7 +1610,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self._apply_table_style(self.sills_table)
 
-        sheet_layout.addLayout(actions_layout)
+        sheet_layout.addWidget(actions_frame)
         sheet_layout.addWidget(self.sills_table)
 
         logs_page = QWidget()
