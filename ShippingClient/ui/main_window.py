@@ -4273,6 +4273,7 @@ class ModernShippingMainWindow(QMainWindow):
             min_header_font_size=13,
             min_body_font_size=12,
             min_row_height=28,
+            max_row_height=72,
             cell_padding_vertical=8,
             cell_padding_horizontal=6,
             target_fill_ratio=0.92,
@@ -4291,6 +4292,7 @@ class ModernShippingMainWindow(QMainWindow):
         min_header_font_size: float | None = None,
         min_body_font_size: float | None = None,
         min_row_height: float = 20,
+        max_row_height: float | None = None,
         cell_padding_vertical: float = 5,
         cell_padding_horizontal: float = 4.5,
         target_fill_ratio: float = 0.82,
@@ -4559,6 +4561,8 @@ class ModernShippingMainWindow(QMainWindow):
                 remaining_rows = max(1, len(raw_data) - 1)
                 extra_per_row = (target_fill - fitted_height) / remaining_rows
                 body_row_height = max(body_row_height, body_row_height + extra_per_row)
+            if max_row_height is not None:
+                body_row_height = min(body_row_height, max_row_height)
 
             print(
                 f"✅ Readability size set: title={title_style.fontSize:.1f}, header={min_header:.1f}, body={min_body:.1f}, row={body_row_height:.1f}"
