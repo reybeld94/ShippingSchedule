@@ -2837,11 +2837,11 @@ class ModernShippingMainWindow(QMainWindow):
             if hasattr(self, "connection_badge"):
                 self.connection_badge.setStyleSheet(
                     f"""
-                    QFrame {
+                    QFrame {{
                         background-color: {COLOR_SUCCESS_SOFT_BG};
                         border: 1px solid {COLOR_SUCCESS_SOFT_BORDER};
                         border-radius: 9px;
-                    }
+                    }}
                     """
                 )
             self.connection_status_label.setText(f"Connected · {self.server_host}")
