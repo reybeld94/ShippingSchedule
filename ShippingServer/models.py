@@ -62,7 +62,7 @@ class Shipment(Base):
     invoice_number = Column(String(50))
     shipping_notes = Column(Text)
     tracking_number = Column(String(100), default="")
-    address = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    address = Column(Text, nullable=False, default="", server_default=text("''"))
     
     # Metadata
     created_by = Column(Integer, ForeignKey("users.id"))
@@ -170,7 +170,7 @@ class Shipment(Base):
 
         return cleaned
 
-    @validates('description', 'qc_notes', 'shipping_notes')
+    @validates('description', 'qc_notes', 'shipping_notes', 'address')
     def validate_text_fields(self, key, value):
         """Validar campos de texto largos"""
         if not value:
@@ -182,7 +182,8 @@ class Shipment(Base):
         max_lengths = {
             'description': 1000,
             'qc_notes': 1000,
-            'shipping_notes': 1000
+            'shipping_notes': 1000,
+            'address': 1000
         }
         
         max_length = max_lengths.get(key, 500)
