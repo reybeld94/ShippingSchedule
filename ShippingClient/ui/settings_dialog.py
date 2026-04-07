@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
+    QFormLayout,
     QLabel,
     QMessageBox,
     QSpinBox,
@@ -12,6 +13,7 @@ from PyQt6.QtWidgets import (
     QFrame,
 )
 from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
 
 from .widgets import ModernButton, ModernLineEdit
 from .user_dialog import UserManagementWidget
@@ -145,40 +147,109 @@ class SettingsDialog(QDialog):
 
     def _setup_connections_tab(self):
         layout = QVBoxLayout(self.connections_tab)
+        layout.setContentsMargins(SPACE_8, SPACE_12, SPACE_8, SPACE_8)
+        layout.setSpacing(SPACE_16)
 
-        server_label = QLabel("Server URL")
-        apply_scaled_font(server_label, offset=1, weight=QFont.Weight.Medium)
         self.server_edit = ModernLineEdit()
-
-        ws_label = QLabel("WebSocket URL")
-        apply_scaled_font(ws_label, offset=1, weight=QFont.Weight.Medium)
         self.ws_edit = ModernLineEdit()
 
-        fedex_label = QLabel("FedEx")
-        apply_scaled_font(fedex_label, offset=1, weight=QFont.Weight.Medium)
         self.fedex_enabled = QCheckBox("Enabled")
-        apply_scaled_font(self.fedex_enabled)
+        apply_scaled_font(self.fedex_enabled, offset=1, weight=QFont.Weight.Medium)
         self.fedex_api_key_edit = ModernLineEdit("FedEx API Key")
         self.fedex_secret_key_edit = ModernLineEdit("FedEx Secret Key")
         self.fedex_secret_key_edit.setEchoMode(ModernLineEdit.EchoMode.Password)
         self.fedex_base_url_edit = ModernLineEdit("FedEx Base URL (optional)")
         self.fedex_base_url_edit.setPlaceholderText("https://apis.fedex.com or https://apis-sandbox.fedex.com")
         self.test_fedex_btn = ModernButton("Test Connection", "secondary")
+        self.test_fedex_btn.setMinimumWidth(140)
         self.test_fedex_btn.clicked.connect(self.test_fedex_connection)
         self.test_fedex_btn.setEnabled(self.is_admin)
 
-        layout.addWidget(server_label)
-        layout.addWidget(self.server_edit)
-        layout.addWidget(ws_label)
-        layout.addWidget(self.ws_edit)
-        layout.addSpacing(12)
-        layout.addWidget(fedex_label)
-        layout.addWidget(self.fedex_enabled)
-        layout.addWidget(self.fedex_api_key_edit)
-        layout.addWidget(self.fedex_secret_key_edit)
-        layout.addWidget(self.fedex_base_url_edit)
-        layout.addWidget(self.test_fedex_btn)
+        server_section, server_content = self._create_connection_section(
+            "Server",
+            "Configura la URL base del backend.",
+        )
+        self._add_form_row(server_content, "Server URL", self.server_edit)
+
+        ws_section, ws_content = self._create_connection_section(
+            "WebSocket",
+            "Endpoint para notificaciones y actualizaciones en tiempo real.",
+        )
+        self._add_form_row(ws_content, "WebSocket URL", self.ws_edit)
+
+        fedex_section, fedex_content = self._create_connection_section(
+            "FedEx",
+            "Credenciales y conectividad para integración de tracking.",
+        )
+        fedex_header_row = QHBoxLayout()
+        fedex_header_row.setContentsMargins(0, 0, 0, 0)
+        fedex_header_row.addStretch()
+        fedex_header_row.addWidget(self.fedex_enabled)
+        fedex_content.addLayout(fedex_header_row)
+
+        self._add_form_row(fedex_content, "API Key", self.fedex_api_key_edit)
+        self._add_form_row(fedex_content, "Secret Key", self.fedex_secret_key_edit)
+        self._add_form_row(fedex_content, "Base URL", self.fedex_base_url_edit)
+
+        test_row = QHBoxLayout()
+        test_row.setContentsMargins(0, 0, 0, 0)
+        test_row.setSpacing(SPACE_8)
+        test_row.addStretch()
+        test_row.addWidget(self.test_fedex_btn)
+        fedex_content.addLayout(test_row)
+
+        layout.addWidget(server_section)
+        layout.addWidget(ws_section)
+        layout.addWidget(fedex_section)
         layout.addStretch()
+
+    def _create_connection_section(self, title: str, subtitle: str) -> tuple[QFrame, QVBoxLayout]:
+        section = QFrame()
+        section.setObjectName("connectionSection")
+
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(SPACE_16, SPACE_12, SPACE_16, SPACE_16)
+        section_layout.setSpacing(SPACE_12)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("connectionSectionTitle")
+        apply_scaled_font(title_label, offset=2, weight=QFont.Weight.DemiBold)
+
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("connectionSectionSubtitle")
+        apply_scaled_font(subtitle_label, offset=0)
+
+        divider = QFrame()
+        divider.setObjectName("connectionSectionDivider")
+        divider.setFrameShape(QFrame.Shape.HLine)
+
+        section_layout.addWidget(title_label)
+        section_layout.addWidget(subtitle_label)
+        section_layout.addWidget(divider)
+
+        content_layout = QVBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(SPACE_12)
+        section_layout.addLayout(content_layout)
+
+        return section, content_layout
+
+    def _add_form_row(self, parent_layout: QVBoxLayout, label_text: str, field: QWidget):
+        row = QFormLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setHorizontalSpacing(SPACE_12)
+        row.setVerticalSpacing(0)
+        row.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        row.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        label = QLabel(label_text)
+        label.setObjectName("connectionFieldLabel")
+        apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
+
+        field.setMinimumHeight(CONTROL_HEIGHT)
+
+        row.addRow(label, field)
+        parent_layout.addLayout(row)
 
     def _setup_users_tab(self):
         layout = QVBoxLayout(self.users_tab)
@@ -205,6 +276,43 @@ class SettingsDialog(QDialog):
                 background-color: {COLOR_BG_SUBTLE};
                 border: 1px solid {COLOR_BORDER};
                 border-radius: {RADIUS_LG}px;
+            }}
+            QFrame#connectionSection {{
+                background-color: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
+                border-radius: {RADIUS_MD}px;
+            }}
+            QLabel#connectionSectionTitle {{
+                color: {COLOR_TEXT_PRIMARY};
+            }}
+            QLabel#connectionSectionSubtitle {{
+                color: {COLOR_TEXT_SECONDARY};
+            }}
+            QFrame#connectionSectionDivider {{
+                background-color: {COLOR_BORDER};
+                max-height: 1px;
+            }}
+            QLabel#connectionFieldLabel {{
+                color: {COLOR_TEXT_SECONDARY};
+                min-width: 118px;
+            }}
+            QCheckBox {{
+                spacing: 8px;
+                color: {COLOR_TEXT_SECONDARY};
+            }}
+            QCheckBox::indicator {{
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                border: 1px solid {COLOR_BORDER};
+                background: {COLOR_SURFACE};
+            }}
+            QCheckBox::indicator:hover {{
+                border-color: #94A3B8;
+            }}
+            QCheckBox::indicator:checked {{
+                border-color: {COLOR_PRIMARY};
+                background-color: #DBEAFE;
             }}
             QTabWidget#settingsTabs::pane {{
                 border: none;
