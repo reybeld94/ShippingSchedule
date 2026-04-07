@@ -944,11 +944,11 @@ class ModernShippingMainWindow(QMainWindow):
         self.connection_badge = QFrame()
         self.connection_badge.setStyleSheet(
             f"""
-            QFrame {
+            QFrame {{
                 background-color: {COLOR_SUCCESS_SOFT_BG};
                 border: 1px solid {COLOR_SUCCESS_SOFT_BORDER};
                 border-radius: 9px;
-            }
+            }}
             """
         )
         connection_layout = QVBoxLayout(self.connection_badge)
