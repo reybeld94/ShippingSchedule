@@ -1216,30 +1216,32 @@ class ModernShippingMainWindow(QMainWindow):
                 QTabWidget::pane {{
                     border: none;
                     background: #FFFFFF;
-                    border-top: 1px solid #E5E7EB;
+                    border-top: 1px solid #E2E8F0;
+                    margin-top: 8px;
                 }}
                 QTabBar::tab {{
-                    background: #F9FAFB;
-                    color: #6B7280;
-                    padding: 8px 16px;
-                    margin-right: 1px;
-                    border-top-left-radius: 6px;
-                    border-top-right-radius: 6px;
+                    background: transparent;
+                    color: #64748B;
+                    padding: 10px 18px;
+                    margin-right: 6px;
+                    border-top-left-radius: 8px;
+                    border-top-right-radius: 8px;
                     font-weight: 500;
                     font-size: {sub_tab_font_size}px;
                     min-width: 92px;
-                    border: 1px solid #E5E7EB;
-                    border-bottom: none;
+                    border: 1px solid transparent;
+                    border-bottom: 2px solid transparent;
                 }}
                 QTabBar::tab:selected {{
-                    background: #FFFFFF;
-                    color: #1F2937;
-                    border-bottom: 2px solid #3B82F6;
-                    font-weight: 600;
+                    background: #EFF6FF;
+                    color: #1E3A8A;
+                    border: 1px solid #DBEAFE;
+                    border-bottom: 2px solid #2563EB;
+                    font-weight: 700;
                 }}
                 QTabBar::tab:hover:!selected {{
-                    background: #F3F4F6;
-                    color: #374151;
+                    background: #F8FAFC;
+                    color: #334155;
                 }}
             """
             )
