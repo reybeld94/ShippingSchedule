@@ -22,11 +22,13 @@ from .utils import apply_scaled_font
 from .style_tokens import (
     COLOR_BG_SUBTLE,
     COLOR_BORDER,
+    COLOR_PRIMARY,
     COLOR_SURFACE,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
     CONTROL_HEIGHT,
     RADIUS_LG,
+    RADIUS_MD,
     SPACE_12,
     SPACE_16,
     SPACE_20,
@@ -207,20 +209,32 @@ class SettingsDialog(QDialog):
             QTabWidget#settingsTabs::pane {{
                 border: none;
                 background: transparent;
+                margin-top: {SPACE_8}px;
             }}
             QTabWidget#settingsTabs::tab-bar {{
                 left: 0px;
             }}
-            QTabBar::tab {{
+            QTabWidget#settingsTabs QTabBar::tab {{
                 background: transparent;
                 color: {COLOR_TEXT_SECONDARY};
-                border: none;
-                padding: {SPACE_8}px {SPACE_12}px;
+                border: 1px solid transparent;
+                border-bottom: 2px solid transparent;
+                border-top-left-radius: {RADIUS_MD - 2}px;
+                border-top-right-radius: {RADIUS_MD - 2}px;
+                padding: {SPACE_8 + 2}px {SPACE_16}px;
                 margin-right: {SPACE_8}px;
+                margin-bottom: 2px;
+                font-weight: 500;
             }}
-            QTabBar::tab:selected {{
+            QTabWidget#settingsTabs QTabBar::tab:hover:!selected {{
+                background: #F8FAFC;
+                color: #334155;
+            }}
+            QTabWidget#settingsTabs QTabBar::tab:selected {{
+                background: #EFF6FF;
                 color: {COLOR_TEXT_PRIMARY};
-                border-bottom: 2px solid #2563EB;
+                border: 1px solid #BFDBFE;
+                border-bottom: 2px solid {COLOR_PRIMARY};
                 font-weight: 600;
             }}
             """
