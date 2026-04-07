@@ -3222,17 +3222,7 @@ class ModernShippingMainWindow(QMainWindow):
         for col, key in enumerate(self.TABLE_COLUMN_KEYS):
             item_text = shipment.get(key, "")
 
-            if key == "address":
-                has_address = bool(item_text)
-                metadata = {
-                    "display": "✓" if has_address else "—",
-                    "normalized": "true" if has_address else "",
-                    "tooltip": "Address available" if has_address else "Address not available",
-                    "placeholder": not has_address,
-                    "original": bool(item_text),
-                }
-            else:
-                metadata = self._prepare_cell_metadata(col, item_text)
+            metadata = self._prepare_cell_metadata(col, item_text)
 
             if col in self.DATE_COLUMN_INDEXES:
                 item = DateSortableItem(metadata["normalized"], empty_display="—")
@@ -3258,9 +3248,6 @@ class ModernShippingMainWindow(QMainWindow):
                     shipment['version'] = 1
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            elif key == "address":
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             elif col in self.CENTER_ALIGN_COLUMNS:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             elif col in self.RIGHT_ALIGN_COLUMNS:

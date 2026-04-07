@@ -72,7 +72,7 @@ class ShipmentCreate(BaseModel):
     invoice_number: str = ""
     shipping_notes: str = ""
     tracking_number: str = ""
-    address: bool = False
+    address: str = ""
 
 class ShipmentUpdate(BaseModel):
     job_name: str = None
@@ -87,7 +87,7 @@ class ShipmentUpdate(BaseModel):
     invoice_number: str = None
     shipping_notes: str = None
     tracking_number: str = None
-    address: bool = None
+    address: str = None
 
 class ShipmentResponse(BaseModel):
     id: int
@@ -104,7 +104,7 @@ class ShipmentResponse(BaseModel):
     invoice_number: str
     shipping_notes: str
     tracking_number: str
-    address: bool
+    address: str
     created_by: int
     version: int
     last_modified_by: int | None = None
