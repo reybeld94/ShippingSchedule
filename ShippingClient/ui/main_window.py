@@ -443,6 +443,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 
     _PADDING = 8
     _MIN_HINT_WIDTH = 180
+    _SELECTED_TEXT_COLOR = QColor("#0F2A57")
 
     def paint(self, painter, option, index):  # type: ignore[override]
         opt = QStyleOptionViewItem(option)
@@ -459,11 +460,10 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
             return
 
         painter.save()
-        painter.setPen(
-            opt.palette.highlightedText().color()
-            if opt.state & QStyle.StateFlag.State_Selected
-            else opt.palette.text().color()
-        )
+        if opt.state & QStyle.StateFlag.State_Selected:
+            painter.setPen(self._SELECTED_TEXT_COLOR)
+        else:
+            painter.setPen(opt.palette.text().color())
         painter.drawText(
             text_rect.adjusted(2, 0, -2, 0),
             Qt.AlignmentFlag.AlignLeft
@@ -1686,10 +1686,11 @@ class ModernShippingMainWindow(QMainWindow):
         sills_header = self.sills_table.horizontalHeader()
         sills_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         sills_header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.sills_table.setWordWrap(False)
+        self.sills_table.setWordWrap(True)
         self.sills_table.setItemDelegateForColumn(10, self.wrap_anywhere_delegate)  # Description
         self.sills_table.setItemDelegateForColumn(13, self.wrap_anywhere_delegate)  # Notes
         self._apply_table_style(self.sills_table)
+        self._configure_table_row_metrics(self.sills_table)
 
         sheet_layout.addWidget(actions_frame)
         sheet_layout.addWidget(self.sills_table)
@@ -1726,6 +1727,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_logs_table.verticalHeader().setVisible(False)
         self.sills_logs_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self._apply_table_style(self.sills_logs_table)
+        self._configure_table_row_metrics(self.sills_logs_table)
 
         logs_layout.addLayout(log_filters)
         logs_layout.addWidget(self.sills_logs_table)
@@ -1767,6 +1769,7 @@ class ModernShippingMainWindow(QMainWindow):
                 value = "" if sill.get(field) is None else str(sill.get(field))
                 self.sills_table.setItem(row_index, col_index, QTableWidgetItem(value))
         self.sills_table.resizeColumnsToContents()
+        self.sills_table.resizeRowsToContents()
 
     def load_sills_logs(self):
         start_value = self.sills_logs_start_date.date().toString("yyyy-MM-dd")
@@ -1796,6 +1799,7 @@ class ModernShippingMainWindow(QMainWindow):
             for col_index, value in enumerate(values):
                 self.sills_logs_table.setItem(row_index, col_index, QTableWidgetItem(value))
         self.sills_logs_table.resizeColumnsToContents()
+        self.sills_logs_table.resizeRowsToContents()
 
     def _selected_sill(self) -> Optional[dict]:
         row = self.sills_table.currentRow()
