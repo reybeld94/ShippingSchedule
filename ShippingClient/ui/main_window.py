@@ -1683,7 +1683,9 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.sills_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.sills_table.verticalHeader().setVisible(False)
-        self.sills_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        sills_header = self.sills_table.horizontalHeader()
+        sills_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        sills_header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.sills_table.setWordWrap(False)
         self.sills_table.setItemDelegateForColumn(10, self.wrap_anywhere_delegate)  # Description
         self.sills_table.setItemDelegateForColumn(13, self.wrap_anywhere_delegate)  # Notes
@@ -4626,7 +4628,11 @@ class ModernShippingMainWindow(QMainWindow):
                             else clamp_cell_text(cell_text, col_widths[c])
                         )
 
-                        style = wrap_cell_style if (r == 0 or c in wrapped_cols) else no_wrap_cell_style
+                        # Encabezados siempre en una sola línea; en body sólo hacen wrap
+                        # las columnas explícitamente permitidas.
+                        style = no_wrap_cell_style if r == 0 else (
+                            wrap_cell_style if c in wrapped_cols else no_wrap_cell_style
+                        )
                         para = Paragraph(safe_text, style)
                         processed_row.append(para)
                     processed_data.append(processed_row)
