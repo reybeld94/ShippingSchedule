@@ -438,6 +438,59 @@ class StatusChipDelegate(QStyledItemDelegate):
         return QSize(hint.width(), max(hint.height(), 40))
 
 
+class WrapAnywhereDelegate(QStyledItemDelegate):
+    """Custom delegate that allows long text chunks to wrap in table cells."""
+
+    _PADDING = 8
+    _MIN_HINT_WIDTH = 180
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        text = opt.text
+        opt.text = ""
+
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+
+        text_rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, widget)
+        if not text:
+            return
+
+        painter.save()
+        painter.setPen(
+            opt.palette.highlightedText().color()
+            if opt.state & QStyle.StateFlag.State_Selected
+            else opt.palette.text().color()
+        )
+        painter.drawText(
+            text_rect.adjusted(2, 0, -2, 0),
+            Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignVCenter
+            | Qt.TextFlag.TextWordWrap
+            | Qt.TextFlag.TextWrapAnywhere,
+            text,
+        )
+        painter.restore()
+
+    def sizeHint(self, option, index):  # type: ignore[override]
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        if not text:
+            return super().sizeHint(option, index)
+
+        width = option.rect.width() - self._PADDING
+        if width <= 0:
+            width = self._MIN_HINT_WIDTH
+
+        bounds = option.fontMetrics.boundingRect(
+            QRect(0, 0, width, 10000),
+            Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap | Qt.TextFlag.TextWrapAnywhere,
+            text,
+        )
+        return QSize(bounds.width() + self._PADDING, bounds.height() + self._PADDING)
+
+
 class ModernShippingMainWindow(QMainWindow):
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
