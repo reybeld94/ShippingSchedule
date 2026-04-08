@@ -1683,7 +1683,12 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.sills_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.sills_table.verticalHeader().setVisible(False)
-        self.sills_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        sills_header = self.sills_table.horizontalHeader()
+        sills_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        sills_header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.sills_table.setWordWrap(False)
+        self.sills_table.setItemDelegateForColumn(10, self.wrap_anywhere_delegate)  # Description
+        self.sills_table.setItemDelegateForColumn(13, self.wrap_anywhere_delegate)  # Notes
         self._apply_table_style(self.sills_table)
 
         sheet_layout.addWidget(actions_frame)
@@ -4372,19 +4377,20 @@ class ModernShippingMainWindow(QMainWindow):
                 3,   # Mat (narrow)
                 3,   # Dim (narrow)
                 3,   # Loc (narrow)
-                4,   # Die #
+                5,   # Die #
                 4,   # Type
                 3,   # SPD (narrow)
                 4,   # Width
-                4,   # Job (narrow)
-                3,   # WO (narrow)
-                22,  # Assembly (much wider)
+                6,   # Job
+                5,   # WO
+                20,  # Assembly
                 14,  # Description
                 3,   # Qty
                 3,   # Dim (narrow)
-                30,  # Notes (widest)
-                3,   # Week (narrow)
+                26,  # Notes (widest)
+                6,   # Week
             ],
+            wrap_columns=[10, 13],  # Solo Description y Notes
             page_size=(17, 11),
             min_font_size=12,
             min_title_font_size=18,
@@ -4405,6 +4411,7 @@ class ModernShippingMainWindow(QMainWindow):
         headers: list[str],
         column_map: list[int],
         column_weights: list[float] | None = None,
+        wrap_columns: list[int] | None = None,
         page_size: tuple[float, float] = (8.5, 14),
         min_font_size: float = 9,
         min_title_font_size: float = 20,
@@ -4559,16 +4566,30 @@ class ModernShippingMainWindow(QMainWindow):
                 body_row_height,
             ):
                 # Estilo de celda adaptativo
-                cell_style = ParagraphStyle(
+                wrap_cell_style = ParagraphStyle(
                     "CellStyle",
                     parent=styles["BodyText"],
                     fontSize=body_font_size,
                     leading=body_font_size * 1.28,
                     wordWrap="CJK",
+                    splitLongWords=True,
                     alignment=0,  # Left align
                     spaceBefore=0,
                     spaceAfter=0,
                 )
+                no_wrap_cell_style = ParagraphStyle(
+                    "NoWrapCellStyle",
+                    parent=styles["BodyText"],
+                    fontSize=body_font_size,
+                    leading=body_font_size * 1.28,
+                    wordWrap="LTR",
+                    splitLongWords=False,
+                    alignment=0,
+                    spaceBefore=0,
+                    spaceAfter=0,
+                )
+
+                wrapped_cols = set(range(len(headers))) if wrap_columns is None else set(wrap_columns)
 
                 def clamp_cell_text(cell_text, col_width):
                     """Limitar altura de celdas para evitar filas imposibles de dividir entre páginas."""
@@ -4607,7 +4628,12 @@ class ModernShippingMainWindow(QMainWindow):
                             else clamp_cell_text(cell_text, col_widths[c])
                         )
 
-                        para = Paragraph(safe_text, cell_style)
+                        # Encabezados siempre en una sola línea; en body sólo hacen wrap
+                        # las columnas explícitamente permitidas.
+                        style = no_wrap_cell_style if r == 0 else (
+                            wrap_cell_style if c in wrapped_cols else no_wrap_cell_style
+                        )
+                        para = Paragraph(safe_text, style)
                         processed_row.append(para)
                     processed_data.append(processed_row)
 
