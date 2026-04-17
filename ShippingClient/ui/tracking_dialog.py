@@ -60,6 +60,11 @@ class TrackingDetailsDialog(QDialog):
         events_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         events_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         events_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        events_table.setWordWrap(True)
+        events_table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        events_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        events_table.verticalHeader().setDefaultSectionSize(40)
+        events_table.verticalHeader().setMinimumSectionSize(40)
         for row, event in enumerate(events):
             events_table.setItem(row, 0, QTableWidgetItem(str(event.get("timestamp") or "—")))
             location = ", ".join(
@@ -75,6 +80,9 @@ class TrackingDetailsDialog(QDialog):
             )
             events_table.setItem(row, 1, QTableWidgetItem(location or "—"))
             events_table.setItem(row, 2, QTableWidgetItem(str(event.get("description") or event.get("eventType") or "—")))
+        events_table.resizeRowsToContents()
+        for row in range(events_table.rowCount()):
+            events_table.setRowHeight(row, events_table.rowHeight(row) + 4)
 
         layout.addWidget(events_table)
 

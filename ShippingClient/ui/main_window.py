@@ -441,7 +441,7 @@ class StatusChipDelegate(QStyledItemDelegate):
 class WrapAnywhereDelegate(QStyledItemDelegate):
     """Custom delegate that allows long text chunks to wrap in table cells."""
 
-    _PADDING = 8
+    _PADDING = 12
     _MIN_HINT_WIDTH = 180
     _SELECTED_TEXT_COLOR = QColor("#0F2A57")
 
@@ -465,9 +465,9 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
         else:
             painter.setPen(opt.palette.text().color())
         painter.drawText(
-            text_rect.adjusted(2, 0, -2, 0),
+            text_rect.adjusted(2, 2, -2, -2),
             Qt.AlignmentFlag.AlignLeft
-            | Qt.AlignmentFlag.AlignVCenter
+            | Qt.AlignmentFlag.AlignTop
             | Qt.TextFlag.TextWordWrap
             | Qt.TextFlag.TextWrapAnywhere,
             text,
@@ -492,6 +492,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 
 
 class ModernShippingMainWindow(QMainWindow):
+    _ROW_EXTRA_HEIGHT = 6
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
         "Job Name",
@@ -2807,9 +2808,10 @@ class ModernShippingMainWindow(QMainWindow):
         table_font_size = max(14, base_size + 4)
         metrics = QFontMetrics(QFont(MODERN_FONT, table_font_size))
 
-        default_height = max(46, int(metrics.lineSpacing() * 1.72))
+        default_height = max(46, int(metrics.lineSpacing() * 1.72)) + self._ROW_EXTRA_HEIGHT
 
-        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        vertical_header.setMinimumSectionSize(default_height)
         vertical_header.setDefaultSectionSize(default_height)
 
     def _get_column_content_width(self, table, column: int) -> int:
@@ -2851,10 +2853,13 @@ class ModernShippingMainWindow(QMainWindow):
         bottom_row = table.rowAt(table.viewport().height() - 1)
         if top_row < 0 or bottom_row < 0:
             table.resizeRowsToContents()
+            for row in range(row_count):
+                table.setRowHeight(row, table.rowHeight(row) + self._ROW_EXTRA_HEIGHT)
             return
 
         for row in range(top_row, min(bottom_row + 1, row_count)):
             table.resizeRowToContents(row)
+            table.setRowHeight(row, table.rowHeight(row) + self._ROW_EXTRA_HEIGHT)
 
     def _refresh_table_item_fonts(self, table):
         """Update table item fonts according to the active preference."""
