@@ -180,6 +180,11 @@ class UserManagementWidget(QWidget):
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(["ID", "Username", "Email", "Role"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setWordWrap(True)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table.verticalHeader().setDefaultSectionSize(40)
+        self.table.verticalHeader().setMinimumSectionSize(40)
         header_font = max(8, get_base_font_size() + 3)
         self.table.setStyleSheet(
             f"""
@@ -221,6 +226,9 @@ class UserManagementWidget(QWidget):
                     self.table.setItem(row, 1, QTableWidgetItem(user["username"]))
                     self.table.setItem(row, 2, QTableWidgetItem(user["email"]))
                     self.table.setItem(row, 3, QTableWidgetItem(user["role"]))
+                self.table.resizeRowsToContents()
+                for row in range(self.table.rowCount()):
+                    self.table.setRowHeight(row, self.table.rowHeight(row) + 4)
             else:
                 self.show_error(resp.text)
         except Exception as e:
