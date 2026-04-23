@@ -6,8 +6,46 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MIE_TRAK_SERVER = "GUNDMAIN"
+DEFAULT_MIE_TRAK_DATABASE = "GunderlinLive"
+DEFAULT_MIE_TRAK_USER = "mie"
+DEFAULT_MIE_TRAK_PASSWORD = "mie"
 
-def get_mie_trak_address(job_number: str) -> str:
+
+def get_mie_trak_databases(server: str = DEFAULT_MIE_TRAK_SERVER) -> list[str]:
+    """Return online database names available in the target SQL Server."""
+    conn = None
+    try:
+        conn = pymssql.connect(
+            server=server,
+            user=DEFAULT_MIE_TRAK_USER,
+            password=DEFAULT_MIE_TRAK_PASSWORD,
+            database="master",
+        )
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT name
+            FROM sys.databases
+            WHERE state_desc = 'ONLINE'
+            ORDER BY name
+            """
+        )
+        return [str(row[0]) for row in cursor.fetchall() if row and row[0]]
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def get_mie_trak_address(
+    job_number: str,
+    *,
+    server: str = DEFAULT_MIE_TRAK_SERVER,
+    database: str = DEFAULT_MIE_TRAK_DATABASE,
+) -> str:
     """Return the shipping address for a given job number.
 
     This function connects directly to the Mie Trak database, queries the
@@ -32,10 +70,10 @@ def get_mie_trak_address(job_number: str) -> str:
     conn = None
     try:
         conn = pymssql.connect(
-            server="GUNDMAIN",
-            user="mie",
-            password="mie",
-            database="GunderlinLive",
+            server=server,
+            user=DEFAULT_MIE_TRAK_USER,
+            password=DEFAULT_MIE_TRAK_PASSWORD,
+            database=database,
         )
         cursor = conn.cursor(as_dict=True)
 
