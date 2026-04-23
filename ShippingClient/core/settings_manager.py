@@ -29,6 +29,28 @@ class SettingsManager:
             cleaned = cleaned.rstrip("/")
         self._settings.setValue("ws_url", cleaned)
 
+    def get_mie_trak_server(self) -> str:
+        """Return configured Mie Trak SQL Server name."""
+        value = self._settings.value("mie_trak_server", "GUNDMAIN")
+        cleaned = str(value or "").strip()
+        return cleaned or "GUNDMAIN"
+
+    def set_mie_trak_server(self, server: str) -> None:
+        """Persist Mie Trak SQL Server name."""
+        cleaned = str(server or "").strip()
+        self._settings.setValue("mie_trak_server", cleaned or "GUNDMAIN")
+
+    def get_mie_trak_database(self) -> str:
+        """Return configured Mie Trak database name."""
+        value = self._settings.value("mie_trak_database", "GunderlinLive")
+        cleaned = str(value or "").strip()
+        return cleaned or "GunderlinLive"
+
+    def set_mie_trak_database(self, database: str) -> None:
+        """Persist selected Mie Trak database name."""
+        cleaned = str(database or "").strip()
+        self._settings.setValue("mie_trak_database", cleaned or "GunderlinLive")
+
     def save_cell_colors(self, table_name: str, colors: dict[tuple[int, int], str]):
         """DEPRECATED: persist colors by (row, column) for legacy support."""
         serialized = {f"{r},{c}": color for (r, c), color in colors.items()}

@@ -3557,7 +3557,11 @@ class ModernShippingMainWindow(QMainWindow):
     def show_mie_trak_address(self, job_number: str):
         """Fetch and display Mie Trak address for a job directly from DB"""
         try:
-            address = get_mie_trak_address(job_number)
+            address = get_mie_trak_address(
+                job_number,
+                server=self.settings_mgr.get_mie_trak_server(),
+                database=self.settings_mgr.get_mie_trak_database(),
+            )
             QMessageBox.information(
                 self, "Mie Trak Address", address or "No address found"
             )
