@@ -12,6 +12,34 @@ DEFAULT_MIE_TRAK_USER = "mie"
 DEFAULT_MIE_TRAK_PASSWORD = "mie"
 
 
+def get_mie_trak_databases(server: str = DEFAULT_MIE_TRAK_SERVER) -> list[str]:
+    """Return online database names available in the target SQL Server."""
+    conn = None
+    try:
+        conn = pymssql.connect(
+            server=server,
+            user=DEFAULT_MIE_TRAK_USER,
+            password=DEFAULT_MIE_TRAK_PASSWORD,
+            database="master",
+        )
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT name
+            FROM sys.databases
+            WHERE state_desc = 'ONLINE'
+            ORDER BY name
+            """
+        )
+        return [str(row[0]) for row in cursor.fetchall() if row and row[0]]
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def get_mie_trak_address(
     job_number: str,
     *,

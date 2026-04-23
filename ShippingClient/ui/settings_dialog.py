@@ -16,11 +16,12 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
-from .widgets import ModernButton, ModernLineEdit
+from .widgets import ModernButton, ModernComboBox, ModernLineEdit
 from .user_dialog import UserManagementWidget
 from core.settings_manager import SettingsManager
 from core.config import MODERN_FONT
 from core.api_client import RobustApiClient
+from core.mie_trak_client import get_mie_trak_databases
 from .utils import apply_scaled_font
 from .style_tokens import (
     COLOR_BG_SUBTLE,
@@ -194,7 +195,11 @@ class SettingsDialog(QDialog):
         self.mie_trak_server_edit = ModernLineEdit()
         self.mie_trak_server_edit.setText("GUNDMAIN")
         self.mie_trak_server_edit.setReadOnly(True)
-        self.mie_trak_database_edit = ModernLineEdit("Database name")
+        self.mie_trak_database_combo = ModernComboBox()
+        self.mie_trak_database_combo.setEditable(True)
+        self.mie_trak_refresh_btn = ModernButton("Load Databases", "secondary")
+        self.mie_trak_refresh_btn.setMinimumWidth(140)
+        self.mie_trak_refresh_btn.clicked.connect(self.load_mie_trak_databases)
 
         server_section, server_content = self._create_connection_section("Server")
         self._add_form_row(server_content, "Server URL", self.server_edit)
@@ -224,7 +229,13 @@ class SettingsDialog(QDialog):
         layout.addWidget(ws_section)
         mie_trak_section, mie_trak_content = self._create_connection_section("Mie Trak")
         self._add_form_row(mie_trak_content, "Server Name", self.mie_trak_server_edit)
-        self._add_form_row(mie_trak_content, "Database", self.mie_trak_database_edit)
+        self._add_form_row(mie_trak_content, "Database", self.mie_trak_database_combo)
+        mie_trak_actions_row = QHBoxLayout()
+        mie_trak_actions_row.setContentsMargins(0, 0, 0, 0)
+        mie_trak_actions_row.setSpacing(SPACE_8)
+        mie_trak_actions_row.addStretch()
+        mie_trak_actions_row.addWidget(self.mie_trak_refresh_btn)
+        mie_trak_content.addLayout(mie_trak_actions_row)
 
         layout.addWidget(mie_trak_section)
         layout.addWidget(fedex_section)
@@ -397,7 +408,10 @@ class SettingsDialog(QDialog):
         self.ws_edit.setText(self.settings_mgr.get_ws_url())
         self.font_spin.setValue(self.settings_mgr.get_font_size())
         self.mie_trak_server_edit.setText(self.settings_mgr.get_mie_trak_server())
-        self.mie_trak_database_edit.setText(self.settings_mgr.get_mie_trak_database())
+        self.mie_trak_database_combo.clear()
+        saved_database = self.settings_mgr.get_mie_trak_database()
+        self.mie_trak_database_combo.addItem(saved_database)
+        self.mie_trak_database_combo.setCurrentText(saved_database)
         response = self.api_client.get_connection_settings()
         if response.is_success():
             fedex = (response.get_data() or {}).get("fedex", {})
@@ -408,6 +422,27 @@ class SettingsDialog(QDialog):
                 self.fedex_secret_key_edit.setPlaceholderText("********")
         else:
             self.fedex_enabled.setChecked(False)
+
+    def load_mie_trak_databases(self):
+        server = self.mie_trak_server_edit.text().strip() or "GUNDMAIN"
+        current_database = self.mie_trak_database_combo.currentText().strip()
+        try:
+            databases = get_mie_trak_databases(server=server)
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "Mie Trak",
+                f"Could not load databases from {server}: {exc}",
+            )
+            return
+
+        self.mie_trak_database_combo.blockSignals(True)
+        self.mie_trak_database_combo.clear()
+        self.mie_trak_database_combo.addItems(databases)
+        if current_database:
+            self.mie_trak_database_combo.setCurrentText(current_database)
+        self.mie_trak_database_combo.blockSignals(False)
+        QMessageBox.information(self, "Mie Trak", f"{len(databases)} databases loaded.")
 
     def test_fedex_connection(self):
         if not self.is_admin:
@@ -426,7 +461,7 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, "Error", "Both URLs are required")
             return
 
-        selected_mie_trak_db = self.mie_trak_database_edit.text().strip()
+        selected_mie_trak_db = self.mie_trak_database_combo.currentText().strip()
         if not selected_mie_trak_db:
             QMessageBox.warning(self, "Error", "Mie Trak database is required")
             return
