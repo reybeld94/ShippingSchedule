@@ -252,14 +252,17 @@ class SillDialog(QDialog):
         completer.activated.connect(self._apply_die_data)
         die_widget.setCompleter(completer)
         die_widget.editingFinished.connect(lambda: self._apply_die_data(die_widget.text()))
+        self._apply_die_data(die_widget.text())
 
     def _apply_die_data(self, die_number: str) -> None:
         lookup_key = (die_number or "").strip().lower()
         if not lookup_key:
+            self._set_autofilled_fields_editable(True)
             return
 
         die_data = self._die_lookup.get(lookup_key)
         if not die_data:
+            self._set_autofilled_fields_editable(True)
             return
 
         text_fields = ("type", "width")
@@ -281,8 +284,17 @@ class SillDialog(QDialog):
                 speed_widget.setCurrentIndex(idx)
 
         notes_widget = self.inputs.get("notes")
-        if isinstance(notes_widget, QLineEdit) and not notes_widget.text().strip():
+        if isinstance(notes_widget, QLineEdit):
             notes_widget.setText(str(die_data.get("notes", "") or ""))
+        self._set_autofilled_fields_editable(False)
+
+    def _set_autofilled_fields_editable(self, editable: bool) -> None:
+        for field_name in ("type", "speed", "width", "notes"):
+            widget = self.inputs.get(field_name)
+            if isinstance(widget, QLineEdit):
+                widget.setReadOnly(not editable)
+            elif isinstance(widget, QComboBox):
+                widget.setEnabled(editable)
 
 
 class SillDieDialog(QDialog):
