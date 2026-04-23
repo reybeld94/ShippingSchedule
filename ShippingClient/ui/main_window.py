@@ -10,7 +10,11 @@ from urllib.parse import urlparse
 from .utils import show_popup_notification, apply_scaled_font, refresh_scaled_fonts, get_base_font_size
 from core.settings_manager import SettingsManager
 from core.api_client import RobustApiClient
-from core.mie_trak_client import get_mie_trak_address
+from core.mie_trak_client import (
+    get_mie_trak_address,
+    search_mie_trak_sales_orders,
+    get_mie_trak_work_orders_by_sales_order,
+)
 from PyQt6.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -183,6 +187,8 @@ class SillDialog(QDialog):
             for item in self._die_database
             if str(item.get("die_number", "")).strip()
         }
+        self._sales_order_code_map: Dict[str, str] = {}
+        self._work_order_map: Dict[str, str] = {}
         self.inputs: Dict[str, QWidget] = {}
 
         layout = QVBoxLayout(self)
@@ -205,6 +211,9 @@ class SillDialog(QDialog):
             elif key == "speed":
                 input_widget = QComboBox()
                 input_widget.addItems(["", "0", "1", "2", "3"])
+            elif key == "work_order":
+                input_widget = QComboBox()
+                input_widget.addItem("")
             else:
                 input_widget = QLineEdit()
             value = str(self._edit_data.get(key, ""))
@@ -228,6 +237,7 @@ class SillDialog(QDialog):
                     form.addRow(separator)
 
         self._configure_die_autofill()
+        self._configure_mie_trak_autofill()
         layout.addLayout(form)
 
         buttons = QDialogButtonBox(
@@ -242,7 +252,10 @@ class SillDialog(QDialog):
         for key, _ in self.FIELDS:
             widget = self.inputs[key]
             if isinstance(widget, QComboBox):
-                payload[key] = widget.currentText().strip()
+                if key == "work_order":
+                    payload[key] = str(widget.currentData() or "").strip()
+                else:
+                    payload[key] = widget.currentText().strip()
             elif isinstance(widget, QDateEdit):
                 payload[key] = widget.date().toString("yyyy-MM-dd")
             else:
@@ -304,6 +317,135 @@ class SillDialog(QDialog):
                 widget.setReadOnly(not editable)
             elif isinstance(widget, QComboBox):
                 widget.setEnabled(editable)
+
+    def _configure_mie_trak_autofill(self) -> None:
+        sales_order_widget = self.inputs.get("sales_order")
+        work_order_widget = self.inputs.get("work_order")
+        description_widget = self.inputs.get("description")
+        if not isinstance(sales_order_widget, QLineEdit):
+            return
+        if not isinstance(work_order_widget, QComboBox):
+            return
+        if not isinstance(description_widget, QLineEdit):
+            return
+
+        description_widget.setReadOnly(True)
+        sales_order_widget.editingFinished.connect(
+            lambda: self._load_work_orders_for_sales_order(sales_order_widget.text())
+        )
+        work_order_widget.currentTextChanged.connect(self._apply_work_order_description)
+        self._refresh_sales_order_completer(sales_order_widget.text())
+        self._load_work_orders_for_sales_order(sales_order_widget.text())
+
+    def _refresh_sales_order_completer(self, search_term: str) -> None:
+        sales_order_widget = self.inputs.get("sales_order")
+        if not isinstance(sales_order_widget, QLineEdit):
+            return
+        server, database = self._get_mie_trak_config()
+        try:
+            rows = search_mie_trak_sales_orders(
+                search_term,
+                server=server,
+                database=database,
+                limit=30,
+            )
+        except Exception:
+            return
+
+        display_values: list[str] = []
+        self._sales_order_code_map = {}
+        for row in rows:
+            sales_pk = str(row.get("sales_order_pk") or "").strip()
+            sales_number = str(row.get("sales_order_number") or "").strip()
+            display = sales_number or sales_pk
+            if not display:
+                continue
+            display_values.append(display)
+            if sales_pk:
+                self._sales_order_code_map[display] = sales_pk
+
+        if not display_values:
+            return
+        completer = QCompleter(sorted(set(display_values)), self)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.activated.connect(lambda _: self._load_work_orders_for_sales_order(sales_order_widget.text()))
+        sales_order_widget.setCompleter(completer)
+
+    def _load_work_orders_for_sales_order(self, sales_order_value: str) -> None:
+        work_order_widget = self.inputs.get("work_order")
+        if not isinstance(work_order_widget, QComboBox):
+            return
+
+        self._refresh_sales_order_completer(sales_order_value)
+        sales_order_pk = self._resolve_sales_order_pk(sales_order_value)
+        server, database = self._get_mie_trak_config()
+        try:
+            work_orders = get_mie_trak_work_orders_by_sales_order(
+                sales_order_pk,
+                server=server,
+                database=database,
+            )
+        except Exception:
+            work_orders = []
+
+        with QSignalBlocker(work_order_widget):
+            work_order_widget.clear()
+            work_order_widget.addItem("")
+            self._work_order_map = {}
+            for row in work_orders:
+                work_order_number = str(row.get("work_order_number") or "").strip()
+                description = str(row.get("description") or "").strip()
+                if not work_order_number:
+                    continue
+                label = (
+                    f"{work_order_number} - {description}"
+                    if description
+                    else work_order_number
+                )
+                work_order_widget.addItem(label, work_order_number)
+                self._work_order_map[work_order_number] = description
+
+        current_wo = str(self._edit_data.get("work_order", "")).strip()
+        if current_wo:
+            for index in range(work_order_widget.count()):
+                if str(work_order_widget.itemData(index) or "").strip() == current_wo:
+                    work_order_widget.setCurrentIndex(index)
+                    break
+        self._apply_work_order_description(work_order_widget.currentText())
+
+    def _apply_work_order_description(self, _: str) -> None:
+        work_order_widget = self.inputs.get("work_order")
+        description_widget = self.inputs.get("description")
+        if not isinstance(work_order_widget, QComboBox):
+            return
+        if not isinstance(description_widget, QLineEdit):
+            return
+        selected_work_order = str(work_order_widget.currentData() or "").strip()
+        description_widget.setText(self._work_order_map.get(selected_work_order, ""))
+
+    def _resolve_sales_order_pk(self, sales_order_value: str) -> str:
+        raw = str(sales_order_value or "").strip()
+        if "." in raw:
+            raw = raw.split(".", 1)[0]
+        mapped = self._sales_order_code_map.get(raw)
+        if mapped:
+            return mapped
+        return raw
+
+    def _get_mie_trak_config(self) -> tuple[str, str]:
+        parent = self.parent()
+        settings_mgr = getattr(parent, "settings_mgr", None)
+        if settings_mgr and hasattr(settings_mgr, "get_mie_trak_server"):
+            return (
+                settings_mgr.get_mie_trak_server(),
+                settings_mgr.get_mie_trak_database(),
+            )
+        fallback_settings = SettingsManager()
+        return (
+            fallback_settings.get_mie_trak_server(),
+            fallback_settings.get_mie_trak_database(),
+        )
 
 
 class SillDieDialog(QDialog):
