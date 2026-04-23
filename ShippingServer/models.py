@@ -311,6 +311,30 @@ class SillLog(Base):
     sill = relationship("Sill")
 
 
+class SillDieDatabase(Base):
+    __tablename__ = "sills_die_database"
+
+    __table_args__ = (
+        Index("ix_sills_die_database_die_number", "die_number"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    die_number = Column(String(50), nullable=False, unique=True)
+    type = Column(String(20), nullable=False, default="", server_default=text("''"))
+    speed = Column(String(10), nullable=False, default="", server_default=text("''"))
+    width = Column(String(30), nullable=False, default="", server_default=text("''"))
+    supplier = Column(String(120), nullable=False, default="", server_default=text("''"))
+    notes = Column(Text, nullable=False, default="", server_default=text("''"))
+    vendor_drawing = Column(Text, nullable=False, default="", server_default=text("''"))
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_modified_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    creator = relationship("User", foreign_keys=[created_by])
+    last_modifier = relationship("User", foreign_keys=[last_modified_by])
+
+
 class AppConnectionSettings(Base):
     __tablename__ = "app_connection_settings"
 

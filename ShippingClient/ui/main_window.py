@@ -40,6 +40,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QLineEdit,
     QComboBox,
+    QCompleter,
     QDateEdit,
     QStyleOptionViewItem,
     QStyledItemDelegate,
@@ -166,11 +167,22 @@ class SillDialog(QDialog):
         ("week_to_print", "Week to Print"),
     ]
 
-    def __init__(self, parent: Optional[QWidget] = None, sill_data: Optional[dict] = None):
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        sill_data: Optional[dict] = None,
+        die_database: Optional[list[dict]] = None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("Sill")
         self.setMinimumWidth(520)
         self._edit_data = sill_data or {}
+        self._die_database = die_database or []
+        self._die_lookup = {
+            str(item.get("die_number", "")).strip().lower(): item
+            for item in self._die_database
+            if str(item.get("die_number", "")).strip()
+        }
         self.inputs: Dict[str, QWidget] = {}
 
         layout = QVBoxLayout(self)
@@ -183,11 +195,14 @@ class SillDialog(QDialog):
                 input_widget.addItems(["NS", "SS", "SS316", "BR", "AL"])
             elif key == "type":
                 input_widget = QComboBox()
-                input_widget.addItems(["Hatch", "Car"])
+                input_widget.addItems(["", "Hatch", "Car", "Extension"])
             elif key == "week_to_print":
                 input_widget = QDateEdit()
                 input_widget.setCalendarPopup(True)
                 input_widget.setDisplayFormat("yyyy-MM-dd")
+            elif key == "speed":
+                input_widget = QComboBox()
+                input_widget.addItems(["", "0", "1", "2", "3"])
             else:
                 input_widget = QLineEdit()
             value = str(self._edit_data.get(key, ""))
@@ -200,6 +215,116 @@ class SillDialog(QDialog):
                 input_widget.setDate(parsed_date if parsed_date.isValid() else QDate.currentDate())
             else:
                 input_widget.setText(value)
+            form.addRow(QLabel(label), input_widget)
+            self.inputs[key] = input_widget
+
+        self._configure_die_autofill()
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def get_payload(self) -> dict:
+        payload = {}
+        for key, _ in self.FIELDS:
+            widget = self.inputs[key]
+            if isinstance(widget, QComboBox):
+                payload[key] = widget.currentText().strip()
+            elif isinstance(widget, QDateEdit):
+                payload[key] = widget.date().toString("yyyy-MM-dd")
+            else:
+                payload[key] = widget.text().strip()
+        return payload
+
+    def _configure_die_autofill(self) -> None:
+        die_widget = self.inputs.get("die_number")
+        if not isinstance(die_widget, QLineEdit) or not self._die_database:
+            return
+
+        values = sorted({str(item.get("die_number", "")).strip() for item in self._die_database if item.get("die_number")})
+        completer = QCompleter(values, self)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.activated.connect(self._apply_die_data)
+        die_widget.setCompleter(completer)
+        die_widget.editingFinished.connect(lambda: self._apply_die_data(die_widget.text()))
+
+    def _apply_die_data(self, die_number: str) -> None:
+        lookup_key = (die_number or "").strip().lower()
+        if not lookup_key:
+            return
+
+        die_data = self._die_lookup.get(lookup_key)
+        if not die_data:
+            return
+
+        text_fields = ("type", "width")
+        for field_name in text_fields:
+            widget = self.inputs.get(field_name)
+            if isinstance(widget, QLineEdit):
+                widget.setText(str(die_data.get(field_name, "") or ""))
+            elif isinstance(widget, QComboBox):
+                value = str(die_data.get(field_name, "") or "")
+                idx = widget.findText(value)
+                if idx >= 0:
+                    widget.setCurrentIndex(idx)
+
+        speed_widget = self.inputs.get("speed")
+        speed_value = str(die_data.get("speed", "") or "")
+        if isinstance(speed_widget, QComboBox):
+            idx = speed_widget.findText(speed_value)
+            if idx >= 0:
+                speed_widget.setCurrentIndex(idx)
+
+        notes_widget = self.inputs.get("notes")
+        if isinstance(notes_widget, QLineEdit) and not notes_widget.text().strip():
+            notes_widget.setText(str(die_data.get("notes", "") or ""))
+
+
+class SillDieDialog(QDialog):
+    FIELDS = [
+        ("die_number", "Die #"),
+        ("type", "Type"),
+        ("speed", "Speed"),
+        ("width", "Width"),
+        ("supplier", "Supplier"),
+        ("notes", "Notes"),
+        ("vendor_drawing", "Vendor Drawing"),
+    ]
+
+    def __init__(self, parent: Optional[QWidget] = None, die_data: Optional[dict] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Die # Database")
+        self.setMinimumWidth(520)
+        self._edit_data = die_data or {}
+        self.inputs: Dict[str, QWidget] = {}
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        for key, label in self.FIELDS:
+            if key == "type":
+                input_widget = QComboBox()
+                input_widget.addItems(["Car", "Hatch", "Extension"])
+            elif key == "speed":
+                input_widget = QComboBox()
+                input_widget.addItems(["0", "1", "2", "3"])
+            else:
+                input_widget = QLineEdit()
+
+            value = str(self._edit_data.get(key, ""))
+            if isinstance(input_widget, QComboBox):
+                idx = input_widget.findText(value)
+                if idx >= 0:
+                    input_widget.setCurrentIndex(idx)
+            else:
+                input_widget.setText(value)
+
             form.addRow(QLabel(label), input_widget)
             self.inputs[key] = input_widget
 
@@ -218,8 +343,6 @@ class SillDialog(QDialog):
             widget = self.inputs[key]
             if isinstance(widget, QComboBox):
                 payload[key] = widget.currentText().strip()
-            elif isinstance(widget, QDateEdit):
-                payload[key] = widget.date().toString("yyyy-MM-dd")
             else:
                 payload[key] = widget.text().strip()
         return payload
@@ -638,6 +761,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._pending_shipment_reload = False
         self.shipping_logs = []
         self.sills = []
+        self.sill_dies = []
         self.sills_logs = []
 
         # Mapa de columna a campo de API para ediciones inline
@@ -1733,8 +1857,45 @@ class ModernShippingMainWindow(QMainWindow):
         logs_layout.addLayout(log_filters)
         logs_layout.addWidget(self.sills_logs_table)
 
+        die_page = QWidget()
+        die_layout = QVBoxLayout(die_page)
+        die_layout.setContentsMargins(0, 0, 0, 0)
+        die_layout.setSpacing(SPACE_12)
+
+        die_actions_layout = QHBoxLayout()
+        die_actions_layout.setContentsMargins(0, 0, 0, 0)
+        die_actions_layout.setSpacing(10)
+        self.sills_die_add_btn = ModernButton("Add Die", "primary", min_height=30, min_width=100, padding=(4, 10))
+        self.sills_die_edit_btn = ModernButton("Edit Selected", "outline", min_height=30, min_width=120, padding=(4, 10))
+        self.sills_die_delete_btn = ModernButton("Delete Selected", "danger-outline", min_height=30, min_width=120, padding=(4, 10))
+        self.sills_die_refresh_btn = ModernButton("Refresh", "outline", min_height=30, min_width=88, padding=(4, 10))
+        die_actions_layout.addWidget(self.sills_die_add_btn)
+        die_actions_layout.addWidget(self.sills_die_edit_btn)
+        die_actions_layout.addWidget(self.sills_die_delete_btn)
+        die_actions_layout.addStretch(1)
+        die_actions_layout.addWidget(self.sills_die_refresh_btn)
+
+        self.sills_die_table = QTableWidget()
+        self.sills_die_table.setColumnCount(7)
+        self.sills_die_table.setHorizontalHeaderLabels(
+            ["Die #", "Type", "Speed", "Width", "Supplier", "Notes", "Vendor Drawing"]
+        )
+        self.sills_die_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sills_die_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.sills_die_table.verticalHeader().setVisible(False)
+        self.sills_die_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.sills_die_table.setWordWrap(True)
+        self.sills_die_table.setItemDelegateForColumn(5, self.wrap_anywhere_delegate)  # Notes
+        self.sills_die_table.setItemDelegateForColumn(6, self.wrap_anywhere_delegate)  # Vendor Drawing
+        self._apply_table_style(self.sills_die_table)
+        self._configure_table_row_metrics(self.sills_die_table)
+
+        die_layout.addLayout(die_actions_layout)
+        die_layout.addWidget(self.sills_die_table)
+
         tabs.addTab(sheet_page, "Sills Sheet")
         tabs.addTab(logs_page, "Activity Log")
+        tabs.addTab(die_page, "Die # Database")
         page_layout.addWidget(tabs)
 
         self.sills_add_btn.clicked.connect(self.open_add_sill_dialog)
@@ -1744,9 +1905,15 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_print_btn.clicked.connect(self.print_sills_sheet_to_pdf)
         self.sills_logs_refresh_btn.clicked.connect(self.load_sills_logs)
         self.sills_table.itemDoubleClicked.connect(lambda _: self.open_edit_sill_dialog())
-        tabs.currentChanged.connect(lambda idx: self.load_sills_logs() if idx == 1 else self.load_sills())
+        self.sills_die_add_btn.clicked.connect(self.open_add_sill_die_dialog)
+        self.sills_die_edit_btn.clicked.connect(self.open_edit_sill_die_dialog)
+        self.sills_die_delete_btn.clicked.connect(self.delete_sill_die)
+        self.sills_die_refresh_btn.clicked.connect(self.load_sill_dies)
+        self.sills_die_table.itemDoubleClicked.connect(lambda _: self.open_edit_sill_die_dialog())
+        tabs.currentChanged.connect(self._on_sills_tab_changed)
 
         self.load_sills()
+        self.load_sill_dies()
         return page
 
     def load_sills(self):
@@ -1802,6 +1969,33 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_logs_table.resizeColumnsToContents()
         self.sills_logs_table.resizeRowsToContents()
 
+    def _on_sills_tab_changed(self, index: int):
+        if index == 1:
+            self.load_sills_logs()
+        elif index == 2:
+            self.load_sill_dies()
+        else:
+            self.load_sills()
+
+    def load_sill_dies(self):
+        response = self.api_client.get_sill_dies()
+        if not response.is_success():
+            self.show_error(response.get_error() or "Failed to load die database.")
+            return
+        self.sill_dies = response.get_data() or []
+        self.populate_sill_dies_table()
+
+    def populate_sill_dies_table(self):
+        rows = self.sill_dies or []
+        self.sills_die_table.setRowCount(len(rows))
+        fields = ["die_number", "type", "speed", "width", "supplier", "notes", "vendor_drawing"]
+        for row_index, item in enumerate(rows):
+            for col_index, field in enumerate(fields):
+                value = "" if item.get(field) is None else str(item.get(field))
+                self.sills_die_table.setItem(row_index, col_index, QTableWidgetItem(value))
+        self.sills_die_table.resizeColumnsToContents()
+        self.sills_die_table.resizeRowsToContents()
+
     def _selected_sill(self) -> Optional[dict]:
         row = self.sills_table.currentRow()
         if row < 0:
@@ -1810,11 +2004,19 @@ class ModernShippingMainWindow(QMainWindow):
             return None
         return self.sills[row]
 
+    def _selected_sill_die(self) -> Optional[dict]:
+        row = self.sills_die_table.currentRow()
+        if row < 0:
+            return None
+        if row >= len(self.sill_dies):
+            return None
+        return self.sill_dies[row]
+
     def open_add_sill_dialog(self):
         if self.read_only:
             self.show_error("You only have read permissions.")
             return
-        dialog = SillDialog(self)
+        dialog = SillDialog(self, die_database=self.sill_dies)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             response = self.api_client.create_sill(dialog.get_payload())
             if response.is_success():
@@ -1831,7 +2033,7 @@ class ModernShippingMainWindow(QMainWindow):
         if not sill:
             self.show_error("Select a sill first.")
             return
-        dialog = SillDialog(self, sill_data=sill)
+        dialog = SillDialog(self, sill_data=sill, die_database=self.sill_dies)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             response = self.api_client.update_sill(int(sill["id"]), dialog.get_payload())
             if response.is_success():
@@ -1857,6 +2059,56 @@ class ModernShippingMainWindow(QMainWindow):
             self.load_sills_logs()
         else:
             self.show_error(response.get_error() or "Failed to delete sill.")
+
+    def open_add_sill_die_dialog(self):
+        if self.read_only:
+            self.show_error("You only have read permissions.")
+            return
+        dialog = SillDieDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            response = self.api_client.create_sill_die(dialog.get_payload())
+            if response.is_success():
+                self.load_sill_dies()
+            else:
+                self.show_error(response.get_error() or "Failed to create die.")
+
+    def open_edit_sill_die_dialog(self):
+        if self.read_only:
+            self.show_error("You only have read permissions.")
+            return
+        die_data = self._selected_sill_die()
+        if not die_data:
+            self.show_error("Select a die first.")
+            return
+        dialog = SillDieDialog(self, die_data=die_data)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            response = self.api_client.update_sill_die(int(die_data["id"]), dialog.get_payload())
+            if response.is_success():
+                self.load_sill_dies()
+            else:
+                self.show_error(response.get_error() or "Failed to update die.")
+
+    def delete_sill_die(self):
+        if self.read_only:
+            self.show_error("You only have read permissions.")
+            return
+        die_data = self._selected_sill_die()
+        if not die_data:
+            self.show_error("Select a die first.")
+            return
+        answer = QMessageBox.question(
+            self,
+            "Delete Die",
+            f"Delete die {die_data.get('die_number', '')}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        response = self.api_client.delete_sill_die(int(die_data["id"]))
+        if response.is_success():
+            self.load_sill_dies()
+        else:
+            self.show_error(response.get_error() or "Failed to delete die.")
     
     def setup_professional_table(self, table, module_config: TabModuleConfig):
         """Configurar tabla con estilo profesional y restaurar ancho de columnas"""

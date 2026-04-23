@@ -12,7 +12,7 @@ from sqlalchemy.orm.exc import StaleDataError
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
-from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings, Sill, SillLog
+from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings, Sill, SillLog, SillDieDatabase
 from auth import authenticate_user, create_access_token, get_current_user, get_current_admin_user, Token, UserLogin, UserCreate
 from pydantic import BaseModel
 from fedex_service import FedExService
@@ -228,6 +228,40 @@ class SillLogResponse(BaseModel):
     old_value: str
     new_value: str
     changed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SillDieCreate(BaseModel):
+    die_number: str
+    type: str = ""
+    speed: str = ""
+    width: str = ""
+    supplier: str = ""
+    notes: str = ""
+    vendor_drawing: str = ""
+
+
+class SillDieUpdate(BaseModel):
+    die_number: str | None = None
+    type: str | None = None
+    speed: str | None = None
+    width: str | None = None
+    supplier: str | None = None
+    notes: str | None = None
+    vendor_drawing: str | None = None
+
+
+class SillDieResponse(BaseModel):
+    id: int
+    die_number: str
+    type: str
+    speed: str
+    width: str
+    supplier: str
+    notes: str
+    vendor_drawing: str
 
     class Config:
         from_attributes = True
@@ -1133,6 +1167,104 @@ async def get_sills_logs(
         )
         for log in logs
     ]
+
+
+def _validate_sill_die_payload(payload: dict) -> dict:
+    normalized = {k: _safe_text(v).strip() for k, v in payload.items()}
+    valid_types = {"Car", "Hatch", "Extension"}
+    valid_speeds = {"0", "1", "2", "3"}
+
+    if not normalized.get("die_number"):
+        raise HTTPException(status_code=400, detail="Die number is required")
+    if normalized.get("type") and normalized["type"] not in valid_types:
+        raise HTTPException(status_code=400, detail="Type must be Car, Hatch, or Extension")
+    if normalized.get("speed") and normalized["speed"] not in valid_speeds:
+        raise HTTPException(status_code=400, detail="Speed must be one of: 0, 1, 2, 3")
+    return normalized
+
+
+@app.get("/sills/dies", response_model=List[SillDieResponse])
+async def get_sill_dies(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(SillDieDatabase).order_by(SillDieDatabase.die_number.asc()).all()
+
+
+@app.post("/sills/dies", response_model=SillDieResponse)
+async def create_sill_die(
+    die_data: SillDieCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    payload = _validate_sill_die_payload(die_data.dict())
+    new_die = SillDieDatabase(
+        **payload,
+        created_by=current_user.id,
+        last_modified_by=current_user.id,
+    )
+    db.add(new_die)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Die number already exists")
+    db.refresh(new_die)
+    return new_die
+
+
+@app.put("/sills/dies/{die_id}", response_model=SillDieResponse)
+async def update_sill_die(
+    die_id: int,
+    die_update: SillDieUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    die = db.query(SillDieDatabase).filter(SillDieDatabase.id == die_id).first()
+    if not die:
+        raise HTTPException(status_code=404, detail="Die not found")
+
+    payload = {k: _safe_text(v).strip() for k, v in die_update.dict(exclude_unset=True).items()}
+    if "type" in payload and payload["type"] and payload["type"] not in {"Car", "Hatch", "Extension"}:
+        raise HTTPException(status_code=400, detail="Type must be Car, Hatch, or Extension")
+    if "speed" in payload and payload["speed"] and payload["speed"] not in {"0", "1", "2", "3"}:
+        raise HTTPException(status_code=400, detail="Speed must be one of: 0, 1, 2, 3")
+    if "die_number" in payload and not payload["die_number"]:
+        raise HTTPException(status_code=400, detail="Die number is required")
+
+    for field, value in payload.items():
+        setattr(die, field, value)
+
+    die.last_modified_by = current_user.id
+    die.updated_at = datetime.utcnow()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Die number already exists")
+    db.refresh(die)
+    return die
+
+
+@app.delete("/sills/dies/{die_id}")
+async def delete_sill_die(
+    die_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role not in ["write", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    die = db.query(SillDieDatabase).filter(SillDieDatabase.id == die_id).first()
+    if not die:
+        raise HTTPException(status_code=404, detail="Die not found")
+
+    db.delete(die)
+    db.commit()
+    return {"message": "Die deleted successfully"}
 
 if __name__ == "__main__":
     import uvicorn
