@@ -254,3 +254,15 @@ class RobustApiClient:
         if end_date:
             params["end_date"] = end_date
         return self.get("/sills-logs", params=params)
+
+    def get_sill_dies(self) -> ApiResponse:
+        return self.get("/sills/dies")
+
+    def create_sill_die(self, data: Dict) -> ApiResponse:
+        return self.post("/sills/dies", data=data)
+
+    def update_sill_die(self, die_id: int, data: Dict) -> ApiResponse:
+        return self.put(f"/sills/dies/{die_id}", data=data)
+
+    def delete_sill_die(self, die_id: int) -> ApiResponse:
+        return self.delete(f"/sills/dies/{die_id}")
