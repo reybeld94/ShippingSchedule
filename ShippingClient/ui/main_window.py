@@ -151,12 +151,12 @@ class TabPage(QWidget):
 class SillDialog(QDialog):
     FIELDS = [
         ("material", "Material"),
-        ("dimension", "Dimension"),
-        ("location", "Location"),
         ("die_number", "Die #"),
         ("type", "Type"),
         ("speed", "Speed"),
         ("width", "Width"),
+        ("location", "Location"),
+        ("dimension", "Length"),
         ("sales_order", "Sales Order"),
         ("work_order", "Work Order"),
         ("assembly_number", "Assembly Number"),
@@ -189,7 +189,9 @@ class SillDialog(QDialog):
         form = QFormLayout()
         form.setSpacing(10)
 
-        for key, label in self.FIELDS:
+        first_section_fields = {"material", "die_number", "type", "speed", "width", "location", "dimension"}
+
+        for index, (key, label) in enumerate(self.FIELDS):
             if key == "material":
                 input_widget = QComboBox()
                 input_widget.addItems(["NS", "SS", "SS316", "BR", "AL"])
@@ -217,6 +219,13 @@ class SillDialog(QDialog):
                 input_widget.setText(value)
             form.addRow(QLabel(label), input_widget)
             self.inputs[key] = input_widget
+            if key in first_section_fields and index + 1 < len(self.FIELDS):
+                next_key = self.FIELDS[index + 1][0]
+                if next_key not in first_section_fields:
+                    separator = QFrame()
+                    separator.setFrameShape(QFrame.Shape.HLine)
+                    separator.setFrameShadow(QFrame.Shadow.Sunken)
+                    form.addRow(separator)
 
         self._configure_die_autofill()
         layout.addLayout(form)
