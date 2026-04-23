@@ -191,6 +191,11 @@ class SettingsDialog(QDialog):
         self.test_fedex_btn.clicked.connect(self.test_fedex_connection)
         self.test_fedex_btn.setEnabled(self.is_admin)
 
+        self.mie_trak_server_edit = ModernLineEdit()
+        self.mie_trak_server_edit.setText("GUNDMAIN")
+        self.mie_trak_server_edit.setReadOnly(True)
+        self.mie_trak_database_edit = ModernLineEdit("Database name")
+
         server_section, server_content = self._create_connection_section("Server")
         self._add_form_row(server_content, "Server URL", self.server_edit)
 
@@ -217,6 +222,11 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(server_section)
         layout.addWidget(ws_section)
+        mie_trak_section, mie_trak_content = self._create_connection_section("Mie Trak")
+        self._add_form_row(mie_trak_content, "Server Name", self.mie_trak_server_edit)
+        self._add_form_row(mie_trak_content, "Database", self.mie_trak_database_edit)
+
+        layout.addWidget(mie_trak_section)
         layout.addWidget(fedex_section)
         layout.addStretch()
 
@@ -386,6 +396,8 @@ class SettingsDialog(QDialog):
         self.server_edit.setText(self.settings_mgr.get_server_url())
         self.ws_edit.setText(self.settings_mgr.get_ws_url())
         self.font_spin.setValue(self.settings_mgr.get_font_size())
+        self.mie_trak_server_edit.setText(self.settings_mgr.get_mie_trak_server())
+        self.mie_trak_database_edit.setText(self.settings_mgr.get_mie_trak_database())
         response = self.api_client.get_connection_settings()
         if response.is_success():
             fedex = (response.get_data() or {}).get("fedex", {})
@@ -414,10 +426,17 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, "Error", "Both URLs are required")
             return
 
+        selected_mie_trak_db = self.mie_trak_database_edit.text().strip()
+        if not selected_mie_trak_db:
+            QMessageBox.warning(self, "Error", "Mie Trak database is required")
+            return
+
         self.settings_mgr.set_server_url(server)
         self.settings_mgr.set_ws_url(ws)
         new_size = self.font_spin.value()
         self.settings_mgr.set_font_size(new_size)
+        self.settings_mgr.set_mie_trak_server(self.mie_trak_server_edit.text().strip() or "GUNDMAIN")
+        self.settings_mgr.set_mie_trak_database(selected_mie_trak_db)
 
         enabled = self.fedex_enabled.isChecked()
         fedex_api_key = self.fedex_api_key_edit.text().strip()
