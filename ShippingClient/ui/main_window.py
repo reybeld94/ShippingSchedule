@@ -2332,9 +2332,12 @@ class ModernShippingMainWindow(QMainWindow):
         table.setAlternatingRowColors(True)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
-        table.setWordWrap(True)
+        is_history_table = name == "history"
+        table.setWordWrap(not is_history_table)
         table.setMouseTracking(True)
-        table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        table.setTextElideMode(
+            Qt.TextElideMode.ElideRight if is_history_table else Qt.TextElideMode.ElideNone
+        )
         # Ajustar altura de filas en función del tamaño de fuente sin penalizar rendimiento
         self._configure_table_row_metrics(table)
 
@@ -2360,7 +2363,8 @@ class ModernShippingMainWindow(QMainWindow):
                 width = min(width, max_width)
             table.setColumnWidth(index, width)
 
-        table.setItemDelegate(self.wrap_anywhere_delegate)
+        if not is_history_table:
+            table.setItemDelegate(self.wrap_anywhere_delegate)
         table.setItemDelegateForColumn(0, self.status_chip_delegate)
 
         # Delegates para campos de fecha
