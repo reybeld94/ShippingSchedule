@@ -4622,7 +4622,7 @@ class ModernShippingMainWindow(QMainWindow):
             return str(value or "").lower()
 
         lowered = search_text.lower()
-        for field in (
+        prioritized_fields = (
             "job_number",
             "job_name",
             "description",
@@ -4631,8 +4631,18 @@ class ModernShippingMainWindow(QMainWindow):
             "invoice_number",
             "qc_notes",
             "status",
-        ):
+            "address",
+            "week",
+        )
+        for field in prioritized_fields:
             if lowered in safe_lower(shipment.get(field)):
+                return True
+
+        # Fallback: permitir búsqueda por cualquier campo textual retornado por la API.
+        # Esto evita falsos "sin resultados" cuando el usuario busca por
+        # columnas nuevas o datos auxiliares no contemplados arriba.
+        for value in shipment.values():
+            if lowered in safe_lower(value):
                 return True
         return False
     
