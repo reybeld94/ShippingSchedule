@@ -4366,6 +4366,7 @@ class ModernShippingMainWindow(QMainWindow):
         sort_order: Qt.SortOrder,
     ):
         table_name = "active" if is_active else "history"
+        chunk_size = 80 if is_active else 25
         self._table_population_state = {
             "table": table,
             "shipments": shipments,
@@ -4404,6 +4405,8 @@ class ModernShippingMainWindow(QMainWindow):
             end = min(index + chunk_size, row_count)
             for row in range(index, end):
                 self.populate_table_row(table, row, shipments[row], is_active)
+                if row and row % 10 == 0:
+                    QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
             state["index"] = end
             next_progress_mark = state.get("next_progress_mark", row_count + 1)
             if end >= next_progress_mark:
