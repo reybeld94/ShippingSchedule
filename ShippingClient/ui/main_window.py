@@ -1135,7 +1135,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
         search_container.setMinimumHeight(CONTROL_HEIGHT)
-        search_container.setMaximumWidth(760)
+        search_container.setMaximumWidth(920)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -2170,6 +2170,8 @@ class ModernShippingMainWindow(QMainWindow):
             self.load_sill_dies()
         else:
             self.load_sills()
+        self.perform_filter()
+        self.update_status()
 
     def load_sill_dies(self):
         response = self.api_client.get_sill_dies()
@@ -3973,6 +3975,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self._apply_module_toolbar_state(tab_id)
 
+        self.perform_filter()
         self.update_status()
         self.on_selection_changed()
         self.update_filter_button_state()
@@ -3981,6 +3984,7 @@ class ModernShippingMainWindow(QMainWindow):
 
     def on_main_tab_changed(self, index):
         _ = index
+        self.perform_filter()
         self.update_status()
     
     def on_selection_changed(self):
@@ -4635,11 +4639,27 @@ class ModernShippingMainWindow(QMainWindow):
     def update_search_visibility(self, table, name):
         """Actualizar coincidencias de búsqueda por fila para una tabla."""
         search_text = self.search_edit.text().lower().strip()
+        if not search_text:
+            matches = [True] * table.rowCount()
+            self._search_row_visibility[name] = matches
+            return len(matches)
+
         matches = []
         for row in range(table.rowCount()):
             job_item = table.item(row, 0)
             shipment = job_item.data(Qt.ItemDataRole.UserRole) if job_item else None
-            matches.append(self.shipment_matches_search(shipment, search_text))
+            if isinstance(shipment, dict):
+                matches.append(self.shipment_matches_search(shipment, search_text))
+                continue
+
+            row_match = False
+            for col in range(table.columnCount()):
+                item = table.item(row, col)
+                cell_text = item.text().lower() if item and item.text() else ""
+                if search_text in cell_text:
+                    row_match = True
+                    break
+            matches.append(row_match)
         self._search_row_visibility[name] = matches
         return sum(1 for match in matches if match)
     
@@ -4706,17 +4726,36 @@ class ModernShippingMainWindow(QMainWindow):
 
     def perform_filter(self):
         """Ejecutar filtrado optimizado"""
-        for module in self.tab_modules:
-            name = module.id
-            table = self.tab_tables.get(name)
-            if table is None:
-                continue
-            if not self._tables_populated.get(name):
-                continue
-            self.update_search_visibility(table, name)
-            self.apply_row_filters(table, name)
+        name, table = self.get_active_search_table()
+        if table is None:
+            self.update_status()
+            self.update_filter_button_state()
+            return
+
+        if name in self._tables_populated and not self._tables_populated.get(name):
+            self.update_status()
+            self.update_filter_button_state()
+            return
+
+        self.update_search_visibility(table, name)
+        self.apply_row_filters(table, name)
         self.update_status()
         self.update_filter_button_state()
+
+    def get_active_search_table(self) -> tuple[str, Optional[QTableWidget]]:
+        """Return the currently visible table that should be filtered by search."""
+        if hasattr(self, "main_tab_widget") and self.main_tab_widget.currentIndex() == 1:
+            if not hasattr(self, "sills_tab_widget"):
+                return "sills_sheet", None
+            index = self.sills_tab_widget.currentIndex()
+            if index == 1:
+                return "sills_logs", getattr(self, "sills_logs_table", None)
+            if index == 2:
+                return "sills_die", getattr(self, "sills_die_table", None)
+            return "sills_sheet", getattr(self, "sills_table", None)
+
+        current_tab_id = self.get_current_tab_id()
+        return current_tab_id, self.tab_tables.get(current_tab_id)
     
     def update_status(self):
         """Actualizar información del status bar"""
