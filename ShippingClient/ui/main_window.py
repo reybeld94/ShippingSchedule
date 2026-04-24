@@ -902,8 +902,6 @@ class ModernShippingMainWindow(QMainWindow):
         self._search_row_visibility = {module.id: [] for module in self.tab_modules}
         self.date_filters = {module.id: self.settings_mgr.load_date_filters(module.id) for module in self.tab_modules}
         self._auto_reset_filter_tabs: set[str] = set()
-        for module in self.tab_modules:
-            self._sanitize_date_filters(module.id)
         self._base_header_labels: dict[str, list[str]] = {}
         self.date_filter_headers = {}
         self._header_shadows: dict[str, QGraphicsDropShadowEffect] = {}
@@ -3937,11 +3935,10 @@ class ModernShippingMainWindow(QMainWindow):
             return
         if self.count_visible_rows(table) > 0:
             return
-        search_text = self.search_edit.text().strip() if hasattr(self, "search_edit") else ""
-        if search_text:
+        if self.search_edit.text().strip():
             return
 
-        saved_filters = self._sanitize_date_filters(tab_id)
+        saved_filters = self.date_filters.get(tab_id, {})
         if not saved_filters:
             return
 
