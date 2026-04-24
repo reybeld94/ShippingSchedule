@@ -1,6 +1,7 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import csv
 import json
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
@@ -782,7 +783,9 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 class ModernShippingMainWindow(QMainWindow):
     _ROW_EXTRA_HEIGHT = 6
     _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
+    _HISTORY_CHUNK_THRESHOLD = 250
     _MAX_HISTORY_ROWS = 5000
+    _HISTORY_PAGE_SIZE = 300
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
         "Job Name",
@@ -931,6 +934,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._pending_shipment_reload = False
         self._table_population_timer: Optional[QTimer] = None
         self._table_population_state: Optional[dict[str, Any]] = None
+        self._history_tab_entered_at: Optional[float] = None
         self.shipping_logs = []
         self.sills = []
         self.sill_dies = []
@@ -2328,9 +2332,12 @@ class ModernShippingMainWindow(QMainWindow):
         table.setAlternatingRowColors(True)
         table.verticalHeader().setVisible(False)
         table.setShowGrid(True)
-        table.setWordWrap(True)
+        is_history_table = name == "history"
+        table.setWordWrap(not is_history_table)
         table.setMouseTracking(True)
-        table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        table.setTextElideMode(
+            Qt.TextElideMode.ElideRight if is_history_table else Qt.TextElideMode.ElideNone
+        )
         # Ajustar altura de filas en función del tamaño de fuente sin penalizar rendimiento
         self._configure_table_row_metrics(table)
 
@@ -2356,7 +2363,8 @@ class ModernShippingMainWindow(QMainWindow):
                 width = min(width, max_width)
             table.setColumnWidth(index, width)
 
-        table.setItemDelegate(self.wrap_anywhere_delegate)
+        if not is_history_table:
+            table.setItemDelegate(self.wrap_anywhere_delegate)
         table.setItemDelegateForColumn(0, self.status_chip_delegate)
 
         # Delegates para campos de fecha
@@ -2611,6 +2619,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.refresh_pinned_columns(table, name)
 
     def refresh_status_chip_for_row(self, table, row):
+        if self.updating_table:
+            return
         if table is None or row < 0 or row >= table.rowCount():
             return
         index = table.model().index(row, 0)
@@ -3937,11 +3947,19 @@ class ModernShippingMainWindow(QMainWindow):
 
     def on_tab_changed(self, index):
         """Manejar cambio de tab optimizado"""
-        print(f"Cambio de tab: {index}")
+        tab_switched_at = time.perf_counter()
+        print(f"[TAB] Cambio de tab index={index}")
         tab_id = self.tab_index_to_id.get(index, self.get_current_tab_id())
+        print(f"[TAB] tab_id={tab_id}")
         if tab_id == "logs":
             self.load_shipping_logs()
         elif not self._tables_populated.get(tab_id, False):
+            if tab_id == "history":
+                self._history_tab_entered_at = tab_switched_at
+                print(
+                    f"[HISTORY_DIAG] entering history tab with loaded_rows={len(self._history_shipments)} "
+                    f"total_history={self._history_total_count}"
+                )
             self.populate_module_table(tab_id)
             self._tables_populated[tab_id] = True
 
@@ -3953,6 +3971,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_status()
         self.on_selection_changed()
         self.update_filter_button_state()
+        elapsed_ms = (time.perf_counter() - tab_switched_at) * 1000
+        print(f"[TAB] tab change processing done in {elapsed_ms:.1f}ms for tab_id={tab_id}")
 
     def on_main_tab_changed(self, index):
         _ = index
@@ -4038,17 +4058,66 @@ class ModernShippingMainWindow(QMainWindow):
         )
         self._all_history_shipments = sorted_history
         self._history_total_count = len(sorted_history)
-        if self._history_total_count <= self._MAX_HISTORY_ROWS:
-            return sorted_history
+        capped_history = sorted_history[: self._MAX_HISTORY_ROWS]
+        initial_count = min(len(capped_history), self._HISTORY_PAGE_SIZE)
 
-        trimmed = sorted_history[: self._MAX_HISTORY_ROWS]
-        hidden_count = self._history_total_count - len(trimmed)
-        self.show_toast(
-            f"Showing latest {len(trimmed)} of {self._history_total_count} history records "
-            f"to keep the app responsive ({hidden_count} older records hidden).",
-            color="#F59E0B",
+        if self._history_total_count > self._MAX_HISTORY_ROWS:
+            hidden_count = self._history_total_count - len(capped_history)
+            self.show_toast(
+                f"Showing latest {len(capped_history)} of {self._history_total_count} history records "
+                f"to keep the app responsive ({hidden_count} older records hidden).",
+                color="#F59E0B",
+            )
+
+        if len(capped_history) > initial_count:
+            self.show_toast(
+                f"Shipment History loaded in pages of {self._HISTORY_PAGE_SIZE}. "
+                f"Currently showing {initial_count} of {len(capped_history)}.",
+                color="#0EA5E9",
+            )
+
+        return capped_history[:initial_count]
+
+    def _history_effective_total(self) -> int:
+        if not self._all_history_shipments:
+            return 0
+        return min(len(self._all_history_shipments), self._MAX_HISTORY_ROWS)
+
+    def _history_loaded_count(self) -> int:
+        return len(self._history_shipments)
+
+    def _history_hidden_count(self) -> int:
+        return max(0, self._history_effective_total() - self._history_loaded_count())
+
+    def _history_next_page_count(self) -> int:
+        return min(
+            self._history_effective_total(),
+            self._history_loaded_count() + self._HISTORY_PAGE_SIZE,
         )
-        return trimmed
+
+    def _history_is_fully_loaded(self) -> bool:
+        return self._history_hidden_count() <= 0
+
+    def _history_page_label(self) -> str:
+        return (
+            f"{self._history_loaded_count()}/{self._history_effective_total()}"
+            if self._history_effective_total() > 0
+            else "0/0"
+        )
+
+    def _notify_history_paging_state(self):
+        if self._history_effective_total() <= 0:
+            return
+        if self._history_is_fully_loaded():
+            self.show_toast(
+                f"Shipment History fully loaded ({self._history_page_label()}).",
+                color="#10B981",
+            )
+            return
+        self.show_toast(
+            f"Shipment History page loaded ({self._history_page_label()}).",
+            color="#0EA5E9",
+        )
 
     def _sync_history_load_more_button(self):
         controls = self._get_toolbar_controls("history")
@@ -4056,28 +4125,31 @@ class ModernShippingMainWindow(QMainWindow):
         if not isinstance(history_load_more_btn, QWidget):
             return
 
-        hidden_count = max(0, self._history_total_count - len(self._history_shipments))
+        hidden_count = self._history_hidden_count()
         should_show = hidden_count > 0
         history_load_more_btn.setVisible(should_show)
         history_load_more_btn.setEnabled(should_show)
 
         if hasattr(history_load_more_btn, "setText"):
-            history_load_more_btn.setText(f"Load More ({hidden_count})" if should_show else "Load More")
+            history_load_more_btn.setText(
+                f"Load More ({hidden_count})" if should_show else "Load More"
+            )
 
     def load_more_history_rows(self):
-        hidden_count = max(0, self._history_total_count - len(self._history_shipments))
+        hidden_count = self._history_hidden_count()
         if hidden_count <= 0:
             self._sync_history_load_more_button()
             return
 
         if self._all_history_shipments:
-            self._history_shipments = list(self._all_history_shipments)
+            next_count = self._history_next_page_count()
+            self._history_shipments = list(self._all_history_shipments[:next_count])
         self.populate_history_table()
         self._tables_populated["history"] = True
         self._recover_hidden_rows_from_saved_filters("history")
         self._sync_history_load_more_button()
         self.update_status()
-        self.show_toast("Loaded all history rows.", color="#10B981")
+        self._notify_history_paging_state()
 
     def _show_loading_indicator(self):
         """Mostrar indicador de progreso y desactivar controles"""
@@ -4231,7 +4303,10 @@ class ModernShippingMainWindow(QMainWindow):
     
     def populate_history_table(self):
         """Poblar tabla de historial"""
-        print(f"Populando historial: {len(self._history_shipments)} shipments totales")
+        print(
+            f"[HISTORY_DIAG] Populating history table rows={len(self._history_shipments)} "
+            f"(cached_total={self._history_total_count})"
+        )
         table = self.tab_tables.get("history")
         if table is None:
             raise RuntimeError("Shipment history table is not initialized")
@@ -4254,6 +4329,7 @@ class ModernShippingMainWindow(QMainWindow):
     def populate_table_fast(self, table, shipments, is_active=True):
         """Poblar tabla de forma optimizada"""
         try:
+            start = time.perf_counter()
             self._cancel_table_population()
             self.updating_table = True
             table.setUpdatesEnabled(False)
@@ -4268,8 +4344,16 @@ class ModernShippingMainWindow(QMainWindow):
 
             row_count = len(shipments)
             table.setRowCount(row_count)
+            table_name = "active" if is_active else "history"
+            heavy_layout_threshold = (
+                self._HEAVY_LAYOUT_ROW_THRESHOLD if is_active else self._HISTORY_CHUNK_THRESHOLD
+            )
+            print(
+                f"[TABLE_POP] start table={table_name} rows={row_count} "
+                f"chunk_threshold={heavy_layout_threshold}"
+            )
 
-            if row_count > self._HEAVY_LAYOUT_ROW_THRESHOLD:
+            if row_count > heavy_layout_threshold:
                 self._populate_table_chunked(
                     table=table,
                     shipments=shipments,
@@ -4277,6 +4361,9 @@ class ModernShippingMainWindow(QMainWindow):
                     sort_col=sort_col,
                     sort_order=sort_order,
                 )
+                # Keep paint updates enabled during chunked mode so the UI
+                # does not appear fully frozen while rows are being inserted.
+                table.setUpdatesEnabled(True)
                 return
 
             for row, shipment in enumerate(shipments):
@@ -4290,7 +4377,6 @@ class ModernShippingMainWindow(QMainWindow):
             if sort_col >= 0:
                 table.sortItems(sort_col, sort_order)
 
-            table_name = "active" if is_active else "history"
             self.apply_saved_cell_colors(table, table_name)
 
             # Inicializar estado de búsqueda y aplicar filtros combinados
@@ -4300,14 +4386,13 @@ class ModernShippingMainWindow(QMainWindow):
             self.apply_row_filters(table, table_name)
 
             table.setUpdatesEnabled(True)
-            if row_count <= self._HEAVY_LAYOUT_ROW_THRESHOLD:
+            if row_count <= heavy_layout_threshold:
                 self._ensure_columns_fit_content(table)
                 self._refresh_visible_row_heights(table)
             self.refresh_pinned_columns(table, table_name)
             self.updating_table = False
-            print(
-                f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas"
-            )
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            print(f"[TABLE_POP] done table={table_name} rows={row_count} in {elapsed_ms:.1f}ms")
             
         except Exception as e:
             table.setUpdatesEnabled(True)
@@ -4338,6 +4423,7 @@ class ModernShippingMainWindow(QMainWindow):
         sort_order: Qt.SortOrder,
     ):
         table_name = "active" if is_active else "history"
+        chunk_size = 80 if is_active else 25
         self._table_population_state = {
             "table": table,
             "shipments": shipments,
@@ -4347,12 +4433,17 @@ class ModernShippingMainWindow(QMainWindow):
             "sort_col": sort_col,
             "sort_order": sort_order,
             "table_name": table_name,
-            "chunk_size": 120,
+            "chunk_size": chunk_size,
+            "started_at": time.perf_counter(),
+            "next_progress_mark": 500,
         }
         timer = QTimer(self)
         timer.timeout.connect(self._process_population_chunk)
         self._table_population_timer = timer
         timer.start(1)
+        print(
+            f"[TABLE_POP] chunked mode table={table_name} rows={len(shipments)} chunk_size={chunk_size}"
+        )
 
     def _process_population_chunk(self):
         state = self._table_population_state
@@ -4371,7 +4462,14 @@ class ModernShippingMainWindow(QMainWindow):
             end = min(index + chunk_size, row_count)
             for row in range(index, end):
                 self.populate_table_row(table, row, shipments[row], is_active)
+                if row and row % 10 == 0:
+                    QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
             state["index"] = end
+            table.viewport().update()
+            next_progress_mark = state.get("next_progress_mark", row_count + 1)
+            if end >= next_progress_mark:
+                print(f"[TABLE_POP] progress table={state['table_name']} rows_loaded={end}/{row_count}")
+                state["next_progress_mark"] = next_progress_mark + 500
         except Exception as exc:
             print(f"Error during chunked table population: {exc}")
             self._cancel_table_population(restore_table_state=True)
@@ -4382,6 +4480,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         sort_col = state["sort_col"]
         sort_order = state["sort_order"]
+        started_at = state.get("started_at")
         self._cancel_table_population()
         self._finalize_table_population(
             table=table,
@@ -4390,6 +4489,7 @@ class ModernShippingMainWindow(QMainWindow):
             sort_col=sort_col,
             sort_order=sort_order,
             run_expensive_layout=False,
+            started_at=started_at,
         )
 
     def _finalize_table_population(
@@ -4400,6 +4500,7 @@ class ModernShippingMainWindow(QMainWindow):
         sort_col: int,
         sort_order: Qt.SortOrder,
         run_expensive_layout: bool,
+        started_at: Optional[float] = None,
     ):
         table_name = "active" if is_active else "history"
         table.setSortingEnabled(True)
@@ -4419,7 +4520,14 @@ class ModernShippingMainWindow(QMainWindow):
             self._refresh_visible_row_heights(table)
         self.refresh_pinned_columns(table, table_name)
         self.updating_table = False
-        print(f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas")
+        if started_at is not None:
+            elapsed_ms = (time.perf_counter() - started_at) * 1000
+            print(f"[TABLE_POP] done table={table_name} rows={row_count} in {elapsed_ms:.1f}ms (chunked)")
+        else:
+            print(f"[TABLE_POP] done table={table_name} rows={row_count} (chunked)")
+        if table_name == "history" and self._history_tab_entered_at is not None:
+            tab_elapsed = (time.perf_counter() - self._history_tab_entered_at) * 1000
+            print(f"[HISTORY_DIAG] history tab fully rendered in {tab_elapsed:.1f}ms")
 
     def _prepare_cell_metadata(self, column: int, value) -> dict[str, object]:
         raw_text = "" if value is None else str(value)
