@@ -4376,7 +4376,7 @@ class ModernShippingMainWindow(QMainWindow):
             "sort_col": sort_col,
             "sort_order": sort_order,
             "table_name": table_name,
-            "chunk_size": chunk_size,
+            "chunk_size": 120,
             "started_at": time.perf_counter(),
             "next_progress_mark": 500,
         }
@@ -4385,7 +4385,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._table_population_timer = timer
         timer.start(1)
         print(
-            f"[TABLE_POP] chunked mode table={table_name} rows={len(shipments)} chunk_size={chunk_size}"
+            f"[TABLE_POP] chunked mode table={table_name} rows={len(shipments)} chunk_size=120"
         )
 
     def _process_population_chunk(self):
@@ -4408,7 +4408,6 @@ class ModernShippingMainWindow(QMainWindow):
                 if row and row % 10 == 0:
                     QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
             state["index"] = end
-            table.viewport().update()
             next_progress_mark = state.get("next_progress_mark", row_count + 1)
             if end >= next_progress_mark:
                 print(f"[TABLE_POP] progress table={state['table_name']} rows_loaded={end}/{row_count}")
