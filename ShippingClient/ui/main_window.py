@@ -1699,28 +1699,33 @@ class ModernShippingMainWindow(QMainWindow):
                     border-radius: {RADIUS_MD}px;
                 }}
                 QTabBar::tab {{
-                    background: transparent;
+                    background: #F8FAFC;
                     color: #64748B;
-                    padding: 10px 18px;
+                    padding: 11px 18px;
                     margin-right: 6px;
-                    border-top-left-radius: 8px;
-                    border-top-right-radius: 8px;
+                    margin-bottom: 3px;
+                    border-radius: 10px;
                     font-weight: 500;
                     font-size: {sub_tab_font_size}px;
                     min-width: 92px;
-                    border: 1px solid transparent;
-                    border-bottom: 2px solid transparent;
+                    border: 1px solid #E2E8F0;
                 }}
                 QTabBar::tab:selected {{
-                    background: #EFF6FF;
-                    color: #1E3A8A;
-                    border: 1px solid #BFDBFE;
-                    border-bottom: 2px solid #2563EB;
+                    background: #DBEAFE;
+                    color: #1E40AF;
+                    border: 1px solid #93C5FD;
+                    border-bottom: 3px solid #2563EB;
+                    margin-bottom: 0px;
+                    padding-top: 12px;
                     font-weight: 700;
                 }}
                 QTabBar::tab:hover:!selected {{
-                    background: #F8FAFC;
+                    background: #F1F5F9;
                     color: #334155;
+                    border: 1px solid #CBD5E1;
+                }}
+                QTabBar::tab:!selected {{
+                    margin-top: 2px;
                 }}
             """
             )
