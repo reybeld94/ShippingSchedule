@@ -1592,9 +1592,19 @@ class ModernShippingMainWindow(QMainWindow):
         secondary_layout = QHBoxLayout()
         secondary_layout.setContentsMargins(0, 0, 0, 0)
         secondary_layout.setSpacing(10)
+        history_load_more_btn = ModernButton(
+            "Load More",
+            "outline",
+            min_height=32,
+            min_width=106,
+            padding=(6, 10),
+        )
+        history_load_more_btn.clicked.connect(self.load_more_history_rows)
+        history_load_more_btn.setVisible(module.id == "history")
         secondary_layout.addWidget(print_btn)
         secondary_layout.addWidget(columns_btn)
         secondary_layout.addWidget(export_btn)
+        secondary_layout.addWidget(history_load_more_btn)
 
         toolbar_layout.addLayout(primary_layout)
         toolbar_layout.addStretch(1)
@@ -1613,6 +1623,7 @@ class ModernShippingMainWindow(QMainWindow):
             "columns": columns_btn,
             "export": export_btn,
             "print": print_btn,
+            "history_load_more": history_load_more_btn,
             "export_menu": export_menu,
             "export_visible_action": export_visible_action,
             "export_all_filtered_action": export_all_filtered_action,
@@ -2905,6 +2916,9 @@ class ModernShippingMainWindow(QMainWindow):
             can_delete = role_policy["can_delete"] and module_policy.get("allow_delete", True)
             delete_btn.setEnabled(can_delete and self._current_tab_has_selection(target_module))
 
+        if target_module == "history":
+            self._sync_history_load_more_button()
+
     def show_export_menu(self, module_id: Optional[str] = None):
         controls = self._get_toolbar_controls(module_id)
         export_menu = controls.get("export_menu")
@@ -4048,7 +4062,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.refresh_top_btn,
         ]
         for controls in self.tab_toolbars.values():
-            for key in ("add", "delete", "print", "columns", "export"):
+            for key in ("add", "delete", "print", "columns", "export", "history_load_more"):
                 widget = controls.get(key)
                 if isinstance(widget, QWidget):
                     widgets.append(widget)
@@ -4117,6 +4131,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.update_status()
         self.update_filter_button_state()
+        self._sync_history_load_more_button()
         self._trigger_pending_shipment_reload_if_needed()
 
     def on_shipments_error(self, error_msg):
