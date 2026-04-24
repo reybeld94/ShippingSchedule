@@ -1,6 +1,7 @@
 ﻿# ui/main_window.py - Ventana principal con diseño profesional
 import csv
 import json
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
@@ -782,6 +783,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 class ModernShippingMainWindow(QMainWindow):
     _ROW_EXTRA_HEIGHT = 6
     _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
+    _HISTORY_CHUNK_THRESHOLD = 250
     _MAX_HISTORY_ROWS = 5000
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
@@ -931,6 +933,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._pending_shipment_reload = False
         self._table_population_timer: Optional[QTimer] = None
         self._table_population_state: Optional[dict[str, Any]] = None
+        self._history_tab_entered_at: Optional[float] = None
         self.shipping_logs = []
         self.sills = []
         self.sill_dies = []
@@ -3937,11 +3940,19 @@ class ModernShippingMainWindow(QMainWindow):
 
     def on_tab_changed(self, index):
         """Manejar cambio de tab optimizado"""
-        print(f"Cambio de tab: {index}")
+        tab_switched_at = time.perf_counter()
+        print(f"[TAB] Cambio de tab index={index}")
         tab_id = self.tab_index_to_id.get(index, self.get_current_tab_id())
+        print(f"[TAB] tab_id={tab_id}")
         if tab_id == "logs":
             self.load_shipping_logs()
         elif not self._tables_populated.get(tab_id, False):
+            if tab_id == "history":
+                self._history_tab_entered_at = tab_switched_at
+                print(
+                    f"[HISTORY_DIAG] entering history tab with loaded_rows={len(self._history_shipments)} "
+                    f"total_history={self._history_total_count}"
+                )
             self.populate_module_table(tab_id)
             self._tables_populated[tab_id] = True
 
@@ -3953,6 +3964,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_status()
         self.on_selection_changed()
         self.update_filter_button_state()
+        elapsed_ms = (time.perf_counter() - tab_switched_at) * 1000
+        print(f"[TAB] tab change processing done in {elapsed_ms:.1f}ms for tab_id={tab_id}")
 
     def on_main_tab_changed(self, index):
         _ = index
@@ -4231,7 +4244,10 @@ class ModernShippingMainWindow(QMainWindow):
     
     def populate_history_table(self):
         """Poblar tabla de historial"""
-        print(f"Populando historial: {len(self._history_shipments)} shipments totales")
+        print(
+            f"[HISTORY_DIAG] Populating history table rows={len(self._history_shipments)} "
+            f"(cached_total={self._history_total_count})"
+        )
         table = self.tab_tables.get("history")
         if table is None:
             raise RuntimeError("Shipment history table is not initialized")
@@ -4254,6 +4270,7 @@ class ModernShippingMainWindow(QMainWindow):
     def populate_table_fast(self, table, shipments, is_active=True):
         """Poblar tabla de forma optimizada"""
         try:
+            start = time.perf_counter()
             self._cancel_table_population()
             self.updating_table = True
             table.setUpdatesEnabled(False)
@@ -4268,8 +4285,16 @@ class ModernShippingMainWindow(QMainWindow):
 
             row_count = len(shipments)
             table.setRowCount(row_count)
+            table_name = "active" if is_active else "history"
+            heavy_layout_threshold = (
+                self._HEAVY_LAYOUT_ROW_THRESHOLD if is_active else self._HISTORY_CHUNK_THRESHOLD
+            )
+            print(
+                f"[TABLE_POP] start table={table_name} rows={row_count} "
+                f"chunk_threshold={heavy_layout_threshold}"
+            )
 
-            if row_count > self._HEAVY_LAYOUT_ROW_THRESHOLD:
+            if row_count > heavy_layout_threshold:
                 self._populate_table_chunked(
                     table=table,
                     shipments=shipments,
@@ -4290,7 +4315,6 @@ class ModernShippingMainWindow(QMainWindow):
             if sort_col >= 0:
                 table.sortItems(sort_col, sort_order)
 
-            table_name = "active" if is_active else "history"
             self.apply_saved_cell_colors(table, table_name)
 
             # Inicializar estado de búsqueda y aplicar filtros combinados
@@ -4300,14 +4324,13 @@ class ModernShippingMainWindow(QMainWindow):
             self.apply_row_filters(table, table_name)
 
             table.setUpdatesEnabled(True)
-            if row_count <= self._HEAVY_LAYOUT_ROW_THRESHOLD:
+            if row_count <= heavy_layout_threshold:
                 self._ensure_columns_fit_content(table)
                 self._refresh_visible_row_heights(table)
             self.refresh_pinned_columns(table, table_name)
             self.updating_table = False
-            print(
-                f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas"
-            )
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            print(f"[TABLE_POP] done table={table_name} rows={row_count} in {elapsed_ms:.1f}ms")
             
         except Exception as e:
             table.setUpdatesEnabled(True)
@@ -4348,11 +4371,16 @@ class ModernShippingMainWindow(QMainWindow):
             "sort_order": sort_order,
             "table_name": table_name,
             "chunk_size": 120,
+            "started_at": time.perf_counter(),
+            "next_progress_mark": 500,
         }
         timer = QTimer(self)
         timer.timeout.connect(self._process_population_chunk)
         self._table_population_timer = timer
         timer.start(1)
+        print(
+            f"[TABLE_POP] chunked mode table={table_name} rows={len(shipments)} chunk_size=120"
+        )
 
     def _process_population_chunk(self):
         state = self._table_population_state
@@ -4372,6 +4400,10 @@ class ModernShippingMainWindow(QMainWindow):
             for row in range(index, end):
                 self.populate_table_row(table, row, shipments[row], is_active)
             state["index"] = end
+            next_progress_mark = state.get("next_progress_mark", row_count + 1)
+            if end >= next_progress_mark:
+                print(f"[TABLE_POP] progress table={state['table_name']} rows_loaded={end}/{row_count}")
+                state["next_progress_mark"] = next_progress_mark + 500
         except Exception as exc:
             print(f"Error during chunked table population: {exc}")
             self._cancel_table_population(restore_table_state=True)
@@ -4382,6 +4414,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         sort_col = state["sort_col"]
         sort_order = state["sort_order"]
+        started_at = state.get("started_at")
         self._cancel_table_population()
         self._finalize_table_population(
             table=table,
@@ -4390,6 +4423,7 @@ class ModernShippingMainWindow(QMainWindow):
             sort_col=sort_col,
             sort_order=sort_order,
             run_expensive_layout=False,
+            started_at=started_at,
         )
 
     def _finalize_table_population(
@@ -4400,6 +4434,7 @@ class ModernShippingMainWindow(QMainWindow):
         sort_col: int,
         sort_order: Qt.SortOrder,
         run_expensive_layout: bool,
+        started_at: Optional[float] = None,
     ):
         table_name = "active" if is_active else "history"
         table.setSortingEnabled(True)
@@ -4419,7 +4454,14 @@ class ModernShippingMainWindow(QMainWindow):
             self._refresh_visible_row_heights(table)
         self.refresh_pinned_columns(table, table_name)
         self.updating_table = False
-        print(f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas")
+        if started_at is not None:
+            elapsed_ms = (time.perf_counter() - started_at) * 1000
+            print(f"[TABLE_POP] done table={table_name} rows={row_count} in {elapsed_ms:.1f}ms (chunked)")
+        else:
+            print(f"[TABLE_POP] done table={table_name} rows={row_count} (chunked)")
+        if table_name == "history" and self._history_tab_entered_at is not None:
+            tab_elapsed = (time.perf_counter() - self._history_tab_entered_at) * 1000
+            print(f"[HISTORY_DIAG] history tab fully rendered in {tab_elapsed:.1f}ms")
 
     def _prepare_cell_metadata(self, column: int, value) -> dict[str, object]:
         raw_text = "" if value is None else str(value)
