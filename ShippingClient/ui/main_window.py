@@ -4210,11 +4210,17 @@ class ModernShippingMainWindow(QMainWindow):
             print(f"Error poblando tabla: {e}")
             raise
 
-    def _cancel_table_population(self):
+    def _cancel_table_population(self, restore_table_state: bool = True):
         if self._table_population_timer is not None:
             self._table_population_timer.stop()
             self._table_population_timer.deleteLater()
             self._table_population_timer = None
+        if restore_table_state and self._table_population_state is not None:
+            table = self._table_population_state.get("table")
+            if table is not None:
+                table.setUpdatesEnabled(True)
+                table.blockSignals(False)
+            self.updating_table = False
         self._table_population_state = None
 
     def _populate_table_chunked(
@@ -4235,12 +4241,12 @@ class ModernShippingMainWindow(QMainWindow):
             "sort_col": sort_col,
             "sort_order": sort_order,
             "table_name": table_name,
-            "chunk_size": 200,
+            "chunk_size": 120,
         }
         timer = QTimer(self)
         timer.timeout.connect(self._process_population_chunk)
         self._table_population_timer = timer
-        timer.start(0)
+        timer.start(1)
 
     def _process_population_chunk(self):
         state = self._table_population_state
@@ -4255,10 +4261,15 @@ class ModernShippingMainWindow(QMainWindow):
         chunk_size = state["chunk_size"]
         is_active = state["is_active"]
 
-        end = min(index + chunk_size, row_count)
-        for row in range(index, end):
-            self.populate_table_row(table, row, shipments[row], is_active)
-        state["index"] = end
+        try:
+            end = min(index + chunk_size, row_count)
+            for row in range(index, end):
+                self.populate_table_row(table, row, shipments[row], is_active)
+            state["index"] = end
+        except Exception as exc:
+            print(f"Error during chunked table population: {exc}")
+            self._cancel_table_population(restore_table_state=True)
+            return
 
         if end < row_count:
             return
