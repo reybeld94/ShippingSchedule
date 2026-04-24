@@ -721,7 +721,10 @@ async def create_shipment(
 async def update_shipment(
     shipment_id: int,
     shipment_update: ShipmentUpdate,
-    current_version: int = Query(..., description="Current version for optimistic locking"),
+    current_version: int | None = Query(
+        None,
+        description="Current version for optimistic locking (optional for legacy clients)",
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -732,11 +735,14 @@ async def update_shipment(
     try:
         logger.info(f"Updating shipment {shipment_id}, version {current_version}")
 
-        # Buscar con version lock
-        shipment = db.query(Shipment).filter(
-            Shipment.id == shipment_id,
-            Shipment.version == current_version
-        ).first()
+        # Buscar shipment; usar lock optimista solo cuando el cliente envía versión
+        if current_version is None:
+            shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
+        else:
+            shipment = db.query(Shipment).filter(
+                Shipment.id == shipment_id,
+                Shipment.version == current_version
+            ).first()
 
         if not shipment:
             # Verificar si existe pero con versión diferente
