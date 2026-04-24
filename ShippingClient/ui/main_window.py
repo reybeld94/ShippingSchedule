@@ -3262,7 +3262,9 @@ class ModernShippingMainWindow(QMainWindow):
 
         default_height = max(46, int(metrics.lineSpacing() * 1.72)) + self._ROW_EXTRA_HEIGHT
 
-        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # ResizeToContents forces Qt to measure every row on inserts/updates and
+        # becomes prohibitively expensive on large tables (especially history).
+        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         vertical_header.setMinimumSectionSize(default_height)
         vertical_header.setDefaultSectionSize(default_height)
 
@@ -4361,9 +4363,6 @@ class ModernShippingMainWindow(QMainWindow):
                     sort_col=sort_col,
                     sort_order=sort_order,
                 )
-                # Keep paint updates enabled during chunked mode so the UI
-                # does not appear fully frozen while rows are being inserted.
-                table.setUpdatesEnabled(True)
                 return
 
             for row, shipment in enumerate(shipments):
@@ -4480,7 +4479,7 @@ class ModernShippingMainWindow(QMainWindow):
         sort_col = state["sort_col"]
         sort_order = state["sort_order"]
         started_at = state.get("started_at")
-        self._cancel_table_population()
+        self._cancel_table_population(restore_table_state=False)
         self._finalize_table_population(
             table=table,
             row_count=row_count,
