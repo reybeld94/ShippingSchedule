@@ -4708,6 +4708,8 @@ class ModernShippingMainWindow(QMainWindow):
 
     def on_search_text_changed(self, _text):
         """Debounce de búsqueda y actualización visual de filtros."""
+        if not self.search_edit.text().strip():
+            self.reset_search_visibility_for_all_tables()
         if hasattr(self, "search_timer"):
             self.search_timer.start()
         self.update_filter_button_state()
@@ -4751,6 +4753,27 @@ class ModernShippingMainWindow(QMainWindow):
         self.apply_row_filters(table, name)
         self.update_status()
         self.update_filter_button_state()
+
+    def iter_searchable_tables(self):
+        """Yield all tables affected by the global search input."""
+        for table_name, table in self.tab_tables.items():
+            if table is not None:
+                yield table_name, table
+
+        for table_name, attr in (
+            ("sills_sheet", "sills_table"),
+            ("sills_logs", "sills_logs_table"),
+            ("sills_die", "sills_die_table"),
+        ):
+            table = getattr(self, attr, None)
+            if table is not None:
+                yield table_name, table
+
+    def reset_search_visibility_for_all_tables(self):
+        """Restore row visibility on all modules when search text is cleared."""
+        for table_name, table in self.iter_searchable_tables():
+            self.update_search_visibility(table, table_name)
+            self.apply_row_filters(table, table_name)
 
     def get_active_search_table(self) -> tuple[str, Optional[QTableWidget]]:
         """Return the currently visible table that should be filtered by search."""
