@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QStyle,
     QCheckBox,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon
 
 from .widgets import ModernButton, ModernLineEdit
@@ -75,8 +75,9 @@ class ModernLoginDialog(QDialog):
         
         # Contenedor con fondo gradiente
         background_frame = QFrame()
+        background_frame.setObjectName("loginBackground")
         background_frame.setStyleSheet("""
-            QFrame {
+            QFrame#loginBackground {
                 background: qlineargradient(
                     x1: 0, y1: 0, x2: 1, y2: 1,
                     stop: 0 #F5F7FA,
@@ -91,9 +92,10 @@ class ModernLoginDialog(QDialog):
         
         # Tarjeta principal de login
         login_card = QFrame()
+        login_card.setObjectName("loginCard")
         login_card.setFixedWidth(420)
         login_card.setStyleSheet(f"""
-            QFrame {{
+            QFrame#loginCard {{
                 background: #FFFFFF;
                 border: 1px solid #E5EAF0;
                 border-radius: {RADIUS_MD}px;
@@ -158,7 +160,9 @@ class ModernLoginDialog(QDialog):
         
         username_label = QLabel("Username")
         apply_scaled_font(username_label, offset=1, weight=QFont.Weight.Medium)
-        username_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
+        username_label.setStyleSheet(
+            f"color: {COLOR_TEXT_PRIMARY}; background: transparent; border: none;"
+        )
 
         self.username_edit = ModernLineEdit("Enter your username")
         
@@ -171,7 +175,9 @@ class ModernLoginDialog(QDialog):
         
         password_label = QLabel("Password")
         apply_scaled_font(password_label, offset=1, weight=QFont.Weight.Medium)
-        password_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
+        password_label.setStyleSheet(
+            f"color: {COLOR_TEXT_PRIMARY}; background: transparent; border: none;"
+        )
 
         self.password_edit = ModernLineEdit("Enter your password")
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
@@ -230,18 +236,46 @@ class ModernLoginDialog(QDialog):
         
         self.connection_indicator = QLabel("●")
         apply_scaled_font(self.connection_indicator)
-        self.connection_indicator.setStyleSheet(f"color: {COLOR_SUCCESS};")
+        self.connection_indicator.setStyleSheet(
+            f"color: {COLOR_SUCCESS}; background: transparent; border: none;"
+        )
 
         self.connection_text = QLabel("Server connection active")
         apply_scaled_font(self.connection_text, offset=-1)
-        self.connection_text.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
+        self.connection_text.setStyleSheet(
+            f"color: {COLOR_TEXT_SECONDARY}; background: transparent; border: none;"
+        )
 
         # Botón para abrir la configuración de servidor
-        self.settings_btn = ModernButton("", "secondary")
+        self.settings_btn = ModernButton(
+            "",
+            "secondary",
+            min_height=20,
+            min_width=20,
+            padding=(0, 0),
+        )
         self.settings_btn.setIcon(
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
         )
-        self.settings_btn.setFixedSize(24, 24)
+        self.settings_btn.setIconSize(QSize(14, 14))
+        self.settings_btn.setFixedSize(20, 20)
+        self.settings_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                border-radius: 10px;
+                padding: 0px;
+            }}
+            QPushButton:hover {{
+                background: {COLOR_BG_SUBTLE};
+                border: 1px solid {COLOR_BORDER};
+            }}
+            QPushButton:pressed {{
+                background: #E2E8F0;
+            }}
+            """
+        )
         self.settings_btn.clicked.connect(self.open_settings_dialog)
 
         connection_layout.addWidget(self.connection_indicator)
