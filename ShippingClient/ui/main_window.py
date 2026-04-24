@@ -5411,6 +5411,7 @@ class ModernShippingMainWindow(QMainWindow):
                                 value=barcode_value,
                                 barHeight=barcode_height,
                                 barWidth=0.012 * inch,
+                                checksum=False,
                                 humanReadable=True,
                                 quiet=True,
                                 width=barcode_width,
