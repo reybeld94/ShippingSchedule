@@ -523,7 +523,9 @@ class ShipmentLoader(QThread):
         try:
             api_response = self.api_client.get_shipments()
             if api_response.is_success():
-                shipments = api_response.get_data()
+                shipments = api_response.get_data() or []
+                if not isinstance(shipments, list):
+                    shipments = []
                 self.data_loaded.emit(shipments)
             else:
                 self.error_occurred.emit(api_response.get_error())
@@ -780,6 +782,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 class ModernShippingMainWindow(QMainWindow):
     _ROW_EXTRA_HEIGHT = 6
     _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
+    _MAX_HISTORY_ROWS = 5000
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
         "Job Name",
@@ -896,6 +899,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Cache para optimización
         self._active_shipments = []
+        self._history_total_count = 0
         self._history_shipments = []
         self._last_filter_text = ""
         self._tables_populated = {module.id: False for module in self.tab_modules}
@@ -4004,6 +4008,32 @@ class ModernShippingMainWindow(QMainWindow):
         shipped_date = str(shipped_date).strip()
         return bool(shipped_date and shipped_date.lower() not in ["", "n/a", "pending", "tbd"])
 
+    def _parse_history_sort_date(self, shipment: dict) -> datetime:
+        for field in ("shipped", "updated_at", "created"):
+            parsed = DateSortableItem._parse(shipment.get(field))
+            if parsed:
+                return parsed
+        return datetime.min
+
+    def _build_history_view(self, history_shipments: list[dict]) -> list[dict]:
+        self._history_total_count = len(history_shipments)
+        if self._history_total_count <= self._MAX_HISTORY_ROWS:
+            return history_shipments
+
+        sorted_history = sorted(
+            history_shipments,
+            key=self._parse_history_sort_date,
+            reverse=True,
+        )
+        trimmed = sorted_history[: self._MAX_HISTORY_ROWS]
+        hidden_count = self._history_total_count - len(trimmed)
+        self.show_toast(
+            f"Showing latest {len(trimmed)} of {self._history_total_count} history records "
+            f"to keep the app responsive ({hidden_count} older records hidden).",
+            color="#F59E0B",
+        )
+        return trimmed
+
     def _show_loading_indicator(self):
         """Mostrar indicador de progreso y desactivar controles"""
         self._hide_loading_indicator()
@@ -4069,7 +4099,8 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Separar datos para cache
         self._active_shipments = [s for s in shipments if not self.is_shipped(s)]
-        self._history_shipments = [s for s in shipments if self.is_shipped(s)]
+        history_shipments = [s for s in shipments if self.is_shipped(s)]
+        self._history_shipments = self._build_history_view(history_shipments)
         
         # Marcar tablas como no pobladas
         self._tables_populated = {module.id: False for module in self.tab_modules}
@@ -4579,7 +4610,7 @@ class ModernShippingMainWindow(QMainWindow):
         if current_tab_id == "active":
             total_count = len(self._active_shipments)
         elif current_tab_id == "history":
-            total_count = len(self._history_shipments)
+            total_count = self._history_total_count or len(self._history_shipments)
 
         self.record_count_label.setText(f"Showing {visible_count} of {total_count}")
 
