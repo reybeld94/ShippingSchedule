@@ -779,6 +779,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 
 class ModernShippingMainWindow(QMainWindow):
     _ROW_EXTRA_HEIGHT = 6
+    _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
         "Job Name",
@@ -922,6 +923,8 @@ class ModernShippingMainWindow(QMainWindow):
         self._session_expired = False
         self._is_loading_shipments = False
         self._pending_shipment_reload = False
+        self._table_population_timer: Optional[QTimer] = None
+        self._table_population_state: Optional[dict[str, Any]] = None
         self.shipping_logs = []
         self.sills = []
         self.sill_dies = []
@@ -3271,8 +3274,9 @@ class ModernShippingMainWindow(QMainWindow):
         top_row = table.rowAt(0)
         bottom_row = table.rowAt(table.viewport().height() - 1)
         if top_row < 0 or bottom_row < 0:
-            table.resizeRowsToContents()
-            for row in range(row_count):
+            rows_to_measure = min(row_count, 200)
+            for row in range(rows_to_measure):
+                table.resizeRowToContents(row)
                 table.setRowHeight(row, table.rowHeight(row) + self._ROW_EXTRA_HEIGHT)
             return
 
@@ -4144,8 +4148,10 @@ class ModernShippingMainWindow(QMainWindow):
     def populate_table_fast(self, table, shipments, is_active=True):
         """Poblar tabla de forma optimizada"""
         try:
+            self._cancel_table_population()
             self.updating_table = True
             table.setUpdatesEnabled(False)
+            table.blockSignals(True)
 
             # Mantener columna y orden de sort actuales
             header = table.horizontalHeader()
@@ -4157,6 +4163,16 @@ class ModernShippingMainWindow(QMainWindow):
             row_count = len(shipments)
             table.setRowCount(row_count)
 
+            if row_count > self._HEAVY_LAYOUT_ROW_THRESHOLD:
+                self._populate_table_chunked(
+                    table=table,
+                    shipments=shipments,
+                    is_active=is_active,
+                    sort_col=sort_col,
+                    sort_order=sort_order,
+                )
+                return
+
             for row, shipment in enumerate(shipments):
                 self.populate_table_row(table, row, shipment, is_active)
 
@@ -4164,33 +4180,115 @@ class ModernShippingMainWindow(QMainWindow):
                 if row and row % 200 == 0:
                     QApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents)
 
-            table.setSortingEnabled(True)
-            if sort_col >= 0:
-                table.sortItems(sort_col, sort_order)
-
-            table_name = "active" if is_active else "history"
-            self.apply_saved_cell_colors(table, table_name)
-
-            # Inicializar estado de búsqueda y aplicar filtros combinados
-            self._search_row_visibility[table_name] = [True] * row_count
-            if self.search_edit.text().strip():
-                self.update_search_visibility(table, table_name)
-            self.apply_row_filters(table, table_name)
-
-            table.setUpdatesEnabled(True)
-            self._ensure_columns_fit_content(table)
-            self._refresh_visible_row_heights(table)
-            self.refresh_pinned_columns(table, table_name)
-            self.updating_table = False
-            print(
-                f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas"
+            self._finalize_table_population(
+                table=table,
+                row_count=row_count,
+                is_active=is_active,
+                sort_col=sort_col,
+                sort_order=sort_order,
+                run_expensive_layout=True,
             )
             
         except Exception as e:
             table.setUpdatesEnabled(True)
+            table.blockSignals(False)
             self.updating_table = False
             print(f"Error poblando tabla: {e}")
             raise
+
+    def _cancel_table_population(self):
+        if self._table_population_timer is not None:
+            self._table_population_timer.stop()
+            self._table_population_timer.deleteLater()
+            self._table_population_timer = None
+        self._table_population_state = None
+
+    def _populate_table_chunked(
+        self,
+        table,
+        shipments,
+        is_active: bool,
+        sort_col: int,
+        sort_order: Qt.SortOrder,
+    ):
+        table_name = "active" if is_active else "history"
+        self._table_population_state = {
+            "table": table,
+            "shipments": shipments,
+            "index": 0,
+            "row_count": len(shipments),
+            "is_active": is_active,
+            "sort_col": sort_col,
+            "sort_order": sort_order,
+            "table_name": table_name,
+            "chunk_size": 200,
+        }
+        timer = QTimer(self)
+        timer.timeout.connect(self._process_population_chunk)
+        self._table_population_timer = timer
+        timer.start(0)
+
+    def _process_population_chunk(self):
+        state = self._table_population_state
+        if not state:
+            self._cancel_table_population()
+            return
+
+        table = state["table"]
+        shipments = state["shipments"]
+        index = state["index"]
+        row_count = state["row_count"]
+        chunk_size = state["chunk_size"]
+        is_active = state["is_active"]
+
+        end = min(index + chunk_size, row_count)
+        for row in range(index, end):
+            self.populate_table_row(table, row, shipments[row], is_active)
+        state["index"] = end
+
+        if end < row_count:
+            return
+
+        sort_col = state["sort_col"]
+        sort_order = state["sort_order"]
+        self._cancel_table_population()
+        self._finalize_table_population(
+            table=table,
+            row_count=row_count,
+            is_active=is_active,
+            sort_col=sort_col,
+            sort_order=sort_order,
+            run_expensive_layout=False,
+        )
+
+    def _finalize_table_population(
+        self,
+        table,
+        row_count: int,
+        is_active: bool,
+        sort_col: int,
+        sort_order: Qt.SortOrder,
+        run_expensive_layout: bool,
+    ):
+        table_name = "active" if is_active else "history"
+        table.setSortingEnabled(True)
+        if sort_col >= 0:
+            table.sortItems(sort_col, sort_order)
+
+        self.apply_saved_cell_colors(table, table_name)
+        self._search_row_visibility[table_name] = [True] * row_count
+        if self.search_edit.text().strip():
+            self.update_search_visibility(table, table_name)
+        self.apply_row_filters(table, table_name)
+
+        table.setUpdatesEnabled(True)
+        table.blockSignals(False)
+        if run_expensive_layout:
+            self._ensure_columns_fit_content(table)
+            self._refresh_visible_row_heights(table)
+        self.refresh_pinned_columns(table, table_name)
+        self.updating_table = False
+        print(f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas")
 
     def _prepare_cell_metadata(self, column: int, value) -> dict[str, object]:
         raw_text = "" if value is None else str(value)
@@ -5224,6 +5322,7 @@ class ModernShippingMainWindow(QMainWindow):
     def closeEvent(self, event):
         """Manejar cierre de ventana"""
         try:
+            self._cancel_table_population()
             # Guardar colores de shipments
             for module in self.tab_modules:
                 self.save_shipment_colors(module.id)
