@@ -5220,7 +5220,7 @@ class ModernShippingMainWindow(QMainWindow):
             from reportlab.lib import colors
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib.units import inch
-            from reportlab.graphics.barcode import createBarcodeDrawing
+            from reportlab.graphics.barcode import createBarcodeDrawing, getCodeNames
 
             # Ruta por defecto en carpeta de Documentos
             docs_dir = QStandardPaths.writableLocation(
@@ -5315,6 +5315,15 @@ class ModernShippingMainWindow(QMainWindow):
                 available_width * (weight / total_weight) for weight in col_weights
             ]
 
+            # ReportLab usa nombres de barcode que pueden variar entre versiones.
+            # Elegimos dinámicamente el más compatible para Code39.
+            code39_candidates = ("Code39", "Standard39", "Extended39")
+            available_codes = set(getCodeNames())
+            code39_name = next(
+                (name for name in code39_candidates if name in available_codes),
+                "Standard39",
+            )
+
             # Función para crear tabla con parámetros dados
             def create_table_with_params(
                 body_font_size,
@@ -5398,7 +5407,7 @@ class ModernShippingMainWindow(QMainWindow):
                             barcode_width = max(16, col_widths[c] - (padding_h * 2))
                             barcode_height = max(10, body_row_height - (padding_v * 2))
                             barcode = createBarcodeDrawing(
-                                "Code39",
+                                code39_name,
                                 value=barcode_value,
                                 barHeight=barcode_height,
                                 barWidth=0.012 * inch,
