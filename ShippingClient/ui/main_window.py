@@ -5156,6 +5156,7 @@ class ModernShippingMainWindow(QMainWindow):
             cell_padding_vertical=8,
             cell_padding_horizontal=6,
             target_fill_ratio=0.92,
+            barcode_columns=[9],  # Assembly
         )
 
     def _print_table_to_pdf(
@@ -5167,6 +5168,7 @@ class ModernShippingMainWindow(QMainWindow):
         column_map: list[int],
         column_weights: list[float] | None = None,
         wrap_columns: list[int] | None = None,
+        barcode_columns: list[int] | None = None,
         page_size: tuple[float, float] = (8.5, 14),
         min_font_size: float = 9,
         min_title_font_size: float = 20,
@@ -5218,6 +5220,7 @@ class ModernShippingMainWindow(QMainWindow):
             from reportlab.lib import colors
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib.units import inch
+            from reportlab.graphics.barcode import createBarcodeDrawing
 
             # Ruta por defecto en carpeta de Documentos
             docs_dir = QStandardPaths.writableLocation(
@@ -5345,6 +5348,13 @@ class ModernShippingMainWindow(QMainWindow):
                 )
 
                 wrapped_cols = set(range(len(headers))) if wrap_columns is None else set(wrap_columns)
+                barcode_cols = set(barcode_columns or [])
+
+                def to_code39_value(value: str) -> str:
+                    allowed = set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%")
+                    normalized = (value or "").upper().strip()
+                    filtered = "".join(ch for ch in normalized if ch in allowed)
+                    return filtered or "BLANK"
 
                 def clamp_cell_text(cell_text, col_width):
                     """Limitar altura de celdas para evitar filas imposibles de dividir entre páginas."""
@@ -5382,6 +5392,23 @@ class ModernShippingMainWindow(QMainWindow):
                             if r == 0
                             else clamp_cell_text(cell_text, col_widths[c])
                         )
+
+                        if r > 0 and c in barcode_cols:
+                            barcode_value = to_code39_value(safe_text)
+                            barcode_width = max(16, col_widths[c] - (padding_h * 2))
+                            barcode_height = max(10, body_row_height - (padding_v * 2))
+                            barcode = createBarcodeDrawing(
+                                "Code39",
+                                value=barcode_value,
+                                barHeight=barcode_height,
+                                barWidth=0.012 * inch,
+                                humanReadable=True,
+                                quiet=True,
+                                width=barcode_width,
+                                height=barcode_height,
+                            )
+                            processed_row.append(barcode)
+                            continue
 
                         # Encabezados siempre en una sola línea; en body sólo hacen wrap
                         # las columnas explícitamente permitidas.
