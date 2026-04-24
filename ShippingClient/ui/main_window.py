@@ -4114,12 +4114,18 @@ class ModernShippingMainWindow(QMainWindow):
     
     def populate_active_table(self):
         """Poblar tabla activa"""
-        self.populate_table_fast(self.active_table, self._active_shipments, is_active=True)
+        table = self.tab_tables.get("active")
+        if table is None:
+            raise RuntimeError("Active shipments table is not initialized")
+        self.populate_table_fast(table, self._active_shipments, is_active=True)
     
     def populate_history_table(self):
         """Poblar tabla de historial"""
         print(f"Populando historial: {len(self._history_shipments)} shipments totales")
-        self.populate_table_fast(self.history_table, self._history_shipments, is_active=False)
+        table = self.tab_tables.get("history")
+        if table is None:
+            raise RuntimeError("Shipment history table is not initialized")
+        self.populate_table_fast(table, self._history_shipments, is_active=False)
 
     def populate_module_table(self, tab_id: str):
         if tab_id == "active":
