@@ -779,6 +779,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 
 class ModernShippingMainWindow(QMainWindow):
     _ROW_EXTRA_HEIGHT = 6
+    _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
         "Job Name",
@@ -3271,8 +3272,9 @@ class ModernShippingMainWindow(QMainWindow):
         top_row = table.rowAt(0)
         bottom_row = table.rowAt(table.viewport().height() - 1)
         if top_row < 0 or bottom_row < 0:
-            table.resizeRowsToContents()
-            for row in range(row_count):
+            rows_to_measure = min(row_count, 200)
+            for row in range(rows_to_measure):
+                table.resizeRowToContents(row)
                 table.setRowHeight(row, table.rowHeight(row) + self._ROW_EXTRA_HEIGHT)
             return
 
@@ -4178,8 +4180,9 @@ class ModernShippingMainWindow(QMainWindow):
             self.apply_row_filters(table, table_name)
 
             table.setUpdatesEnabled(True)
-            self._ensure_columns_fit_content(table)
-            self._refresh_visible_row_heights(table)
+            if row_count <= self._HEAVY_LAYOUT_ROW_THRESHOLD:
+                self._ensure_columns_fit_content(table)
+                self._refresh_visible_row_heights(table)
             self.refresh_pinned_columns(table, table_name)
             self.updating_table = False
             print(
