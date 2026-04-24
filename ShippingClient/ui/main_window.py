@@ -4405,7 +4405,6 @@ class ModernShippingMainWindow(QMainWindow):
             for row in range(index, end):
                 self.populate_table_row(table, row, shipments[row], is_active)
             state["index"] = end
-            table.viewport().update()
             next_progress_mark = state.get("next_progress_mark", row_count + 1)
             if end >= next_progress_mark:
                 print(f"[TABLE_POP] progress table={state['table_name']} rows_loaded={end}/{row_count}")
