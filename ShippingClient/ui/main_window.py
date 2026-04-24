@@ -2614,6 +2614,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.refresh_pinned_columns(table, name)
 
     def refresh_status_chip_for_row(self, table, row):
+        if self.updating_table:
+            return
         if table is None or row < 0 or row >= table.rowCount():
             return
         index = table.model().index(row, 0)
@@ -4302,6 +4304,9 @@ class ModernShippingMainWindow(QMainWindow):
                     sort_col=sort_col,
                     sort_order=sort_order,
                 )
+                # Keep paint updates enabled during chunked mode so the UI
+                # does not appear fully frozen while rows are being inserted.
+                table.setUpdatesEnabled(True)
                 return
 
             for row, shipment in enumerate(shipments):
