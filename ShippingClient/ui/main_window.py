@@ -1124,7 +1124,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
         search_container.setMinimumHeight(CONTROL_HEIGHT)
-        search_container.setMaximumWidth(640)
+        search_container.setMaximumWidth(760)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -1348,11 +1348,15 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.connection_state_label = QLabel("Connected")
         apply_scaled_font(self.connection_state_label, offset=-2, weight=QFont.Weight.Medium)
-        self.connection_state_label.setStyleSheet(f"color: {COLOR_SUCCESS_SOFT_TEXT};")
+        self.connection_state_label.setStyleSheet(
+            f"color: {COLOR_SUCCESS_SOFT_TEXT}; border: none; background: transparent;"
+        )
 
         self.connection_host_label = QLabel(self.server_host)
         apply_scaled_font(self.connection_host_label, offset=-3, weight=QFont.Weight.Normal)
-        self.connection_host_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
+        self.connection_host_label.setStyleSheet(
+            f"color: {COLOR_TEXT_SECONDARY}; border: none; background: transparent;"
+        )
 
         self.connection_badge = QFrame()
         self.connection_badge.setStyleSheet(
@@ -3799,10 +3803,14 @@ class ModernShippingMainWindow(QMainWindow):
             self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
             if hasattr(self, "connection_state_label"):
                 self.connection_state_label.setText("Connected")
-                self.connection_state_label.setStyleSheet(f"color: {COLOR_SUCCESS_SOFT_TEXT};")
+                self.connection_state_label.setStyleSheet(
+                    f"color: {COLOR_SUCCESS_SOFT_TEXT}; border: none; background: transparent;"
+                )
             if hasattr(self, "connection_host_label"):
                 self.connection_host_label.setText(self.server_host)
-                self.connection_host_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
+                self.connection_host_label.setStyleSheet(
+                    f"color: {COLOR_TEXT_SECONDARY}; border: none; background: transparent;"
+                )
             if hasattr(self, "connection_badge"):
                 self.connection_badge.setStyleSheet(
                     f"""
@@ -3822,10 +3830,14 @@ class ModernShippingMainWindow(QMainWindow):
             self.connection_indicator.setToolTip(f"Disconnected from {self.server_host}")
             if hasattr(self, "connection_state_label"):
                 self.connection_state_label.setText("Offline")
-                self.connection_state_label.setStyleSheet("color: #B91C1C;")
+                self.connection_state_label.setStyleSheet(
+                    "color: #B91C1C; border: none; background: transparent;"
+                )
             if hasattr(self, "connection_host_label"):
                 self.connection_host_label.setText(self.server_host)
-                self.connection_host_label.setStyleSheet("color: #9CA3AF;")
+                self.connection_host_label.setStyleSheet(
+                    "color: #9CA3AF; border: none; background: transparent;"
+                )
             if hasattr(self, "connection_badge"):
                 self.connection_badge.setStyleSheet(
                     """
