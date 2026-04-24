@@ -4180,13 +4180,27 @@ class ModernShippingMainWindow(QMainWindow):
                 if row and row % 200 == 0:
                     QApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents)
 
-            self._finalize_table_population(
-                table=table,
-                row_count=row_count,
-                is_active=is_active,
-                sort_col=sort_col,
-                sort_order=sort_order,
-                run_expensive_layout=True,
+            table.setSortingEnabled(True)
+            if sort_col >= 0:
+                table.sortItems(sort_col, sort_order)
+
+            table_name = "active" if is_active else "history"
+            self.apply_saved_cell_colors(table, table_name)
+
+            # Inicializar estado de búsqueda y aplicar filtros combinados
+            self._search_row_visibility[table_name] = [True] * row_count
+            if self.search_edit.text().strip():
+                self.update_search_visibility(table, table_name)
+            self.apply_row_filters(table, table_name)
+
+            table.setUpdatesEnabled(True)
+            if row_count <= self._HEAVY_LAYOUT_ROW_THRESHOLD:
+                self._ensure_columns_fit_content(table)
+                self._refresh_visible_row_heights(table)
+            self.refresh_pinned_columns(table, table_name)
+            self.updating_table = False
+            print(
+                f"Tabla {'activa' if is_active else 'historial'} poblada: {row_count} filas"
             )
             
         except Exception as e:
