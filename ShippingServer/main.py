@@ -7,6 +7,7 @@ from datetime import timedelta, datetime, date
 import json
 import asyncio
 import logging
+import time
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -581,7 +582,21 @@ async def get_fedex_tracking(
 
 @app.get("/shipments", response_model=List[ShipmentResponse])
 async def get_shipments(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    started_at = time.perf_counter()
     shipments = db.query(Shipment).all()
+    elapsed_ms = (time.perf_counter() - started_at) * 1000
+    shipped_count = sum(1 for shipment in shipments if str(getattr(shipment, "shipped", "") or "").strip())
+    avg_notes_len = 0.0
+    if shipments:
+        avg_notes_len = sum(len(str(getattr(shipment, "shipping_notes", "") or "")) for shipment in shipments) / len(shipments)
+    logger.info(
+        "GET /shipments user=%s rows=%s shipped_rows=%s avg_shipping_notes_len=%.1f query_time_ms=%.1f",
+        getattr(current_user, "username", "unknown"),
+        len(shipments),
+        shipped_count,
+        avg_notes_len,
+        elapsed_ms,
+    )
     return shipments
 
 @app.get("/shipments/{shipment_id}", response_model=ShipmentResponse)
