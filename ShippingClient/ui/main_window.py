@@ -523,7 +523,9 @@ class ShipmentLoader(QThread):
         try:
             api_response = self.api_client.get_shipments()
             if api_response.is_success():
-                shipments = api_response.get_data()
+                shipments = api_response.get_data() or []
+                if not isinstance(shipments, list):
+                    shipments = []
                 self.data_loaded.emit(shipments)
             else:
                 self.error_occurred.emit(api_response.get_error())
@@ -780,6 +782,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 class ModernShippingMainWindow(QMainWindow):
     _ROW_EXTRA_HEIGHT = 6
     _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
+    _HISTORY_PAGE_SIZE = 500
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
         "Job Name",
@@ -896,6 +899,9 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Cache para optimización
         self._active_shipments = []
+        self._history_total_count = 0
+        self._history_all_shipments = []
+        self._history_loaded_count = 0
         self._history_shipments = []
         self._last_filter_text = ""
         self._tables_populated = {module.id: False for module in self.tab_modules}
@@ -1588,9 +1594,19 @@ class ModernShippingMainWindow(QMainWindow):
         secondary_layout = QHBoxLayout()
         secondary_layout.setContentsMargins(0, 0, 0, 0)
         secondary_layout.setSpacing(10)
+        history_load_more_btn = ModernButton(
+            "Load More",
+            "outline",
+            min_height=32,
+            min_width=106,
+            padding=(6, 10),
+        )
+        history_load_more_btn.clicked.connect(self.load_more_history_rows)
+        history_load_more_btn.setVisible(module.id == "history")
         secondary_layout.addWidget(print_btn)
         secondary_layout.addWidget(columns_btn)
         secondary_layout.addWidget(export_btn)
+        secondary_layout.addWidget(history_load_more_btn)
 
         toolbar_layout.addLayout(primary_layout)
         toolbar_layout.addStretch(1)
@@ -1609,6 +1625,7 @@ class ModernShippingMainWindow(QMainWindow):
             "columns": columns_btn,
             "export": export_btn,
             "print": print_btn,
+            "history_load_more": history_load_more_btn,
             "export_menu": export_menu,
             "export_visible_action": export_visible_action,
             "export_all_filtered_action": export_all_filtered_action,
@@ -2901,6 +2918,9 @@ class ModernShippingMainWindow(QMainWindow):
             can_delete = role_policy["can_delete"] and module_policy.get("allow_delete", True)
             delete_btn.setEnabled(can_delete and self._current_tab_has_selection(target_module))
 
+        if target_module == "history":
+            self._sync_history_load_more_button()
+
     def show_export_menu(self, module_id: Optional[str] = None):
         controls = self._get_toolbar_controls(module_id)
         export_menu = controls.get("export_menu")
@@ -4004,6 +4024,54 @@ class ModernShippingMainWindow(QMainWindow):
         shipped_date = str(shipped_date).strip()
         return bool(shipped_date and shipped_date.lower() not in ["", "n/a", "pending", "tbd"])
 
+    def _parse_history_sort_date(self, shipment: dict) -> datetime:
+        for field in ("shipped", "updated_at", "created"):
+            parsed = DateSortableItem._parse(shipment.get(field))
+            if parsed:
+                return parsed
+        return datetime.min
+
+    def _build_history_view(self, history_shipments: list[dict]) -> list[dict]:
+        sorted_history = sorted(
+            history_shipments,
+            key=self._parse_history_sort_date,
+            reverse=True,
+        )
+        self._history_all_shipments = sorted_history
+        self._history_total_count = len(sorted_history)
+        self._history_loaded_count = min(self._HISTORY_PAGE_SIZE, self._history_total_count)
+        return self._history_all_shipments[: self._history_loaded_count]
+
+    def _can_load_more_history(self) -> bool:
+        return self._history_loaded_count < self._history_total_count
+
+    def _sync_history_load_more_button(self):
+        controls = self._get_toolbar_controls("history")
+        button = controls.get("history_load_more")
+        if not isinstance(button, QWidget):
+            return
+        button.setEnabled(self._can_load_more_history())
+        button.setVisible(self.get_current_tab_id() == "history")
+
+    def load_more_history_rows(self):
+        if not self._can_load_more_history():
+            return
+        previous_count = self._history_loaded_count
+        self._history_loaded_count = min(
+            self._history_loaded_count + self._HISTORY_PAGE_SIZE,
+            self._history_total_count,
+        )
+        self._history_shipments = self._history_all_shipments[: self._history_loaded_count]
+        self.populate_history_table()
+        self._tables_populated["history"] = True
+        loaded_now = self._history_loaded_count - previous_count
+        self.show_toast(
+            f"Loaded {loaded_now} more history rows ({self._history_loaded_count}/{self._history_total_count}).",
+            color="#0EA5E9",
+        )
+        self.update_status()
+        self._sync_history_load_more_button()
+
     def _show_loading_indicator(self):
         """Mostrar indicador de progreso y desactivar controles"""
         self._hide_loading_indicator()
@@ -4018,7 +4086,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.refresh_top_btn,
         ]
         for controls in self.tab_toolbars.values():
-            for key in ("add", "delete", "print", "columns", "export"):
+            for key in ("add", "delete", "print", "columns", "export", "history_load_more"):
                 widget = controls.get(key)
                 if isinstance(widget, QWidget):
                     widgets.append(widget)
@@ -4069,7 +4137,13 @@ class ModernShippingMainWindow(QMainWindow):
         
         # Separar datos para cache
         self._active_shipments = [s for s in shipments if not self.is_shipped(s)]
-        self._history_shipments = [s for s in shipments if self.is_shipped(s)]
+        history_shipments = [s for s in shipments if self.is_shipped(s)]
+        self._history_shipments = self._build_history_view(history_shipments)
+        if self._history_total_count > self._history_loaded_count:
+            self.show_toast(
+                f"History loaded in pages for performance ({self._history_loaded_count}/{self._history_total_count}).",
+                color="#0EA5E9",
+            )
         
         # Marcar tablas como no pobladas
         self._tables_populated = {module.id: False for module in self.tab_modules}
@@ -4086,6 +4160,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.update_status()
         self.update_filter_button_state()
+        self._sync_history_load_more_button()
         self._trigger_pending_shipment_reload_if_needed()
 
     def on_shipments_error(self, error_msg):
@@ -4579,7 +4654,7 @@ class ModernShippingMainWindow(QMainWindow):
         if current_tab_id == "active":
             total_count = len(self._active_shipments)
         elif current_tab_id == "history":
-            total_count = len(self._history_shipments)
+            total_count = self._history_total_count or len(self._history_shipments)
 
         self.record_count_label.setText(f"Showing {visible_count} of {total_count}")
 
