@@ -782,7 +782,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 class ModernShippingMainWindow(QMainWindow):
     _ROW_EXTRA_HEIGHT = 6
     _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
-    _HISTORY_PAGE_SIZE = 500
+    _MAX_HISTORY_ROWS = 5000
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
         "Job Name",
@@ -900,8 +900,6 @@ class ModernShippingMainWindow(QMainWindow):
         # Cache para optimización
         self._active_shipments = []
         self._history_total_count = 0
-        self._history_all_shipments = []
-        self._history_loaded_count = 0
         self._history_shipments = []
         self._last_filter_text = ""
         self._tables_populated = {module.id: False for module in self.tab_modules}
@@ -4032,45 +4030,23 @@ class ModernShippingMainWindow(QMainWindow):
         return datetime.min
 
     def _build_history_view(self, history_shipments: list[dict]) -> list[dict]:
+        self._history_total_count = len(history_shipments)
+        if self._history_total_count <= self._MAX_HISTORY_ROWS:
+            return history_shipments
+
         sorted_history = sorted(
             history_shipments,
             key=self._parse_history_sort_date,
             reverse=True,
         )
-        self._history_all_shipments = sorted_history
-        self._history_total_count = len(sorted_history)
-        self._history_loaded_count = min(self._HISTORY_PAGE_SIZE, self._history_total_count)
-        return self._history_all_shipments[: self._history_loaded_count]
-
-    def _can_load_more_history(self) -> bool:
-        return self._history_loaded_count < self._history_total_count
-
-    def _sync_history_load_more_button(self):
-        controls = self._get_toolbar_controls("history")
-        button = controls.get("history_load_more")
-        if not isinstance(button, QWidget):
-            return
-        button.setEnabled(self._can_load_more_history())
-        button.setVisible(self.get_current_tab_id() == "history")
-
-    def load_more_history_rows(self):
-        if not self._can_load_more_history():
-            return
-        previous_count = self._history_loaded_count
-        self._history_loaded_count = min(
-            self._history_loaded_count + self._HISTORY_PAGE_SIZE,
-            self._history_total_count,
-        )
-        self._history_shipments = self._history_all_shipments[: self._history_loaded_count]
-        self.populate_history_table()
-        self._tables_populated["history"] = True
-        loaded_now = self._history_loaded_count - previous_count
+        trimmed = sorted_history[: self._MAX_HISTORY_ROWS]
+        hidden_count = self._history_total_count - len(trimmed)
         self.show_toast(
-            f"Loaded {loaded_now} more history rows ({self._history_loaded_count}/{self._history_total_count}).",
-            color="#0EA5E9",
+            f"Showing latest {len(trimmed)} of {self._history_total_count} history records "
+            f"to keep the app responsive ({hidden_count} older records hidden).",
+            color="#F59E0B",
         )
-        self.update_status()
-        self._sync_history_load_more_button()
+        return trimmed
 
     def _show_loading_indicator(self):
         """Mostrar indicador de progreso y desactivar controles"""
@@ -4139,11 +4115,6 @@ class ModernShippingMainWindow(QMainWindow):
         self._active_shipments = [s for s in shipments if not self.is_shipped(s)]
         history_shipments = [s for s in shipments if self.is_shipped(s)]
         self._history_shipments = self._build_history_view(history_shipments)
-        if self._history_total_count > self._history_loaded_count:
-            self.show_toast(
-                f"History loaded in pages for performance ({self._history_loaded_count}/{self._history_total_count}).",
-                color="#0EA5E9",
-            )
         
         # Marcar tablas como no pobladas
         self._tables_populated = {module.id: False for module in self.tab_modules}
