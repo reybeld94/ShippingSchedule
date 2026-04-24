@@ -785,6 +785,7 @@ class ModernShippingMainWindow(QMainWindow):
     _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
     _HISTORY_CHUNK_THRESHOLD = 250
     _MAX_HISTORY_ROWS = 5000
+    _HISTORY_PAGE_SIZE = 300
     DEFAULT_TABLE_COLUMNS = [
         "Job Number",
         "Job Name",
@@ -4053,17 +4054,66 @@ class ModernShippingMainWindow(QMainWindow):
         )
         self._all_history_shipments = sorted_history
         self._history_total_count = len(sorted_history)
-        if self._history_total_count <= self._MAX_HISTORY_ROWS:
-            return sorted_history
+        capped_history = sorted_history[: self._MAX_HISTORY_ROWS]
+        initial_count = min(len(capped_history), self._HISTORY_PAGE_SIZE)
 
-        trimmed = sorted_history[: self._MAX_HISTORY_ROWS]
-        hidden_count = self._history_total_count - len(trimmed)
-        self.show_toast(
-            f"Showing latest {len(trimmed)} of {self._history_total_count} history records "
-            f"to keep the app responsive ({hidden_count} older records hidden).",
-            color="#F59E0B",
+        if self._history_total_count > self._MAX_HISTORY_ROWS:
+            hidden_count = self._history_total_count - len(capped_history)
+            self.show_toast(
+                f"Showing latest {len(capped_history)} of {self._history_total_count} history records "
+                f"to keep the app responsive ({hidden_count} older records hidden).",
+                color="#F59E0B",
+            )
+
+        if len(capped_history) > initial_count:
+            self.show_toast(
+                f"Shipment History loaded in pages of {self._HISTORY_PAGE_SIZE}. "
+                f"Currently showing {initial_count} of {len(capped_history)}.",
+                color="#0EA5E9",
+            )
+
+        return capped_history[:initial_count]
+
+    def _history_effective_total(self) -> int:
+        if not self._all_history_shipments:
+            return 0
+        return min(len(self._all_history_shipments), self._MAX_HISTORY_ROWS)
+
+    def _history_loaded_count(self) -> int:
+        return len(self._history_shipments)
+
+    def _history_hidden_count(self) -> int:
+        return max(0, self._history_effective_total() - self._history_loaded_count())
+
+    def _history_next_page_count(self) -> int:
+        return min(
+            self._history_effective_total(),
+            self._history_loaded_count() + self._HISTORY_PAGE_SIZE,
         )
-        return trimmed
+
+    def _history_is_fully_loaded(self) -> bool:
+        return self._history_hidden_count() <= 0
+
+    def _history_page_label(self) -> str:
+        return (
+            f"{self._history_loaded_count()}/{self._history_effective_total()}"
+            if self._history_effective_total() > 0
+            else "0/0"
+        )
+
+    def _notify_history_paging_state(self):
+        if self._history_effective_total() <= 0:
+            return
+        if self._history_is_fully_loaded():
+            self.show_toast(
+                f"Shipment History fully loaded ({self._history_page_label()}).",
+                color="#10B981",
+            )
+            return
+        self.show_toast(
+            f"Shipment History page loaded ({self._history_page_label()}).",
+            color="#0EA5E9",
+        )
 
     def _sync_history_load_more_button(self):
         controls = self._get_toolbar_controls("history")
@@ -4071,28 +4121,31 @@ class ModernShippingMainWindow(QMainWindow):
         if not isinstance(history_load_more_btn, QWidget):
             return
 
-        hidden_count = max(0, self._history_total_count - len(self._history_shipments))
+        hidden_count = self._history_hidden_count()
         should_show = hidden_count > 0
         history_load_more_btn.setVisible(should_show)
         history_load_more_btn.setEnabled(should_show)
 
         if hasattr(history_load_more_btn, "setText"):
-            history_load_more_btn.setText(f"Load More ({hidden_count})" if should_show else "Load More")
+            history_load_more_btn.setText(
+                f"Load More ({hidden_count})" if should_show else "Load More"
+            )
 
     def load_more_history_rows(self):
-        hidden_count = max(0, self._history_total_count - len(self._history_shipments))
+        hidden_count = self._history_hidden_count()
         if hidden_count <= 0:
             self._sync_history_load_more_button()
             return
 
         if self._all_history_shipments:
-            self._history_shipments = list(self._all_history_shipments)
+            next_count = self._history_next_page_count()
+            self._history_shipments = list(self._all_history_shipments[:next_count])
         self.populate_history_table()
         self._tables_populated["history"] = True
         self._recover_hidden_rows_from_saved_filters("history")
         self._sync_history_load_more_button()
         self.update_status()
-        self.show_toast("Loaded all history rows.", color="#10B981")
+        self._notify_history_paging_state()
 
     def _show_loading_indicator(self):
         """Mostrar indicador de progreso y desactivar controles"""
