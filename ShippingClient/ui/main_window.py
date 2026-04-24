@@ -2384,7 +2384,7 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         # Restaurar estado visual de filtros si ya existen
-        existing_filters = self.date_filters.get(name, {})
+        existing_filters = self._sanitize_date_filters(name)
         for column, data in existing_filters.items():
             header.set_filter_active(column, True)
             self.update_header_filter_state(table, name, column, True, data)
@@ -3008,13 +3008,43 @@ class ModernShippingMainWindow(QMainWindow):
         global_pos = header.mapToGlobal(QPoint(section_pos + section_width, header.height()))
         self.open_date_filter_popup(table, name, column, global_pos)
 
+    def _sanitize_date_filters(self, name: str) -> dict[int, dict[str, object]]:
+        """Normalize persisted date filters to prevent runtime type errors."""
+        raw_filters = self.date_filters.get(name, {}) or {}
+        sanitized: dict[int, dict[str, object]] = {}
+
+        for column_key, payload in raw_filters.items():
+            try:
+                column = int(column_key)
+            except (TypeError, ValueError):
+                continue
+
+            if not isinstance(payload, dict):
+                continue
+
+            dates = payload.get("dates")
+            if dates is None:
+                dates_set = None
+            elif isinstance(dates, (set, list, tuple)):
+                dates_set = {d for d in dates if isinstance(d, date)}
+            else:
+                dates_set = set()
+
+            sanitized[column] = {
+                "dates": dates_set,
+                "include_blank": bool(payload.get("include_blank", True)),
+            }
+
+        self.date_filters[name] = sanitized
+        return sanitized
+
     def clear_all_filters(self, name):
         """Limpiar filtros de fechas y actualizar la vista."""
         table = self.tab_tables.get(name)
         if table is None:
             return
 
-        active_filters = list(self.date_filters.get(name, {}).keys())
+        active_filters = list(self._sanitize_date_filters(name).keys())
         self.date_filters[name] = {}
 
         header = self.date_filter_headers.get(name)
@@ -3134,7 +3164,7 @@ class ModernShippingMainWindow(QMainWindow):
                 continue
 
             matches_filters = True
-            for column, filter_data in self.date_filters.get(table_name, {}).items():
+            for column, filter_data in self._sanitize_date_filters(table_name).items():
                 if column >= len(self.TABLE_COLUMN_KEYS):
                     continue
                 field_key = self.TABLE_COLUMN_KEYS[column]
@@ -4488,7 +4518,7 @@ class ModernShippingMainWindow(QMainWindow):
             search_matches = [True] * table.rowCount()
             self._search_row_visibility[name] = search_matches
 
-        active_filters = self.date_filters.get(name, {})
+        active_filters = self._sanitize_date_filters(name)
         visible_count = 0
 
         table.setUpdatesEnabled(False)
