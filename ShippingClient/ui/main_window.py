@@ -901,6 +901,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._tables_populated = {module.id: False for module in self.tab_modules}
         self._search_row_visibility = {module.id: [] for module in self.tab_modules}
         self.date_filters = {module.id: self.settings_mgr.load_date_filters(module.id) for module in self.tab_modules}
+        self._auto_reset_filter_tabs: set[str] = set()
         self._base_header_labels: dict[str, list[str]] = {}
         self.date_filter_headers = {}
         self._header_shadows: dict[str, QGraphicsDropShadowEffect] = {}
@@ -3892,6 +3893,29 @@ class ModernShippingMainWindow(QMainWindow):
         """Mostrar notificación visual flotante"""
         show_popup_notification(self, message, color=color)
     
+    def _recover_hidden_rows_from_saved_filters(self, tab_id: str):
+        """Clear persisted date filters once when they hide all loaded rows."""
+        if tab_id in self._auto_reset_filter_tabs:
+            return
+
+        table = self.tab_tables.get(tab_id)
+        if table is None:
+            return
+        if table.rowCount() == 0:
+            return
+        if self.count_visible_rows(table) > 0:
+            return
+        if self.search_edit.text().strip():
+            return
+
+        saved_filters = self.date_filters.get(tab_id, {})
+        if not saved_filters:
+            return
+
+        self._auto_reset_filter_tabs.add(tab_id)
+        self.clear_all_filters(tab_id)
+        self.show_toast("Saved filters were hiding all rows. Filters were cleared.", color="#0EA5E9")
+
     def on_tab_changed(self, index):
         """Manejar cambio de tab optimizado"""
         print(f"Cambio de tab: {index}")
@@ -3901,6 +3925,10 @@ class ModernShippingMainWindow(QMainWindow):
         elif not self._tables_populated.get(tab_id, False):
             self.populate_module_table(tab_id)
             self._tables_populated[tab_id] = True
+
+        if tab_id in {"active", "history"}:
+            self._recover_hidden_rows_from_saved_filters(tab_id)
+
         self._apply_module_toolbar_state(tab_id)
 
         self.update_status()
@@ -4054,6 +4082,7 @@ class ModernShippingMainWindow(QMainWindow):
         else:
             self.populate_module_table(current_tab_id)
             self._tables_populated[current_tab_id] = True
+            self._recover_hidden_rows_from_saved_filters(current_tab_id)
 
         self.update_status()
         self.update_filter_button_state()
