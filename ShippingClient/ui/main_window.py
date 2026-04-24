@@ -901,6 +901,9 @@ class ModernShippingMainWindow(QMainWindow):
         self._tables_populated = {module.id: False for module in self.tab_modules}
         self._search_row_visibility = {module.id: [] for module in self.tab_modules}
         self.date_filters = {module.id: self.settings_mgr.load_date_filters(module.id) for module in self.tab_modules}
+        self._auto_reset_filter_tabs: set[str] = set()
+        for module in self.tab_modules:
+            self._sanitize_date_filters(module.id)
         self._base_header_labels: dict[str, list[str]] = {}
         self.date_filter_headers = {}
         self._header_shadows: dict[str, QGraphicsDropShadowEffect] = {}
@@ -2383,7 +2386,7 @@ class ModernShippingMainWindow(QMainWindow):
         )
 
         # Restaurar estado visual de filtros si ya existen
-        existing_filters = self.date_filters.get(name, {})
+        existing_filters = self._sanitize_date_filters(name)
         for column, data in existing_filters.items():
             header.set_filter_active(column, True)
             self.update_header_filter_state(table, name, column, True, data)
@@ -3007,13 +3010,43 @@ class ModernShippingMainWindow(QMainWindow):
         global_pos = header.mapToGlobal(QPoint(section_pos + section_width, header.height()))
         self.open_date_filter_popup(table, name, column, global_pos)
 
+    def _sanitize_date_filters(self, name: str) -> dict[int, dict[str, object]]:
+        """Normalize persisted date filters to prevent runtime type errors."""
+        raw_filters = self.date_filters.get(name, {}) or {}
+        sanitized: dict[int, dict[str, object]] = {}
+
+        for column_key, payload in raw_filters.items():
+            try:
+                column = int(column_key)
+            except (TypeError, ValueError):
+                continue
+
+            if not isinstance(payload, dict):
+                continue
+
+            dates = payload.get("dates")
+            if dates is None:
+                dates_set = None
+            elif isinstance(dates, (set, list, tuple)):
+                dates_set = {d for d in dates if isinstance(d, date)}
+            else:
+                dates_set = set()
+
+            sanitized[column] = {
+                "dates": dates_set,
+                "include_blank": bool(payload.get("include_blank", True)),
+            }
+
+        self.date_filters[name] = sanitized
+        return sanitized
+
     def clear_all_filters(self, name):
         """Limpiar filtros de fechas y actualizar la vista."""
         table = self.tab_tables.get(name)
         if table is None:
             return
 
-        active_filters = list(self.date_filters.get(name, {}).keys())
+        active_filters = list(self._sanitize_date_filters(name).keys())
         self.date_filters[name] = {}
 
         header = self.date_filter_headers.get(name)
@@ -3133,7 +3166,7 @@ class ModernShippingMainWindow(QMainWindow):
                 continue
 
             matches_filters = True
-            for column, filter_data in self.date_filters.get(table_name, {}).items():
+            for column, filter_data in self._sanitize_date_filters(table_name).items():
                 if column >= len(self.TABLE_COLUMN_KEYS):
                     continue
                 field_key = self.TABLE_COLUMN_KEYS[column]
@@ -3892,6 +3925,30 @@ class ModernShippingMainWindow(QMainWindow):
         """Mostrar notificación visual flotante"""
         show_popup_notification(self, message, color=color)
     
+    def _recover_hidden_rows_from_saved_filters(self, tab_id: str):
+        """Clear persisted date filters once when they hide all loaded rows."""
+        if tab_id in self._auto_reset_filter_tabs:
+            return
+
+        table = self.tab_tables.get(tab_id)
+        if table is None:
+            return
+        if table.rowCount() == 0:
+            return
+        if self.count_visible_rows(table) > 0:
+            return
+        search_text = self.search_edit.text().strip() if hasattr(self, "search_edit") else ""
+        if search_text:
+            return
+
+        saved_filters = self._sanitize_date_filters(tab_id)
+        if not saved_filters:
+            return
+
+        self._auto_reset_filter_tabs.add(tab_id)
+        self.clear_all_filters(tab_id)
+        self.show_toast("Saved filters were hiding all rows. Filters were cleared.", color="#0EA5E9")
+
     def on_tab_changed(self, index):
         """Manejar cambio de tab optimizado"""
         print(f"Cambio de tab: {index}")
@@ -3901,6 +3958,10 @@ class ModernShippingMainWindow(QMainWindow):
         elif not self._tables_populated.get(tab_id, False):
             self.populate_module_table(tab_id)
             self._tables_populated[tab_id] = True
+
+        if tab_id in {"active", "history"}:
+            self._recover_hidden_rows_from_saved_filters(tab_id)
+
         self._apply_module_toolbar_state(tab_id)
 
         self.update_status()
@@ -4054,6 +4115,7 @@ class ModernShippingMainWindow(QMainWindow):
         else:
             self.populate_module_table(current_tab_id)
             self._tables_populated[current_tab_id] = True
+            self._recover_hidden_rows_from_saved_filters(current_tab_id)
 
         self.update_status()
         self.update_filter_button_state()
@@ -4459,7 +4521,7 @@ class ModernShippingMainWindow(QMainWindow):
             search_matches = [True] * table.rowCount()
             self._search_row_visibility[name] = search_matches
 
-        active_filters = self.date_filters.get(name, {})
+        active_filters = self._sanitize_date_filters(name)
         visible_count = 0
 
         table.setUpdatesEnabled(False)
