@@ -900,6 +900,7 @@ class ModernShippingMainWindow(QMainWindow):
         # Cache para optimización
         self._active_shipments = []
         self._history_total_count = 0
+        self._all_history_shipments = []
         self._history_shipments = []
         self._last_filter_text = ""
         self._tables_populated = {module.id: False for module in self.tab_modules}
@@ -4030,15 +4031,16 @@ class ModernShippingMainWindow(QMainWindow):
         return datetime.min
 
     def _build_history_view(self, history_shipments: list[dict]) -> list[dict]:
-        self._history_total_count = len(history_shipments)
-        if self._history_total_count <= self._MAX_HISTORY_ROWS:
-            return history_shipments
-
         sorted_history = sorted(
             history_shipments,
             key=self._parse_history_sort_date,
             reverse=True,
         )
+        self._all_history_shipments = sorted_history
+        self._history_total_count = len(sorted_history)
+        if self._history_total_count <= self._MAX_HISTORY_ROWS:
+            return sorted_history
+
         trimmed = sorted_history[: self._MAX_HISTORY_ROWS]
         hidden_count = self._history_total_count - len(trimmed)
         self.show_toast(
@@ -4047,6 +4049,35 @@ class ModernShippingMainWindow(QMainWindow):
             color="#F59E0B",
         )
         return trimmed
+
+    def _sync_history_load_more_button(self):
+        controls = self._get_toolbar_controls("history")
+        history_load_more_btn = controls.get("history_load_more")
+        if not isinstance(history_load_more_btn, QWidget):
+            return
+
+        hidden_count = max(0, self._history_total_count - len(self._history_shipments))
+        should_show = hidden_count > 0
+        history_load_more_btn.setVisible(should_show)
+        history_load_more_btn.setEnabled(should_show)
+
+        if hasattr(history_load_more_btn, "setText"):
+            history_load_more_btn.setText(f"Load More ({hidden_count})" if should_show else "Load More")
+
+    def load_more_history_rows(self):
+        hidden_count = max(0, self._history_total_count - len(self._history_shipments))
+        if hidden_count <= 0:
+            self._sync_history_load_more_button()
+            return
+
+        if self._all_history_shipments:
+            self._history_shipments = list(self._all_history_shipments)
+        self.populate_history_table()
+        self._tables_populated["history"] = True
+        self._recover_hidden_rows_from_saved_filters("history")
+        self._sync_history_load_more_button()
+        self.update_status()
+        self.show_toast("Loaded all history rows.", color="#10B981")
 
     def _show_loading_indicator(self):
         """Mostrar indicador de progreso y desactivar controles"""
