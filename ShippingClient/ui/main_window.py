@@ -2087,9 +2087,57 @@ class ModernShippingMainWindow(QMainWindow):
         die_layout.addLayout(die_actions_layout)
         die_layout.addWidget(self.sills_die_table)
 
+        dashboard_page = QWidget()
+        dashboard_layout = QVBoxLayout(dashboard_page)
+        dashboard_layout.setContentsMargins(0, 0, 0, 0)
+        dashboard_layout.setSpacing(SPACE_12)
+
+        dashboard_title = QLabel("Sills Dashboard")
+        apply_scaled_font(dashboard_title, offset=3, weight=QFont.Weight.DemiBold)
+        dashboard_layout.addWidget(dashboard_title)
+
+        cards_layout = QGridLayout()
+        cards_layout.setContentsMargins(0, 0, 0, 0)
+        cards_layout.setHorizontalSpacing(SPACE_12)
+        cards_layout.setVerticalSpacing(SPACE_12)
+
+        self.sills_dashboard_cards: Dict[str, QLabel] = {}
+        metrics = [
+            ("sheet_total", "Total Sills"),
+            ("logs_total", "Log Records"),
+            ("dies_total", "Total Dies"),
+        ]
+        for index, (metric_id, metric_label) in enumerate(metrics):
+            card = QFrame()
+            card.setStyleSheet(
+                f"""
+                QFrame {{
+                    background: #FFFFFF;
+                    border: 1px solid {COLOR_BORDER};
+                    border-radius: {RADIUS_MD}px;
+                }}
+                """
+            )
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_16)
+            card_layout.setSpacing(SPACE_8)
+            label = QLabel(metric_label)
+            apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
+            value = QLabel("0")
+            apply_scaled_font(value, offset=6, weight=QFont.Weight.Bold)
+            value.setStyleSheet(f"color: {COLOR_PRIMARY};")
+            card_layout.addWidget(label)
+            card_layout.addWidget(value)
+            self.sills_dashboard_cards[metric_id] = value
+            cards_layout.addWidget(card, 0, index)
+
+        dashboard_layout.addLayout(cards_layout)
+        dashboard_layout.addStretch(1)
+
         tabs.addTab(sheet_page, "Sills Sheet")
         tabs.addTab(logs_page, "Activity Log")
         tabs.addTab(die_page, "Die # Database")
+        tabs.addTab(dashboard_page, "Sills Dashboard")
         page_layout.addWidget(tabs)
 
         self.sills_add_btn.clicked.connect(self.open_add_sill_dialog)
@@ -2108,6 +2156,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.load_sills()
         self.load_sill_dies()
+        self.refresh_sills_dashboard()
         return page
 
     def load_sills(self):
@@ -2117,6 +2166,7 @@ class ModernShippingMainWindow(QMainWindow):
             return
         self.sills = response.get_data() or []
         self.populate_sills_table()
+        self.refresh_sills_dashboard()
 
     def populate_sills_table(self):
         rows = self.sills or []
@@ -2142,6 +2192,7 @@ class ModernShippingMainWindow(QMainWindow):
             return
         self.sills_logs = response.get_data() or []
         self.populate_sills_logs_table()
+        self.refresh_sills_dashboard()
 
     def populate_sills_logs_table(self):
         logs = self.sills_logs or []
@@ -2168,10 +2219,19 @@ class ModernShippingMainWindow(QMainWindow):
             self.load_sills_logs()
         elif index == 2:
             self.load_sill_dies()
+        elif index == 3:
+            self.refresh_sills_dashboard()
         else:
             self.load_sills()
         self.perform_filter()
         self.update_status()
+
+    def refresh_sills_dashboard(self):
+        if not hasattr(self, "sills_dashboard_cards"):
+            return
+        self.sills_dashboard_cards["sheet_total"].setText(str(len(self.sills or [])))
+        self.sills_dashboard_cards["logs_total"].setText(str(len(self.sills_logs or [])))
+        self.sills_dashboard_cards["dies_total"].setText(str(len(self.sill_dies or [])))
 
     def load_sill_dies(self):
         response = self.api_client.get_sill_dies()
@@ -2180,6 +2240,7 @@ class ModernShippingMainWindow(QMainWindow):
             return
         self.sill_dies = response.get_data() or []
         self.populate_sill_dies_table()
+        self.refresh_sills_dashboard()
 
     def populate_sill_dies_table(self):
         rows = self.sill_dies or []
@@ -4785,6 +4846,8 @@ class ModernShippingMainWindow(QMainWindow):
                 return "sills_logs", getattr(self, "sills_logs_table", None)
             if index == 2:
                 return "sills_die", getattr(self, "sills_die_table", None)
+            if index == 3:
+                return "sills_dashboard", None
             return "sills_sheet", getattr(self, "sills_table", None)
 
         current_tab_id = self.get_current_tab_id()
