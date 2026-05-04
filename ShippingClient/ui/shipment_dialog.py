@@ -51,7 +51,7 @@ class ModernShipmentDialog(QDialog):
         # Configurar ventana
         title = "Create New Shipment" if not shipment_data else "Edit Shipment"
         self.setWindowTitle(title)
-        self.setFixedSize(DIALOG_WIDTH, DIALOG_HEIGHT)
+        self.setMinimumSize(DIALOG_WIDTH, DIALOG_HEIGHT)
         self.setModal(True)
         
         print(f"Inicializando diálogo profesional: {title}")

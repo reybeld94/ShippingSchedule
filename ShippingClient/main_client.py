@@ -1,7 +1,7 @@
-﻿# main_client.py - Archivo principal modular
+# main_client.py - Archivo principal modular
 import sys
 import os
-from PyQt6.QtWidgets import QApplication, QDialog
+from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 from PyQt6.QtGui import QFont, QIcon
 
 # Imports locales
@@ -28,12 +28,23 @@ def main():
         if login_dialog.exec() == QDialog.DialogCode.Accepted:
             print("Login successful, opening main window...")
             
-            # Importar dinámicamente para evitar problemas de inicialización
+            # Importar dinamicamente para evitar problemas de inicializacion
             from ui.main_window import ModernShippingMainWindow
             
             # Mostrar ventana principal
-            main_window = ModernShippingMainWindow(login_dialog.token, login_dialog.user_info)
-            main_window.show()
+            try:
+                main_window = ModernShippingMainWindow(login_dialog.token, login_dialog.user_info)
+                main_window.show()
+            except Exception as init_error:
+                print(f"Failed to initialize main window: {init_error}")
+                import traceback
+                traceback.print_exc()
+                error_dialog = QMessageBox()
+                error_dialog.setIcon(QMessageBox.Icon.Critical)
+                error_dialog.setWindowTitle("Application Error")
+                error_dialog.setText(f"Failed to open the application window:\n\n{init_error}")
+                error_dialog.exec()
+                return 1
             
             return app.exec()
         else:

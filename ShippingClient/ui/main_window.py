@@ -4433,6 +4433,8 @@ class ModernShippingMainWindow(QMainWindow):
                 self._ensure_columns_fit_content(table)
                 self._refresh_visible_row_heights(table)
             self.refresh_pinned_columns(table, table_name)
+            table.setUpdatesEnabled(True)
+            table.blockSignals(False)
             self.updating_table = False
             elapsed_ms = (time.perf_counter() - start) * 1000
             print(f"[TABLE_POP] done table={table_name} rows={row_count} in {elapsed_ms:.1f}ms")
