@@ -730,8 +730,11 @@ class StatusChipDelegate(QStyledItemDelegate):
 class WrapAnywhereDelegate(QStyledItemDelegate):
     """Custom delegate that allows long text chunks to wrap in table cells."""
 
-    _PADDING = 12
+    _PADDING_H = 8
+    _PADDING_V = 6
     _MIN_HINT_WIDTH = 180
+    _EDITOR_MAX_HEIGHT = 160
+    _EDITOR_MIN_WIDTH = 280
     _SELECTED_TEXT_COLOR = QColor("#0F2A57")
 
     def paint(self, painter, option, index):  # type: ignore[override]
@@ -754,7 +757,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
         else:
             painter.setPen(opt.palette.text().color())
         painter.drawText(
-            text_rect.adjusted(2, 2, -2, -2),
+            text_rect.adjusted(self._PADDING_H, self._PADDING_V, -self._PADDING_H, -self._PADDING_V),
             Qt.AlignmentFlag.AlignLeft
             | Qt.AlignmentFlag.AlignTop
             | Qt.TextFlag.TextWordWrap
@@ -768,20 +771,90 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
         if not text:
             return super().sizeHint(option, index)
 
-        width = option.rect.width() - self._PADDING
-        if width <= 0:
-            width = self._MIN_HINT_WIDTH
+        col_width = option.rect.width()
+        if col_width <= 0:
+            col_width = self._MIN_HINT_WIDTH
 
-        bounds = option.fontMetrics.boundingRect(
-            QRect(0, 0, width, 10000),
+        # Account for style padding and sub-element margins
+        widget = option.widget
+        style = widget.style() if widget else QApplication.style()
+        text_margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, option, widget) + 2
+        icon_width = 0
+        if option.features & QStyleOptionViewItem.ViewItemFeature.HasDecoration:
+            icon_width = option.decorationSize.width() + 4
+
+        available_width = col_width - self._PADDING_H * 2 - text_margin - icon_width
+        if available_width <= 0:
+            available_width = self._MIN_HINT_WIDTH
+
+        fm = option.fontMetrics
+        bounds = fm.boundingRect(
+            QRect(0, 0, available_width, 10000),
             Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap | Qt.TextFlag.TextWrapAnywhere,
             text,
         )
-        return QSize(bounds.width() + self._PADDING, bounds.height() + self._PADDING)
+        height = bounds.height() + self._PADDING_V * 2 + text_margin
+        # Ensure a minimum row height for readability
+        min_h = fm.lineSpacing() + self._PADDING_V * 2 + 4
+        return QSize(bounds.width() + self._PADDING_H * 2 + text_margin, max(height, min_h))
+
+    def createEditor(self, parent, option, index):  # type: ignore[override]
+        from PyQt6.QtWidgets import QPlainTextEdit
+        editor = QPlainTextEdit(parent)
+        editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        editor.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        editor.setTabChangesFocus(True)
+        return editor
+
+    def updateEditorGeometry(self, editor, option, index):  # type: ignore[override]
+        # Keep the editor within a reasonable size — never bigger than
+        # the viewport or taller than _EDITOR_MAX_HEIGHT.
+        table = option.widget
+        if table is not None:
+            viewport_height = table.viewport().height()
+            viewport_width = table.viewport().width()
+        else:
+            viewport_height = 600
+            viewport_width = 800
+
+        cell_rect = option.rect
+        editor_width = max(self._EDITOR_MIN_WIDTH, min(cell_rect.width(), viewport_width - 20))
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        if text:
+            fm = editor.fontMetrics()
+            lines = text.count('\n') + 1
+            words = len(text) / max(1, editor_width / fm.averageCharWidth())
+            needed_lines = max(lines, int(words) + 1)
+            content_height = needed_lines * fm.lineSpacing() + 16
+        else:
+            content_height = fm.lineSpacing() * 3 + 16
+
+        editor_height = min(content_height, self._EDITOR_MAX_HEIGHT)
+        editor_height = max(editor_height, 60)  # minimum usable height
+
+        # Keep within viewport
+        top = cell_rect.top()
+        if top + editor_height > viewport_height:
+            top = max(0, viewport_height - editor_height - 5)
+
+        left = max(2, cell_rect.left())
+        if left + editor_width > viewport_width:
+            left = max(2, viewport_width - editor_width - 5)
+
+        editor.setGeometry(left, top, editor_width, editor_height)
+
+    def setEditorData(self, editor, index):  # type: ignore[override]
+        text = str(index.data(Qt.ItemDataRole.EditRole) or "")
+        editor.setPlainText(text)
+
+    def setModelData(self, editor, model, index):  # type: ignore[override]
+        text = editor.toPlainText()
+        model.setData(index, text, Qt.ItemDataRole.EditRole)
+        model.setData(index, text, Qt.ItemDataRole.DisplayRole)
 
 
 class ModernShippingMainWindow(QMainWindow):
-    _ROW_EXTRA_HEIGHT = 6
+    _ROW_EXTRA_HEIGHT = 10
     _HEAVY_LAYOUT_ROW_THRESHOLD = 1000
     _HISTORY_CHUNK_THRESHOLD = 250
     DEFAULT_TABLE_COLUMNS = [
@@ -4559,9 +4632,9 @@ class ModernShippingMainWindow(QMainWindow):
 
         table.setUpdatesEnabled(True)
         table.blockSignals(False)
+        self._refresh_visible_row_heights(table)
         if run_expensive_layout:
             self._ensure_columns_fit_content(table)
-            self._refresh_visible_row_heights(table)
         self.refresh_pinned_columns(table, table_name)
         self.updating_table = False
         if started_at is not None:
