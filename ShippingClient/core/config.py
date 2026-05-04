@@ -31,7 +31,23 @@ REQUEST_TIMEOUT = 10
 # Estilos
 # Fuente principal para la interfaz. Se puede cambiar para ajustar el estilo
 # de toda la aplicación.
-MODERN_FONT = "Helvetica Neue"
+def _resolve_default_font() -> str:
+    import platform
+    from PyQt6.QtGui import QFont
+    system = platform.system()
+    if system == "Windows":
+        candidates = ["Segoe UI", "Calibri", "Arial"]
+    elif system == "Darwin":
+        candidates = ["Helvetica Neue", "SF Pro Display", ".AppleSystemUIFont"]
+    else:
+        candidates = ["Ubuntu", "DejaVu Sans", "Noto Sans", "Liberation Sans", "Arial"]
+    for name in candidates:
+        font = QFont(name)
+        if font.exactMatch():
+            return name
+    return "Arial"
+
+MODERN_FONT = _resolve_default_font()
 
 
 def get_font_size() -> int:

@@ -8,9 +8,9 @@ SPACE_20 = 20
 SPACE_24 = 24
 
 # Corner radii
-RADIUS_SM = 10
+RADIUS_SM = 6
 RADIUS_MD = 10
-RADIUS_LG = 10
+RADIUS_LG = 14
 
 # Control sizing
 CONTROL_HEIGHT = 40

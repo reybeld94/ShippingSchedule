@@ -39,14 +39,18 @@ class WebSocketClient(QThread):
         )
         
         self.running = True
+        # run_forever() handles reconnect internally (ping_interval, etc.).
+        # Only retry externally on a fatal crash, with linear backoff.
+        backoff = 1
         while self.running:
             try:
-                self.ws.run_forever()
+                self.ws.run_forever(ping_interval=30, ping_timeout=10)
             except Exception as e:
-                print(f"WebSocket exception: {e}")
+                print(f"WebSocket fatal exception: {e}")
                 self.connection_status.emit(False)
                 if self.running:
-                    self.sleep(5)  # Esperar 5 segundos antes de reconectar
+                    self.sleep(min(backoff, 30))
+                    backoff += 2
     
     def stop(self):
         self.running = False

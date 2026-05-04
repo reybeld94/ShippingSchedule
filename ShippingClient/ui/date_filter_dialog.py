@@ -24,13 +24,13 @@ class SelectAllCheckBox(QCheckBox):
         super().__init__(label, parent)
         self.setTristate(True)
 
-    def nextCheckState(self) -> None:  # noqa: D401
-        """Toggle directly between checked and unchecked states."""
-
+    def nextCheckState(self) -> None:
+        """Toggle between checked/unchecked; resolve partial to unchecked."""
         current = self.checkState()
         if current == Qt.CheckState.Checked:
             self.setCheckState(Qt.CheckState.Unchecked)
         else:
+            # Unchecked or PartiallyChecked → go to Checked
             self.setCheckState(Qt.CheckState.Checked)
 
 

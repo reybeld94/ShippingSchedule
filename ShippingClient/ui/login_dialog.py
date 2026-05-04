@@ -63,7 +63,7 @@ class ModernLoginDialog(QDialog):
         self.token = None
         self.user_info = None
 
-        # Check connection only once at startup, no periodic timer
+        # Check connection asynchronously so UI isn't blocked
         self.check_server_connection_once()
     
     def setup_professional_ui(self):
@@ -185,8 +185,8 @@ class ModernLoginDialog(QDialog):
         password_layout.addWidget(password_label)
         password_layout.addWidget(self.password_edit)
 
-        # Remember me checkbox
-        self.remember_checkbox = QCheckBox("Remember me")
+        # Remember username checkbox
+        self.remember_checkbox = QCheckBox("Remember username")
         apply_scaled_font(self.remember_checkbox)
         self.remember_checkbox.setChecked(False)
 
@@ -294,22 +294,45 @@ class ModernLoginDialog(QDialog):
             self.remember_checkbox.setChecked(True)
 
     def check_server_connection_once(self):
-        """Check server connectivity once without blocking UI."""
-        try:
-            # CAMBIAR: crear cliente con timeout MUY corto
-            response = RobustApiClient(get_server_url(), timeout=2, max_retries=1).get("/")
-            if response.is_success():
-                self.connection_indicator.setStyleSheet("color: #10B981;")
-                self.connection_text.setText("Connected")
-                self.connection_text.setStyleSheet(f"color: {COLOR_SUCCESS_SOFT_TEXT};")
-            else:
-                self.connection_indicator.setStyleSheet("color: #EF4444;")
-                self.connection_text.setText("Disconnected")
-                self.connection_text.setStyleSheet("color: #EF4444;")
-        except Exception:
-            self.connection_indicator.setStyleSheet("color: #EF4444;")
-            self.connection_text.setText("Disconnected")
-            self.connection_text.setStyleSheet("color: #EF4444;")
+        """Check server connectivity in a background thread so UI is not blocked."""
+        from PyQt6.QtCore import QThread, pyqtSignal as _pyqtSignal
+
+        # Avoid spawning multiple concurrent checks
+        existing = getattr(self, '_connection_checker', None)
+        if existing is not None and existing.isRunning():
+            existing.quit()
+            existing.wait(500)
+
+        checker = self
+        class _ConnectionChecker(QThread):
+            result_ready = _pyqtSignal(bool)
+            def __init__(self, url, parent_checker, timeout=2):
+                super().__init__()
+                self._url = url
+                self._timeout = timeout
+                self.result_ready.connect(parent_checker._on_connection_checked)
+            def run(self):
+                try:
+                    response = RobustApiClient(self._url, timeout=self._timeout, max_retries=1).get("/")
+                    self.result_ready.emit(response.is_success())
+                except Exception:
+                    self.result_ready.emit(False)
+
+        self._update_connection_ui("Checking...", "#F59E0B", "#F59E0B")
+        self._connection_checker = _ConnectionChecker(get_server_url(), self)
+        self._connection_checker.start()
+
+    def _on_connection_checked(self, success):
+        if success:
+            self._update_connection_ui("Connected", COLOR_SUCCESS_SOFT_TEXT, "#10B981")
+        else:
+            self._update_connection_ui("Disconnected", "#EF4444", "#EF4444")
+
+    def _update_connection_ui(self, text, text_color, indicator_color=None):
+        self.connection_text.setText(text)
+        self.connection_text.setStyleSheet(f"color: {text_color}; background: transparent; border: none;")
+        if indicator_color:
+            self.connection_indicator.setStyleSheet(f"color: {indicator_color}; background: transparent; border: none;")
     
     def login(self):
         """Realizar proceso de login"""
@@ -393,10 +416,11 @@ class ModernLoginDialog(QDialog):
         msg.exec()
 
     def open_settings_dialog(self):
-        """Open settings dialog for server configuration"""
+        """Open settings dialog for server configuration and re-check connection after."""
         dlg = SettingsDialog(self.settings_mgr)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             refresh_scaled_fonts(self)
+            self.check_server_connection_once()
 
     def keyPressEvent(self, event):
         """Manejar eventos de teclado"""

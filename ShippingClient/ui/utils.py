@@ -84,6 +84,16 @@ def show_popup_notification(parent, message, duration=3000, color="#3B82F6"):
     popup.adjustSize()
 
     def position_and_show():
+        # Guard against parent being deleted before the timer fires
+        try:
+            from PyQt6 import sip
+            if sip.isdeleted(parent):
+                return
+        except Exception:
+            pass
+        if not parent.isVisible():
+            popup.deleteLater()
+            return
         parent_pos = parent.mapToGlobal(QPoint(0, 0))
         x = parent_pos.x() + parent.width() - popup.width() - 30
         y = parent_pos.y() + parent.height() - popup.height() - 30
