@@ -32,22 +32,32 @@ REQUEST_TIMEOUT = 10
 # Fuente principal para la interfaz. Se puede cambiar para ajustar el estilo
 # de toda la aplicación.
 def _resolve_default_font() -> str:
+    """Pick a sensible default font for the current OS (no QApplication needed)."""
     import platform
-    from PyQt6.QtGui import QFont
     system = platform.system()
     if system == "Windows":
-        candidates = ["Segoe UI", "Calibri", "Arial"]
+        return "Segoe UI"
     elif system == "Darwin":
-        candidates = ["Helvetica Neue", "SF Pro Display", ".AppleSystemUIFont"]
+        return "Helvetica Neue"
     else:
-        candidates = ["Ubuntu", "DejaVu Sans", "Noto Sans", "Liberation Sans", "Arial"]
-    for name in candidates:
-        font = QFont(name)
-        if font.exactMatch():
-            return name
-    return "Arial"
+        return "Ubuntu"
 
 MODERN_FONT = _resolve_default_font()
+
+
+def ensure_font_available(font_name: str) -> str:
+    """Verify *font_name* is available via QFontDatabase (requires QApplication).
+    Returns the verified name or a safe fallback."""
+    from PyQt6.QtGui import QFontDatabase
+    families = set(QFontDatabase.families())
+    if font_name in families:
+        return font_name
+    fallbacks = ["Arial", "Helvetica", "Sans Serif"]
+    for fb in fallbacks:
+        if fb in families:
+            return fb
+    # Ultimate fallback: first available family or empty string (Qt default)
+    return next(iter(families), "")
 
 
 def get_font_size() -> int:
