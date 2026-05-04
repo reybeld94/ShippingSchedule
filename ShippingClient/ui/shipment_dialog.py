@@ -233,6 +233,7 @@ class ModernShipmentDialog(QDialog):
             "Partial Release",
             "Final Release",
             "Rejected",
+            "Production Updated",
         ]
         self.status_combo.addItems(status_options)
         grid_layout.addWidget(self.status_combo, 2, 1)

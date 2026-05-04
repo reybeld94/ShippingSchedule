@@ -8,12 +8,13 @@ class StatusDelegate(QStyledItemDelegate):
         "partial_release": "Partial Release",
         "final_release": "Final Release",
         "rejected": "Rejected",
+        "prod_updated": "Production Updated",
     }
     CODE_MAP = {v: k for k, v in DISPLAY_MAP.items()}
 
     def createEditor(self, parent, option, index):
         editor = QComboBox(parent)
-        editor.addItems(["Partial Release", "Final Release", "Rejected"])
+        editor.addItems(["Partial Release", "Final Release", "Rejected", "Production Updated"])
         editor.setEditable(False)
         return editor
 
