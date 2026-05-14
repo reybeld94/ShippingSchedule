@@ -396,13 +396,17 @@ class SettingsDialog(QDialog):
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(32)
+        table.verticalHeader().setMinimumSectionSize(32)
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         table.setAlternatingRowColors(True)
         self.permission_checkboxes[module_key] = {}
         for key, label in rows:
             self._add_permission_row(table, module_key, key, label)
-        table.resizeRowsToContents()
+        self._size_permission_table_to_contents(table)
         content_layout.addWidget(table)
 
         if extra_rows:
@@ -421,6 +425,16 @@ class SettingsDialog(QDialog):
                 content_layout.addLayout(row)
 
         parent_layout.addWidget(section)
+
+    def _size_permission_table_to_contents(self, table: QTableWidget):
+        """Expand permission tables so column names are readable without nested scrolling."""
+        table.resizeColumnsToContents()
+        table.resizeRowsToContents()
+        row_height = max(table.verticalHeader().defaultSectionSize(), 32)
+        rows_height = sum(max(table.rowHeight(row), row_height) for row in range(table.rowCount()))
+        table_height = table.horizontalHeader().height() + rows_height + (table.frameWidth() * 2) + SPACE_8
+        table.setMinimumHeight(table_height)
+        table.setMaximumHeight(table_height)
 
     def _add_permission_row(self, table, module_key: str, column_key: str, label: str):
         row = table.rowCount()
