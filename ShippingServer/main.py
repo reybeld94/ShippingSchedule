@@ -21,7 +21,9 @@ from fedex_service import FedExService
 
 
 SHIPPING_PERMISSION_COLUMNS = [
+    "job_number",
     "job_name",
+    "status",
     "description",
     "qc_release",
     "qc_notes",
@@ -115,6 +117,7 @@ class ShipmentCreate(BaseModel):
     address: str = ""
 
 class ShipmentUpdate(BaseModel):
+    job_number: str = None
     job_name: str = None
     week: str = None
     description: str = None

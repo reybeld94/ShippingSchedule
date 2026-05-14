@@ -347,7 +347,9 @@ class SettingsDialog(QDialog):
             module_key="shipping_schedule",
             title="Shipping Schedule",
             rows=[
+                ("job_number", "Job Number"),
                 ("job_name", "Job Name"),
+                ("status", "Job Status"),
                 ("description", "Description"),
                 ("qc_release", "QC Rel."),
                 ("qc_notes", "QC Notes"),
