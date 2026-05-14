@@ -6085,8 +6085,8 @@ class ModernShippingMainWindow(QMainWindow):
                         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
 
                         # Header styling
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E5E7EB")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
                         ("FONTSIZE", (0, 0), (-1, 0), header_font_size),
                         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
 
