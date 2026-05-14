@@ -124,6 +124,14 @@ class SettingsDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addStretch()
         btn_layout.addWidget(cancel_btn)
+        if self.is_admin:
+            self.apply_permissions_btn = ModernButton("Apply", "primary")
+            self.apply_permissions_btn.setMinimumHeight(CONTROL_HEIGHT)
+            self.apply_permissions_btn.setMinimumWidth(96)
+            self.apply_permissions_btn.clicked.connect(self.apply_permissions)
+            btn_layout.addWidget(self.apply_permissions_btn)
+            self.tabs.currentChanged.connect(self._sync_permissions_apply_button_visibility)
+            self._sync_permissions_apply_button_visibility()
         btn_layout.addWidget(save_btn)
 
         footer = QFrame()
@@ -134,6 +142,11 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(content_wrapper, 1)
         layout.addWidget(footer)
+
+    def _sync_permissions_apply_button_visibility(self):
+        """Show Apply only when the Permissions tab is active."""
+        if hasattr(self, "apply_permissions_btn"):
+            self.apply_permissions_btn.setVisible(self.tabs.currentWidget() is getattr(self, "permissions_tab", None))
 
     def _setup_general_tab(self):
         layout = QVBoxLayout(self.general_tab)
@@ -317,20 +330,9 @@ class SettingsDialog(QDialog):
         apply_scaled_font(selector_label, offset=1, weight=QFont.Weight.Medium)
         self.permissions_user_combo = ModernComboBox()
         self.permissions_user_combo.currentIndexChanged.connect(self._load_selected_user_permissions)
-        self.apply_permissions_btn = ModernButton("Apply", "primary")
-        self.apply_permissions_btn.setMinimumHeight(CONTROL_HEIGHT)
-        self.apply_permissions_btn.setMinimumWidth(96)
-        self.apply_permissions_btn.setEnabled(self.is_admin)
-        self.apply_permissions_btn.clicked.connect(self.apply_permissions)
         selector_row.addWidget(selector_label)
         selector_row.addWidget(self.permissions_user_combo, 1)
-        selector_row.addWidget(self.apply_permissions_btn)
         layout.addLayout(selector_row)
-
-        self.permissions_notice = QLabel("Admins always have full access. Use Apply to save permission changes without closing Settings.")
-        self.permissions_notice.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
-        apply_scaled_font(self.permissions_notice, offset=-1)
-        layout.addWidget(self.permissions_notice)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
