@@ -2,17 +2,19 @@
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Any
 from datetime import timedelta, datetime, date
 import json
 import asyncio
 import logging
 import time
+import importlib
+from decimal import Decimal, InvalidOperation
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm.exc import StaleDataError
 
 # Imports locales
-from database import get_db, create_tables, create_admin_user
+from database import get_db, create_tables, create_admin_user, SessionLocal
 from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings, Sill, SillLog, SillDieDatabase, UserPermission
 from auth import authenticate_user, create_access_token, get_current_user, get_current_admin_user, Token, UserLogin, UserCreate
 from pydantic import BaseModel, Field
@@ -275,6 +277,10 @@ class SillResponse(BaseModel):
     sales_order: str
     work_order: str
     assembly_number: str
+    issue_quantity: str = "0"
+    issue_quantity_required: str = ""
+    issue_status: str = "pending"
+    issue_checked_at: datetime | None = None
     description: str
     qty: str
     dimension_needed: str
@@ -1191,6 +1197,7 @@ async def startup_event():
     create_tables()
     print("👤 Configurando usuario admin...")
     create_admin_user()
+    asyncio.create_task(_sills_issue_status_scheduler())
     print("✅ Servidor listo en http://localhost:8000")
     print("📡 WebSocket disponible en ws://localhost:8000/ws")
 
@@ -1268,6 +1275,143 @@ async def get_shipping_logs(
         )
         for log in logs
     ]
+
+
+
+MIE_TRAK_SERVER = "GUNDMAIN"
+MIE_TRAK_DATABASE = "GunderlinLive"
+MIE_TRAK_USER = "mie"
+MIE_TRAK_PASSWORD = "mie"
+ISSUE_COMPLETE_STATUS = "complete"
+ISSUE_PARTIAL_STATUS = "partial"
+ISSUE_PENDING_STATUS = "pending"
+ISSUE_CHECK_INTERVAL_SECONDS = 60 * 60
+
+
+def _decimal_from_value(value: Any) -> Decimal:
+    if value is None or value == "":
+        return Decimal("0")
+    try:
+        return Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return Decimal("0")
+
+
+def _format_issue_quantity(value: Decimal) -> str:
+    normalized = value.quantize(Decimal("0.001")).normalize()
+    return format(normalized, "f")
+
+
+def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
+    """Return issue quantities for one Mie Trak WorkOrderAssemblyNumber."""
+    pymssql = importlib.import_module("pymssql")
+    cleaned_assembly = str(assembly_number or "").strip()
+    conn = None
+    try:
+        conn = pymssql.connect(
+            server=MIE_TRAK_SERVER,
+            user=MIE_TRAK_USER,
+            password=MIE_TRAK_PASSWORD,
+            database=MIE_TRAK_DATABASE,
+        )
+        cursor = conn.cursor(as_dict=True)
+        cursor.execute(
+            """
+            SELECT TOP 1
+                WorkOrderAssemblyNumber,
+                WorkOrderAssemblyBOMStatusFK,
+                QuantityRequired
+            FROM WorkOrderAssembly
+            WHERE WorkOrderAssemblyNumber = %s
+            """,
+            (cleaned_assembly,),
+        )
+        assembly_row = cursor.fetchone()
+        if not assembly_row:
+            return {
+                "issue_quantity": "0",
+                "issue_quantity_required": "",
+                "issue_status": ISSUE_PENDING_STATUS,
+            }
+
+        required = _decimal_from_value(assembly_row.get("QuantityRequired"))
+        bom_status = str(assembly_row.get("WorkOrderAssemblyBOMStatusFK") or "").strip()
+        issued = Decimal("0")
+        if bom_status == "5":
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(Quantity), 0) AS QuantityIssued
+                FROM WorkOrderCollection
+                WHERE WorkOrderAssemblyNumber = %s
+                """,
+                (cleaned_assembly,),
+            )
+            collection_row = cursor.fetchone() or {}
+            issued = _decimal_from_value(collection_row.get("QuantityIssued"))
+
+        if required > 0 and issued >= required:
+            status = ISSUE_COMPLETE_STATUS
+        elif issued > 0:
+            status = ISSUE_PARTIAL_STATUS
+        else:
+            status = ISSUE_PENDING_STATUS
+
+        return {
+            "issue_quantity": _format_issue_quantity(issued),
+            "issue_quantity_required": _format_issue_quantity(required) if required else "",
+            "issue_status": status,
+        }
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _refresh_pending_sills_issue_status(db: Session) -> int:
+    """Refresh all Sills that still need Mie Trak issue verification."""
+    pending_sills = (
+        db.query(Sill)
+        .filter(Sill.assembly_number != "")
+        .filter(Sill.issue_status != ISSUE_COMPLETE_STATUS)
+        .all()
+    )
+    updated_count = 0
+    for sill in pending_sills:
+        snapshot = _fetch_mie_trak_issue_snapshot(sill.assembly_number)
+        now = datetime.utcnow()
+        changed = False
+        for field_name in ("issue_quantity", "issue_quantity_required", "issue_status"):
+            value = snapshot[field_name]
+            if getattr(sill, field_name) != value:
+                setattr(sill, field_name, value)
+                changed = True
+        sill.issue_checked_at = now
+        if changed:
+            sill.updated_at = now
+            updated_count += 1
+    if pending_sills:
+        db.commit()
+    return updated_count
+
+
+async def _sills_issue_status_scheduler():
+    await asyncio.sleep(5)
+    while True:
+        db = SessionLocal()
+        try:
+            updated_count = await asyncio.to_thread(_refresh_pending_sills_issue_status, db)
+            if updated_count:
+                await manager.broadcast(json.dumps({
+                    "type": "sills_issue_status_updated",
+                    "data": {"updated_count": updated_count},
+                }))
+        except Exception as exc:
+            logger.warning(f"Failed to refresh Sills issue status: {exc}")
+        finally:
+            db.close()
+        await asyncio.sleep(ISSUE_CHECK_INTERVAL_SECONDS)
 
 
 # ============ ENDPOINTS DE SILLS ============
