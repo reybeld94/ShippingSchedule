@@ -1374,12 +1374,8 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
 
 
 def _get_sills_due_for_issue_status(db: Session, *, only_due: bool = True) -> list[Sill]:
-    """Return Sills that still need Mie Trak issue verification."""
-    query = (
-        db.query(Sill)
-        .filter(Sill.assembly_number != "")
-        .filter(Sill.issue_status != ISSUE_COMPLETE_STATUS)
-    )
+    """Return Sills with assembly numbers that are due for Mie Trak issue verification."""
+    query = db.query(Sill).filter(Sill.assembly_number != "")
     if only_due:
         due_before = datetime.utcnow() - timedelta(seconds=ISSUE_CHECK_INTERVAL_SECONDS)
         query = query.filter(
@@ -1408,7 +1404,7 @@ def _apply_sill_issue_snapshot(sill: Sill, snapshot: dict[str, str], checked_at:
 
 
 def _refresh_pending_sills_issue_status(db: Session, *, only_due: bool = True) -> int:
-    """Refresh Sills that still need Mie Trak issue verification."""
+    """Refresh Sills that are due for Mie Trak issue verification."""
     pending_sills = _get_sills_due_for_issue_status(db, only_due=only_due)
     updated_count = 0
     checked_count = 0
