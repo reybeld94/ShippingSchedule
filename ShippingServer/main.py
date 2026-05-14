@@ -1318,7 +1318,7 @@ def _format_issue_quantity(value: Decimal) -> str:
 
 
 def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
-    """Return issue quantities for one Mie Trak WorkOrderAssemblyNumber."""
+    """Return issue quantities for one Mie Trak WorkOrderAssemblyPK."""
     pymssql = importlib.import_module("pymssql")
     cleaned_assembly = str(assembly_number or "").strip()
     conn = None
@@ -1332,12 +1332,13 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
         cursor = conn.cursor(as_dict=True)
         cursor.execute(
             """
-            SELECT TOP 1
-                WorkOrderAssemblyNumber,
-                WorkOrderAssemblyBOMStatusFK,
-                QuantityRequired
-            FROM WorkOrderAssembly
-            WHERE WorkOrderAssemblyNumber = %s
+            SELECT
+                woa.WorkOrderAssemblyPK AS assemblyNumber,
+                woa.WorkOrderAssemblyBOMStatusFK AS bomStatusFk,
+                COALESCE(woa.TotalQuantityRequired, 0) AS quantityRequired,
+                COALESCE(woa.QuantityIssued, 0) AS issuedQuantity
+            FROM dbo.WorkOrderAssembly woa
+            WHERE woa.WorkOrderAssemblyPK = %s;
             """,
             (cleaned_assembly,),
         )
@@ -1349,28 +1350,15 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
                 "issue_status": ISSUE_PENDING_STATUS,
             }
 
-        required = _decimal_from_value(assembly_row.get("QuantityRequired"))
-        bom_status = str(assembly_row.get("WorkOrderAssemblyBOMStatusFK") or "").strip()
-        cursor.execute(
-            """
-            SELECT COALESCE(SUM(Quantity), 0) AS QuantityIssued
-            FROM WorkOrderCollection
-            WHERE WorkOrderAssemblyNumber = %s
-            """,
-            (cleaned_assembly,),
-        )
-        collection_row = cursor.fetchone() or {}
-        issued = _decimal_from_value(collection_row.get("QuantityIssued"))
+        required = _decimal_from_value(assembly_row.get("quantityRequired"))
+        issued = _decimal_from_value(assembly_row.get("issuedQuantity"))
 
-        if bom_status == "5" and issued <= 0 and required > 0:
-            issued = required
-
-        if required > 0 and issued >= required:
-            status = ISSUE_COMPLETE_STATUS
-        elif issued > 0:
+        if issued <= 0:
+            status = ISSUE_PENDING_STATUS
+        elif issued < required:
             status = ISSUE_PARTIAL_STATUS
         else:
-            status = ISSUE_PENDING_STATUS
+            status = ISSUE_COMPLETE_STATUS
 
         return {
             "issue_quantity": _format_issue_quantity(issued),
@@ -1386,12 +1374,8 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
 
 
 def _get_sills_due_for_issue_status(db: Session, *, only_due: bool = True) -> list[Sill]:
-    """Return Sills that still need Mie Trak issue verification."""
-    query = (
-        db.query(Sill)
-        .filter(Sill.assembly_number != "")
-        .filter(Sill.issue_status != ISSUE_COMPLETE_STATUS)
-    )
+    """Return Sills with assembly numbers that are due for Mie Trak issue verification."""
+    query = db.query(Sill).filter(Sill.assembly_number != "")
     if only_due:
         due_before = datetime.utcnow() - timedelta(seconds=ISSUE_CHECK_INTERVAL_SECONDS)
         query = query.filter(
@@ -1420,7 +1404,7 @@ def _apply_sill_issue_snapshot(sill: Sill, snapshot: dict[str, str], checked_at:
 
 
 def _refresh_pending_sills_issue_status(db: Session, *, only_due: bool = True) -> int:
-    """Refresh Sills that still need Mie Trak issue verification."""
+    """Refresh Sills that are due for Mie Trak issue verification."""
     pending_sills = _get_sills_due_for_issue_status(db, only_due=only_due)
     updated_count = 0
     checked_count = 0
