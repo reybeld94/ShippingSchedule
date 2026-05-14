@@ -1179,9 +1179,7 @@ async def delete_shipment(
 
 # ============ WEBSOCKET ============
 
-@app.websocket("/ws")
-@app.websocket("/ws/")
-async def websocket_endpoint(websocket: WebSocket):
+async def _handle_websocket_connection(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
@@ -1189,6 +1187,21 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+@app.websocket("/ws")
+@app.websocket("/ws/")
+async def websocket_endpoint(websocket: WebSocket):
+    await _handle_websocket_connection(websocket)
+
+
+@app.websocket("/")
+async def websocket_root_compat_endpoint(websocket: WebSocket):
+    logger.warning(
+        "WebSocket client connected to root path; accepting for compatibility. "
+        "Update clients to use /ws."
+    )
+    await _handle_websocket_connection(websocket)
 
 # ============ STARTUP ============
 

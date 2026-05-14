@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, date
 from PyQt6.QtCore import QSettings, Qt
+from .websocket_url import normalize_websocket_url
 
 
 class SettingsManager:
@@ -19,15 +20,10 @@ class SettingsManager:
 
     def get_ws_url(self) -> str:
         """Return stored websocket URL or default."""
-        value = self._settings.value("ws_url", "ws://localhost:8000/ws")
-        cleaned = (value or "ws://localhost:8000/ws").strip().rstrip("/")
-        return cleaned or "ws://localhost:8000/ws"
+        return normalize_websocket_url(self._settings.value("ws_url", "ws://localhost:8000/ws"))
 
     def set_ws_url(self, url: str):
-        cleaned = (url or "").strip()
-        if cleaned.endswith("/"):
-            cleaned = cleaned.rstrip("/")
-        self._settings.setValue("ws_url", cleaned)
+        self._settings.setValue("ws_url", normalize_websocket_url(url))
 
     def get_mie_trak_server(self) -> str:
         """Return configured Mie Trak SQL Server name."""
