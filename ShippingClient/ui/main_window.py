@@ -1005,6 +1005,7 @@ class ModernShippingMainWindow(QMainWindow):
         self._session_expired = False
         self._is_loading_shipments = False
         self._pending_shipment_reload = False
+        self._websocket_reload_timer: Optional[QTimer] = None
         self._table_population_timer: Optional[QTimer] = None
         self._table_population_state: Optional[dict[str, Any]] = None
         self._history_tab_entered_at: Optional[float] = None
@@ -4141,9 +4142,13 @@ class ModernShippingMainWindow(QMainWindow):
                 job_number = data["data"].get("job_number", "")
                 is_own_action = self._is_action_from_current_user(action_by)
 
-                # Solo recargar para actualizaciones realizadas por otros usuarios
+                # Solo recargar para actualizaciones realizadas por otros usuarios.
+                # Los eventos de WebSocket pueden llegar en ráfaga mientras ya hay un
+                # GET /shipments activo. No los metemos en la cola normal porque cada
+                # carga pendiente dispara otra carga al terminar y puede convertirse en
+                # un loop de refresh continuo si el servidor sigue enviando eventos.
                 if msg_type != "shipment_updated" or not is_own_action:
-                    self.load_shipments_async()
+                    self._schedule_websocket_shipment_reload()
 
                 # Notificación discreta solo si la acción la realizó otro usuario
                 if not is_own_action:
@@ -4158,8 +4163,24 @@ class ModernShippingMainWindow(QMainWindow):
             pass
         except Exception as e:
             print(f"Error procesando mensaje WebSocket: {e}")
-    
-    
+
+    def _schedule_websocket_shipment_reload(self):
+        """Debounce shipment reloads requested by WebSocket notifications."""
+        if self._session_expired:
+            return
+        if self._is_loading_shipments:
+            # The in-flight request will return a fresh snapshot. Queuing another
+            # WebSocket-triggered request here can create an endless refresh loop
+            # when update notifications arrive during every load.
+            print("Shipment load already in progress; skipping websocket reload.")
+            return
+
+        if self._websocket_reload_timer is None:
+            self._websocket_reload_timer = QTimer(self)
+            self._websocket_reload_timer.setSingleShot(True)
+            self._websocket_reload_timer.timeout.connect(self.load_shipments_async)
+
+        self._websocket_reload_timer.start(750)
 
     def show_toast(self, message, color="#3B82F6"):
         """Mostrar notificación visual flotante"""
