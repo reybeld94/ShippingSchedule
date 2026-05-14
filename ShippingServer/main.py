@@ -700,6 +700,17 @@ def _normalize_fedex_base_url(base_url: str | None) -> str:
     return value.rstrip("/")
 
 
+def _is_masked_fedex_secret(secret_key: str | None) -> bool:
+    return (secret_key or "").strip() == "********"
+
+
+def _has_fedex_secret_for_save(secret_key: str | None, saved_secret_key: str | None) -> bool:
+    incoming_secret = (secret_key or "").strip()
+    if incoming_secret and not _is_masked_fedex_secret(incoming_secret):
+        return True
+    return bool((saved_secret_key or "").strip())
+
+
 @app.get("/settings/connections")
 async def get_connection_settings(
     db: Session = Depends(get_db),
@@ -728,16 +739,17 @@ async def update_fedex_connection_settings(
     base_url = _normalize_fedex_base_url(payload.baseUrl)
     enabled = bool(payload.enabled)
 
-    if enabled and (not api_key or not secret_key):
-        raise HTTPException(status_code=400, detail="FedEx API Key and Secret Key are required when enabled")
     if base_url and not (base_url.startswith("http://") or base_url.startswith("https://")):
         raise HTTPException(status_code=400, detail="FedEx Base URL must start with http:// or https://")
 
     settings = _get_or_create_fedex_settings(db)
+    if enabled and (not api_key or not _has_fedex_secret_for_save(secret_key, settings.secret_key)):
+        raise HTTPException(status_code=400, detail="FedEx API Key and Secret Key are required when enabled")
+
     settings.enabled = enabled
     settings.api_key = api_key
     settings.base_url = base_url
-    if secret_key:
+    if secret_key and not _is_masked_fedex_secret(secret_key):
         settings.secret_key = secret_key
     db.commit()
     db.refresh(settings)

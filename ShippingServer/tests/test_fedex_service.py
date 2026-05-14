@@ -88,3 +88,17 @@ def test_fedex_service_uses_override_base_url():
 
     assert token_url == "https://apis-sandbox.fedex.com/oauth/token"
     assert track_url == "https://apis-sandbox.fedex.com/track/v1/trackingnumbers"
+
+
+def test_existing_fedex_secret_allows_blank_secret_on_save():
+    from main import _has_fedex_secret_for_save
+
+    assert _has_fedex_secret_for_save("", "saved-secret") is True
+
+
+def test_masked_fedex_secret_preserves_existing_secret_only():
+    from main import _has_fedex_secret_for_save, _is_masked_fedex_secret
+
+    assert _is_masked_fedex_secret("********") is True
+    assert _has_fedex_secret_for_save("********", "saved-secret") is True
+    assert _has_fedex_secret_for_save("********", "") is False
