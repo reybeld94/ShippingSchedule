@@ -1186,7 +1186,7 @@ class ModernShippingMainWindow(QMainWindow):
             "modules": {
                 "shipping_schedule": {
                     "can_view": True,
-                    "columns": {key: can_write for key in self.TABLE_COLUMN_KEYS if key != "job_number"},
+                    "columns": {**{key: can_write for key in self.TABLE_COLUMN_KEYS}, "status": can_write},
                 },
                 "sills": {
                     "can_view": True,
@@ -3196,11 +3196,12 @@ class ModernShippingMainWindow(QMainWindow):
                 "can_delete": False,
                 "can_change_status": False,
             }
-        can_write_shipping = self._can_write_all("shipping_schedule", [key for key in self.TABLE_COLUMN_KEYS if key != "job_number"])
+        can_write_shipping = self._can_write_all("shipping_schedule", self.TABLE_COLUMN_KEYS)
+        can_change_status = self._column_can_write("shipping_schedule", "status")
         return {
             "can_edit": can_write_shipping,
             "can_delete": can_write_shipping,
-            "can_change_status": can_write_shipping,
+            "can_change_status": can_change_status,
         }
 
     def _get_module_policy(self, module_id: str) -> dict[str, bool]:
@@ -4055,7 +4056,8 @@ class ModernShippingMainWindow(QMainWindow):
 
     def change_status(self, table, row, new_status):
         """Change shipment status with flexible version control"""
-        if not self._get_role_policy().get("can_change_status", False):
+        if not self._column_can_write("shipping_schedule", "status"):
+            self.show_error("You do not have permission to change the job status.")
             return
 
         job_item = table.item(row, 0)
