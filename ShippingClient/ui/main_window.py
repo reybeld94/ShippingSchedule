@@ -50,6 +50,8 @@ from PyQt6.QtWidgets import (
     QStyleOptionViewItem,
     QStyledItemDelegate,
     QGraphicsBlurEffect,
+    QScrollArea,
+    QCheckBox,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -3195,31 +3197,81 @@ class ModernShippingMainWindow(QMainWindow):
         export_menu.exec(global_pos)
 
     def open_columns_menu(self, module_id: Optional[str] = None):
-        """Mostrar menú para alternar visibilidad de columnas."""
+        """Mostrar un panel amplio para alternar visibilidad de columnas."""
         table = self.get_current_table()
+        if table is None:
+            return
+
         name = self.get_table_key(table)
         controls = self._get_toolbar_controls(module_id)
         columns_btn = controls.get("columns")
-        menu = QMenu(columns_btn if isinstance(columns_btn, QWidget) else self)
         base_labels = self._base_header_labels.get(name, [])
 
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Columns")
+        dialog.setModal(True)
+        dialog.setMinimumWidth(380)
+        dialog.resize(440, 560)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(SPACE_20, SPACE_20, SPACE_20, SPACE_20)
+        layout.setSpacing(SPACE_12)
+
+        title = QLabel("Show or hide columns")
+        apply_scaled_font(title, offset=3, weight=QFont.Weight.Bold)
+        layout.addWidget(title)
+
+        help_label = QLabel("Check the columns you want to keep visible in this table.")
+        help_label.setWordWrap(True)
+        help_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
+        layout.addWidget(help_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setMinimumHeight(300)
+
+        list_container = QWidget()
+        list_layout = QVBoxLayout(list_container)
+        list_layout.setContentsMargins(SPACE_8, SPACE_8, SPACE_8, SPACE_8)
+        list_layout.setSpacing(SPACE_8)
+
+        checkboxes: dict[int, QCheckBox] = {}
         for col in range(table.columnCount()):
             label = base_labels[col] if col < len(base_labels) else f"Column {col + 1}"
-            action = QAction(label, menu)
-            action.setCheckable(True)
-            action.setChecked(not table.isColumnHidden(col))
-            action.toggled.connect(
+            checkbox = QCheckBox(label)
+            checkbox.setChecked(not table.isColumnHidden(col))
+            checkbox.setMinimumHeight(CONTROL_HEIGHT_COMPACT)
+            checkbox.toggled.connect(
                 lambda checked, c=col, tbl=table, nm=name: self.toggle_column_visibility(tbl, nm, c, not checked)
             )
-            menu.addAction(action)
+            checkboxes[col] = checkbox
+            list_layout.addWidget(checkbox)
 
-        menu.addSeparator()
-        reset_action = QAction("Reset Layout", menu)
-        reset_action.triggered.connect(lambda _, nm=name: self.reset_column_layout(nm))
-        menu.addAction(reset_action)
+        list_layout.addStretch()
+        scroll.setWidget(list_container)
+        layout.addWidget(scroll, 1)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        reset_button = button_box.addButton("Reset Layout", QDialogButtonBox.ButtonRole.ResetRole)
+
+        def handle_reset():
+            self.reset_column_layout(name)
+            for checkbox in checkboxes.values():
+                blocker = QSignalBlocker(checkbox)
+                checkbox.setChecked(True)
+                del blocker
+
+        reset_button.clicked.connect(handle_reset)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
 
         if isinstance(columns_btn, QWidget):
-            menu.exec(columns_btn.mapToGlobal(QPoint(0, columns_btn.height())))
+            dialog.adjustSize()
+            pos = columns_btn.mapToGlobal(QPoint(0, columns_btn.height()))
+            dialog.move(pos)
+
+        dialog.exec()
 
     def reset_column_layout(self, name):
         """Restaurar visibilidad y anchos predeterminados de columnas."""
