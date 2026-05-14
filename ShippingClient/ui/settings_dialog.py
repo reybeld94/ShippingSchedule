@@ -317,11 +317,17 @@ class SettingsDialog(QDialog):
         apply_scaled_font(selector_label, offset=1, weight=QFont.Weight.Medium)
         self.permissions_user_combo = ModernComboBox()
         self.permissions_user_combo.currentIndexChanged.connect(self._load_selected_user_permissions)
+        self.apply_permissions_btn = ModernButton("Apply", "primary")
+        self.apply_permissions_btn.setMinimumHeight(CONTROL_HEIGHT)
+        self.apply_permissions_btn.setMinimumWidth(96)
+        self.apply_permissions_btn.setEnabled(self.is_admin)
+        self.apply_permissions_btn.clicked.connect(self.apply_permissions)
         selector_row.addWidget(selector_label)
         selector_row.addWidget(self.permissions_user_combo, 1)
+        selector_row.addWidget(self.apply_permissions_btn)
         layout.addLayout(selector_row)
 
-        self.permissions_notice = QLabel("Admins always have full access. Only admins can save changes in this tab.")
+        self.permissions_notice = QLabel("Admins always have full access. Use Apply to save permission changes without closing Settings.")
         self.permissions_notice.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
         apply_scaled_font(self.permissions_notice, offset=-1)
         layout.addWidget(self.permissions_notice)
@@ -507,7 +513,7 @@ class SettingsDialog(QDialog):
         }
         return {"modules": modules}
 
-    def _save_permissions(self) -> bool:
+    def _save_permissions(self, show_success: bool = False) -> bool:
         if not self.is_admin or not hasattr(self, "permissions_user_combo"):
             return True
         user_id = self.permissions_user_combo.currentData()
@@ -517,7 +523,14 @@ class SettingsDialog(QDialog):
         if not response.is_success():
             QMessageBox.warning(self, "Permissions", response.get_error() or "Failed to save permissions")
             return False
+        self._apply_permissions_payload(response.get_data() or {})
+        if show_success:
+            QMessageBox.information(self, "Permissions", "Permissions applied successfully.")
         return True
+
+    def apply_permissions(self):
+        """Save the selected user's permissions without closing the settings dialog."""
+        self._save_permissions(show_success=True)
 
     def _apply_dialog_style(self):
         self.setStyleSheet(
