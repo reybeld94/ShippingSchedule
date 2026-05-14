@@ -198,6 +198,15 @@ class RobustApiClient:
         """Obtener configuración de conexiones externas."""
         return self.get("/settings/connections")
 
+    def get_my_permissions(self) -> ApiResponse:
+        return self.get("/permissions/me")
+
+    def get_user_permissions(self, user_id: int) -> ApiResponse:
+        return self.get(f"/users/{user_id}/permissions")
+
+    def update_user_permissions(self, user_id: int, permissions_data: Dict) -> ApiResponse:
+        return self.put(f"/users/{user_id}/permissions", data=permissions_data)
+
     def update_fedex_settings(self, enabled: bool, api_key: str, secret_key: str, base_url: str = "") -> ApiResponse:
         """Guardar configuración de FedEx."""
         payload = {

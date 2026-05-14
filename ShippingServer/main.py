@@ -1,4 +1,4 @@
-﻿# main.py - Servidor principal FastAPI
+# main.py - Servidor principal FastAPI
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -13,10 +13,49 @@ from sqlalchemy.orm.exc import StaleDataError
 
 # Imports locales
 from database import get_db, create_tables, create_admin_user
-from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings, Sill, SillLog, SillDieDatabase
+from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings, Sill, SillLog, SillDieDatabase, UserPermission
 from auth import authenticate_user, create_access_token, get_current_user, get_current_admin_user, Token, UserLogin, UserCreate
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fedex_service import FedExService
+
+
+
+SHIPPING_PERMISSION_COLUMNS = [
+    "job_name",
+    "description",
+    "qc_release",
+    "qc_notes",
+    "created",
+    "ship_plan",
+    "shipped",
+    "invoice_number",
+    "tracking_number",
+    "address",
+    "shipping_notes",
+]
+SILLS_PERMISSION_COLUMNS = [
+    "material",
+    "dimension",
+    "location",
+    "die_number",
+    "type",
+    "speed",
+    "width",
+    "sales_order",
+    "work_order",
+    "assembly_number",
+    "description",
+    "qty",
+    "dimension_needed",
+    "notes",
+    "week_to_print",
+]
+SILLS_DIE_PERMISSION_KEY = "sills_database"
+PERMISSION_MODULES = {
+    "shipping_schedule": set(SHIPPING_PERMISSION_COLUMNS),
+    "sills": set(SILLS_PERMISSION_COLUMNS),
+    "sills_database": {SILLS_DIE_PERMISSION_KEY},
+}
 
 # Crear app FastAPI
 app = FastAPI(title="Shipping Schedule API", version="1.0.0")
@@ -131,6 +170,15 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ModulePermissionUpdate(BaseModel):
+    can_view: bool = True
+    columns: dict[str, bool] = Field(default_factory=dict)
+
+
+class UserPermissionsUpdate(BaseModel):
+    modules: dict[str, ModulePermissionUpdate] = Field(default_factory=dict)
 
 
 class FedExConnectionSettingsUpdate(BaseModel):
@@ -337,6 +385,115 @@ def _append_sills_logs(
             )
         )
 
+
+def _admin_permissions_payload() -> dict:
+    return {
+        "modules": {
+            "shipping_schedule": {
+                "can_view": True,
+                "columns": {column: True for column in SHIPPING_PERMISSION_COLUMNS},
+            },
+            "sills": {
+                "can_view": True,
+                "columns": {column: True for column in SILLS_PERMISSION_COLUMNS},
+            },
+            "sills_database": {
+                "can_view": True,
+                "columns": {SILLS_DIE_PERMISSION_KEY: True},
+            },
+        }
+    }
+
+
+def _get_user_permissions_payload(db: Session, user: User) -> dict:
+    if user.role == "admin":
+        return _admin_permissions_payload()
+
+    payload = {
+        "modules": {
+            "shipping_schedule": {
+                "can_view": True,
+                "columns": {column: user.role == "write" for column in SHIPPING_PERMISSION_COLUMNS},
+            },
+            "sills": {
+                "can_view": True,
+                "columns": {column: user.role == "write" for column in SILLS_PERMISSION_COLUMNS},
+            },
+            "sills_database": {
+                "can_view": True,
+                "columns": {SILLS_DIE_PERMISSION_KEY: user.role == "write"},
+            },
+        }
+    }
+    records = db.query(UserPermission).filter(UserPermission.user_id == user.id).all()
+    for record in records:
+        module_payload = payload["modules"].get(record.module)
+        if module_payload is None:
+            continue
+        if not record.column_key:
+            module_payload["can_view"] = bool(record.can_view)
+        elif record.column_key in module_payload["columns"]:
+            module_payload["columns"][record.column_key] = bool(record.can_write)
+    return payload
+
+
+def _upsert_permission(
+    db: Session,
+    *,
+    target_user_id: int,
+    module: str,
+    column_key: str,
+    can_view: bool,
+    can_write: bool,
+    updated_by: int,
+):
+    record = (
+        db.query(UserPermission)
+        .filter(
+            UserPermission.user_id == target_user_id,
+            UserPermission.module == module,
+            UserPermission.column_key == column_key,
+        )
+        .first()
+    )
+    if record is None:
+        record = UserPermission(user_id=target_user_id, module=module, column_key=column_key)
+        db.add(record)
+    record.can_view = can_view
+    record.can_write = can_write
+    record.updated_by = updated_by
+    record.updated_at = datetime.utcnow()
+
+
+def _can_view_module(db: Session, user: User, module: str) -> bool:
+    if user.role == "admin":
+        return True
+    permissions = _get_user_permissions_payload(db, user)
+    return bool(permissions.get("modules", {}).get(module, {}).get("can_view", True))
+
+
+def _can_write_columns(db: Session, user: User, module: str, fields: list[str]) -> bool:
+    if user.role == "admin":
+        return True
+    if user.role not in ["write", "admin"]:
+        return False
+    permissions = _get_user_permissions_payload(db, user)
+    module_payload = permissions.get("modules", {}).get(module, {})
+    if not module_payload.get("can_view", True):
+        return False
+    column_permissions = module_payload.get("columns", {})
+    return all(bool(column_permissions.get(field, False)) for field in fields)
+
+
+def _ensure_module_view(db: Session, user: User, module: str):
+    if not _can_view_module(db, user, module):
+        raise HTTPException(status_code=403, detail="Module access denied")
+
+
+def _ensure_column_write(db: Session, user: User, module: str, fields: list[str]):
+    if not _can_write_columns(db, user, module, fields):
+        raise HTTPException(status_code=403, detail="Insufficient column permissions")
+
 # ============ ENDPOINTS DE AUTENTICACIÓN ============
 
 @app.post("/login", response_model=Token)
@@ -461,6 +618,67 @@ async def delete_user(
     return {"message": "User deleted"}
 
 
+@app.get("/permissions/me")
+async def get_my_permissions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return _get_user_permissions_payload(db, current_user)
+
+
+@app.get("/users/{user_id}/permissions")
+async def get_user_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _get_user_permissions_payload(db, user)
+
+
+@app.put("/users/{user_id}/permissions")
+async def update_user_permissions(
+    user_id: int,
+    permissions_update: UserPermissionsUpdate,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    for module, module_update in permissions_update.modules.items():
+        if module not in PERMISSION_MODULES:
+            raise HTTPException(status_code=400, detail=f"Unknown permission module: {module}")
+        _upsert_permission(
+            db,
+            target_user_id=user_id,
+            module=module,
+            column_key="",
+            can_view=bool(module_update.can_view),
+            can_write=False,
+            updated_by=current_admin.id,
+        )
+        valid_columns = PERMISSION_MODULES[module]
+        for column_key, can_write in module_update.columns.items():
+            if column_key not in valid_columns:
+                raise HTTPException(status_code=400, detail=f"Unknown permission column: {module}.{column_key}")
+            _upsert_permission(
+                db,
+                target_user_id=user_id,
+                module=module,
+                column_key=column_key,
+                can_view=False,
+                can_write=bool(can_write),
+                updated_by=current_admin.id,
+            )
+
+    db.commit()
+    return _get_user_permissions_payload(db, user)
+
+
 def _get_or_create_fedex_settings(db: Session) -> AppConnectionSettings:
     settings = (
         db.query(AppConnectionSettings)
@@ -582,6 +800,7 @@ async def get_fedex_tracking(
 
 @app.get("/shipments", response_model=List[ShipmentResponse])
 async def get_shipments(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _ensure_module_view(db, current_user, "shipping_schedule")
     started_at = time.perf_counter()
     shipments = db.query(Shipment).all()
     elapsed_ms = (time.perf_counter() - started_at) * 1000
@@ -606,6 +825,7 @@ async def get_shipment_by_id(
     current_user: User = Depends(get_current_user)
 ):
     """Obtener un shipment específico por ID"""
+    _ensure_module_view(db, current_user, "shipping_schedule")
     shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
@@ -624,8 +844,7 @@ async def create_shipment(
     current_user: User = Depends(get_current_user)
 ):
     """Crear nuevo shipment con validación robusta y manejo de duplicados"""
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _ensure_column_write(db, current_user, "shipping_schedule", SHIPPING_PERMISSION_COLUMNS)
 
     # Retry para manejar conflictos de concurrencia
     max_retries = 3
@@ -744,9 +963,6 @@ async def update_shipment(
     current_user: User = Depends(get_current_user)
 ):
     """Actualizar shipment con control de concurrencia optimista"""
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
     try:
         logger.info(f"Updating shipment {shipment_id}, version {current_version}")
 
@@ -773,6 +989,7 @@ async def update_shipment(
 
         # Aplicar cambios con validación
         update_data = shipment_update.dict(exclude_unset=True)
+        _ensure_column_write(db, current_user, "shipping_schedule", list(update_data.keys()))
         changes_made = {}
 
         for field, new_value in update_data.items():
@@ -869,8 +1086,7 @@ async def delete_shipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _ensure_column_write(db, current_user, "shipping_schedule", SHIPPING_PERMISSION_COLUMNS)
     shipment = db.query(Shipment).filter(Shipment.id == shipment_id).first()
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
@@ -1026,6 +1242,7 @@ async def get_shipping_logs(
 
 @app.get("/sills", response_model=List[SillResponse])
 async def get_sills(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _ensure_module_view(db, current_user, "sills")
     return db.query(Sill).order_by(Sill.id.desc()).all()
 
 
@@ -1035,8 +1252,7 @@ async def create_sill(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _ensure_column_write(db, current_user, "sills", SILLS_PERMISSION_COLUMNS)
 
     sill_data = {k: _safe_text(v).strip() for k, v in sill.dict().items()}
     new_sill = Sill(
@@ -1072,14 +1288,13 @@ async def update_sill(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    update_data = sill_update.dict(exclude_unset=True)
+    _ensure_column_write(db, current_user, "sills", list(update_data.keys()))
 
     sill = db.query(Sill).filter(Sill.id == sill_id).first()
     if not sill:
         raise HTTPException(status_code=404, detail="Sill not found")
 
-    update_data = sill_update.dict(exclude_unset=True)
     changes_made = {}
     for field, raw_value in update_data.items():
         new_value = _safe_text(raw_value).strip()
@@ -1111,8 +1326,7 @@ async def delete_sill(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _ensure_column_write(db, current_user, "sills", SILLS_PERMISSION_COLUMNS)
 
     sill = db.query(Sill).filter(Sill.id == sill_id).first()
     if not sill:
@@ -1206,6 +1420,7 @@ def _validate_sill_die_payload(payload: dict) -> dict:
 
 @app.get("/sills/dies", response_model=List[SillDieResponse])
 async def get_sill_dies(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _ensure_module_view(db, current_user, "sills_database")
     return db.query(SillDieDatabase).order_by(SillDieDatabase.die_number.asc()).all()
 
 
@@ -1215,8 +1430,7 @@ async def create_sill_die(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _ensure_column_write(db, current_user, "sills_database", [SILLS_DIE_PERMISSION_KEY])
 
     payload = _validate_sill_die_payload(die_data.dict())
     new_die = SillDieDatabase(
@@ -1241,8 +1455,7 @@ async def update_sill_die(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _ensure_column_write(db, current_user, "sills_database", [SILLS_DIE_PERMISSION_KEY])
 
     die = db.query(SillDieDatabase).filter(SillDieDatabase.id == die_id).first()
     if not die:
@@ -1276,8 +1489,7 @@ async def delete_sill_die(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in ["write", "admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    _ensure_column_write(db, current_user, "sills_database", [SILLS_DIE_PERMISSION_KEY])
 
     die = db.query(SillDieDatabase).filter(SillDieDatabase.id == die_id).first()
     if not die:

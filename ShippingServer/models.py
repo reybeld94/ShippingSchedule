@@ -1,4 +1,4 @@
-﻿# models.py - Estructura de la base de datos
+# models.py - Estructura de la base de datos
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Index, Boolean, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, validates
@@ -333,6 +333,27 @@ class SillDieDatabase(Base):
 
     creator = relationship("User", foreign_keys=[created_by])
     last_modifier = relationship("User", foreign_keys=[last_modified_by])
+
+
+class UserPermission(Base):
+    __tablename__ = "user_permissions"
+
+    __table_args__ = (
+        Index("ix_user_permissions_user_module_column", "user_id", "module", "column_key", unique=True),
+        Index("ix_user_permissions_user_module", "user_id", "module"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    module = Column(String(50), nullable=False)
+    column_key = Column(String(100), nullable=False, default="", server_default=text("''"))
+    can_view = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    can_write = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+    updater = relationship("User", foreign_keys=[updated_by])
 
 
 class AppConnectionSettings(Base):
