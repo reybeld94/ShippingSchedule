@@ -1478,6 +1478,12 @@ async def update_sill(
         if old_value != new_value:
             setattr(sill, field, new_value)
             changes_made[field] = {"old": old_value, "new": new_value}
+            if field == "assembly_number":
+                sill.issue_quantity = "0"
+                sill.issue_quantity_required = ""
+                sill.issue_status = ISSUE_PENDING_STATUS
+                sill.issue_checked_at = None
+                sill.issue_completed_at = None
 
     if not changes_made:
         return sill
