@@ -3131,7 +3131,10 @@ class ModernShippingMainWindow(QMainWindow):
         if action_id == "refresh":
             return True
         if action_id in {"update_mark", "clear_mark"}:
-            return has_item and role_policy["can_edit"] and module_policy.get("allow_update_mark", True)
+            # Local cell marks are a per-user visual preference stored in QSettings,
+            # not a shipment edit persisted to the database. Keep them available to
+            # users who can view the table, even when they do not have write access.
+            return has_item and module_policy.get("allow_update_mark", True)
         if action_id == "show_mie_trak_address":
             return has_item and module_policy.get("allow_mie_trak_address", False)
         if action_id == "change_status":
