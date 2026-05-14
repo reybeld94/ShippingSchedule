@@ -12,6 +12,10 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QFrame,
     QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QAbstractItemView,
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
@@ -52,6 +56,10 @@ class SettingsDialog(QDialog):
             base_url=self.settings_mgr.get_server_url(),
             token=self.token,
         )
+        self.permission_users = []
+        self.permission_checkboxes = {}
+        self.permission_module_checkboxes = {}
+
 
         self.setWindowTitle("Settings")
         self.setModal(True)
@@ -92,6 +100,9 @@ class SettingsDialog(QDialog):
             self.users_tab = QWidget()
             self._setup_users_tab()
             self.tabs.addTab(self.users_tab, "Users")
+            self.permissions_tab = QWidget()
+            self._setup_permissions_tab()
+            self.tabs.addTab(self.permissions_tab, "Permissions")
 
         content_wrapper = QFrame()
         content_wrapper.setObjectName("contentWrapper")
@@ -296,6 +307,204 @@ class SettingsDialog(QDialog):
         self.user_management = UserManagementWidget(self.token, parent=self.users_tab)
         layout.addWidget(self.user_management)
 
+    def _setup_permissions_tab(self):
+        layout = QVBoxLayout(self.permissions_tab)
+        layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_12)
+        layout.setSpacing(SPACE_16)
+
+        selector_row = QHBoxLayout()
+        selector_label = QLabel("User")
+        apply_scaled_font(selector_label, offset=1, weight=QFont.Weight.Medium)
+        self.permissions_user_combo = ModernComboBox()
+        self.permissions_user_combo.currentIndexChanged.connect(self._load_selected_user_permissions)
+        selector_row.addWidget(selector_label)
+        selector_row.addWidget(self.permissions_user_combo, 1)
+        layout.addLayout(selector_row)
+
+        self.permissions_notice = QLabel("Admins always have full access. Only admins can save changes in this tab.")
+        self.permissions_notice.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
+        apply_scaled_font(self.permissions_notice, offset=-1)
+        layout.addWidget(self.permissions_notice)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(SPACE_16)
+
+        self._add_permission_section(
+            content_layout,
+            module_key="shipping_schedule",
+            title="Shipping Schedule",
+            rows=[
+                ("job_name", "Job Name"),
+                ("description", "Description"),
+                ("qc_release", "QC Rel."),
+                ("qc_notes", "QC Notes"),
+                ("created", "Crated"),
+                ("ship_plan", "Ship Plan"),
+                ("shipped", "Shipped"),
+                ("invoice_number", "Invoice"),
+                ("tracking_number", "Tracking #"),
+                ("address", "Address"),
+                ("shipping_notes", "Shipping Notes"),
+            ],
+        )
+        self._add_permission_section(
+            content_layout,
+            module_key="sills",
+            title="Sills",
+            rows=[
+                ("material", "Material"),
+                ("dimension", "Dimension"),
+                ("location", "Location"),
+                ("die_number", "Die #"),
+                ("type", "Type"),
+                ("speed", "Speed"),
+                ("width", "Width"),
+                ("sales_order", "Sales Order"),
+                ("work_order", "Work Order"),
+                ("assembly_number", "Assembly Number"),
+                ("description", "Description"),
+                ("qty", "Qty"),
+                ("dimension_needed", "Dimension Needed"),
+                ("notes", "Notes"),
+                ("week_to_print", "Week to Print"),
+            ],
+            extra_rows=[("sills_database", "Sills DB (all fields)")],
+        )
+        content_layout.addStretch()
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
+    def _add_permission_section(self, parent_layout, module_key: str, title: str, rows, extra_rows=None):
+        section, content_layout = self._create_connection_section(title)
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        module_checkbox = QCheckBox("Visible")
+        module_checkbox.setEnabled(self.is_admin)
+        self.permission_module_checkboxes[module_key] = module_checkbox
+        header.addWidget(QLabel("Module access"))
+        header.addStretch()
+        header.addWidget(module_checkbox)
+        content_layout.addLayout(header)
+
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(["Column", "Write"])
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        table.setAlternatingRowColors(True)
+        self.permission_checkboxes[module_key] = {}
+        for key, label in rows:
+            self._add_permission_row(table, module_key, key, label)
+        table.resizeRowsToContents()
+        content_layout.addWidget(table)
+
+        if extra_rows:
+            extra_label = QLabel("Sub tabs")
+            apply_scaled_font(extra_label, offset=1, weight=QFont.Weight.Medium)
+            content_layout.addWidget(extra_label)
+            for key, label in extra_rows:
+                row = QHBoxLayout()
+                row.setContentsMargins(0, 0, 0, 0)
+                checkbox = QCheckBox("Write")
+                checkbox.setEnabled(self.is_admin)
+                self.permission_checkboxes[key] = {key: checkbox}
+                row.addWidget(QLabel(label))
+                row.addStretch()
+                row.addWidget(checkbox)
+                content_layout.addLayout(row)
+
+        parent_layout.addWidget(section)
+
+    def _add_permission_row(self, table, module_key: str, column_key: str, label: str):
+        row = table.rowCount()
+        table.insertRow(row)
+        label_item = QTableWidgetItem(label)
+        label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        table.setItem(row, 0, label_item)
+        checkbox = QCheckBox()
+        checkbox.setEnabled(self.is_admin)
+        cell = QWidget()
+        cell_layout = QHBoxLayout(cell)
+        cell_layout.setContentsMargins(0, 0, 0, 0)
+        cell_layout.addStretch()
+        cell_layout.addWidget(checkbox)
+        cell_layout.addStretch()
+        table.setCellWidget(row, 1, cell)
+        self.permission_checkboxes[module_key][column_key] = checkbox
+
+    def _load_permission_users(self):
+        if not self.is_admin or not hasattr(self, "permissions_user_combo"):
+            return
+        response = self.api_client.get("/users")
+        if not response.is_success():
+            QMessageBox.warning(self, "Permissions", response.get_error() or "Failed to load users")
+            return
+        self.permission_users = response.get_data() or []
+        self.permissions_user_combo.blockSignals(True)
+        self.permissions_user_combo.clear()
+        for user in self.permission_users:
+            self.permissions_user_combo.addItem(f"{user.get('username')} ({user.get('role')})", user.get("id"))
+        self.permissions_user_combo.blockSignals(False)
+        self._load_selected_user_permissions()
+
+    def _load_selected_user_permissions(self):
+        if not hasattr(self, "permissions_user_combo"):
+            return
+        user_id = self.permissions_user_combo.currentData()
+        if not user_id:
+            return
+        response = self.api_client.get_user_permissions(int(user_id))
+        if not response.is_success():
+            QMessageBox.warning(self, "Permissions", response.get_error() or "Failed to load permissions")
+            return
+        self._apply_permissions_payload(response.get_data() or {})
+
+    def _apply_permissions_payload(self, payload):
+        modules = (payload or {}).get("modules", {})
+        for module_key, checkbox in self.permission_module_checkboxes.items():
+            checkbox.setChecked(bool(modules.get(module_key, {}).get("can_view", True)))
+        for module_key, checkboxes in self.permission_checkboxes.items():
+            if module_key == "sills_database":
+                columns = modules.get("sills_database", {}).get("columns", {})
+            else:
+                columns = modules.get(module_key, {}).get("columns", {})
+            for column_key, checkbox in checkboxes.items():
+                checkbox.setChecked(bool(columns.get(column_key, False)))
+
+    def _collect_permissions_payload(self):
+        modules = {}
+        for module_key, checkbox in self.permission_module_checkboxes.items():
+            columns = {
+                column_key: column_checkbox.isChecked()
+                for column_key, column_checkbox in self.permission_checkboxes.get(module_key, {}).items()
+            }
+            modules[module_key] = {"can_view": checkbox.isChecked(), "columns": columns}
+        sills_db_checkbox = self.permission_checkboxes.get("sills_database", {}).get("sills_database")
+        modules["sills_database"] = {
+            "can_view": self.permission_module_checkboxes.get("sills", QCheckBox()).isChecked(),
+            "columns": {"sills_database": bool(sills_db_checkbox and sills_db_checkbox.isChecked())},
+        }
+        return {"modules": modules}
+
+    def _save_permissions(self) -> bool:
+        if not self.is_admin or not hasattr(self, "permissions_user_combo"):
+            return True
+        user_id = self.permissions_user_combo.currentData()
+        if not user_id:
+            return True
+        response = self.api_client.update_user_permissions(int(user_id), self._collect_permissions_payload())
+        if not response.is_success():
+            QMessageBox.warning(self, "Permissions", response.get_error() or "Failed to save permissions")
+            return False
+        return True
+
     def _apply_dialog_style(self):
         self.setStyleSheet(
             f"""
@@ -426,6 +635,7 @@ class SettingsDialog(QDialog):
                 self.fedex_secret_key_edit.setPlaceholderText("********")
         else:
             self.fedex_enabled.setChecked(False)
+        self._load_permission_users()
 
     def load_mie_trak_databases(self):
         server = self.mie_trak_server_edit.text().strip() or "GUNDMAIN"
@@ -502,6 +712,9 @@ class SettingsDialog(QDialog):
             response = self.api_client.update_fedex_settings(enabled, fedex_api_key, fedex_secret_key, fedex_base_url)
             if not response.is_success():
                 QMessageBox.warning(self, "Error", response.get_error() or "Failed to save FedEx settings")
+                return
+
+            if not self._save_permissions():
                 return
 
         app = QApplication.instance()

@@ -49,6 +49,7 @@ from PyQt6.QtWidgets import (
     QDateEdit,
     QStyleOptionViewItem,
     QStyledItemDelegate,
+    QGraphicsBlurEffect,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -177,12 +178,14 @@ class SillDialog(QDialog):
         parent: Optional[QWidget] = None,
         sill_data: Optional[dict] = None,
         die_database: Optional[list[dict]] = None,
+        editable_fields: Optional[set[str]] = None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Sill")
         self.setMinimumWidth(520)
         self._edit_data = sill_data or {}
         self._die_database = die_database or []
+        self._editable_fields = editable_fields
         self._die_lookup = {
             str(item.get("die_number", "")).strip().lower(): item
             for item in self._die_database
@@ -227,6 +230,8 @@ class SillDialog(QDialog):
                 input_widget.setDate(parsed_date if parsed_date.isValid() else QDate.currentDate())
             else:
                 input_widget.setText(value)
+            if self._editable_fields is not None and key not in self._editable_fields:
+                input_widget.setEnabled(False)
             form.addRow(QLabel(label), input_widget)
             self.inputs[key] = input_widget
             if key in first_section_fields and index + 1 < len(self.FIELDS):
@@ -949,6 +954,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.is_admin = self.user_info.get("role") == "admin"
         self.read_only = self.user_info.get("role") == "read"
+        self.user_permissions = self._load_current_user_permissions()
 
         parsed_server = urlparse(get_server_url())
         self.server_host = parsed_server.hostname or parsed_server.netloc or get_server_url()
@@ -1070,7 +1076,8 @@ class ModernShippingMainWindow(QMainWindow):
             self.setup_websocket()
 
             # Cargar datos en background
-            self.load_shipments_async()
+            if self._module_can_view("shipping_schedule"):
+                self.load_shipments_async()
             
             # Timer para actualizar status
             self.status_timer = QTimer()
@@ -1083,6 +1090,50 @@ class ModernShippingMainWindow(QMainWindow):
             import traceback
             traceback.print_exc()
     
+    def _default_permissions_payload(self) -> dict:
+        can_write = self.user_info.get("role") in {"write", "admin"}
+        return {
+            "modules": {
+                "shipping_schedule": {
+                    "can_view": True,
+                    "columns": {key: can_write for key in self.TABLE_COLUMN_KEYS if key != "job_number"},
+                },
+                "sills": {
+                    "can_view": True,
+                    "columns": {key: can_write for key in [field[0] for field in SillDialog.FIELDS]},
+                },
+                "sills_database": {
+                    "can_view": True,
+                    "columns": {"sills_database": can_write},
+                },
+            }
+        }
+
+    def _load_current_user_permissions(self) -> dict:
+        if self.user_info.get("role") == "admin":
+            return self._default_permissions_payload()
+        response = self.api_client.get_my_permissions()
+        if response.is_success():
+            return response.get_data() or self._default_permissions_payload()
+        print(f"Unable to load permissions: {response.get_error()}")
+        return self._default_permissions_payload()
+
+    def _module_can_view(self, module_key: str) -> bool:
+        if self.is_admin:
+            return True
+        return bool(self.user_permissions.get("modules", {}).get(module_key, {}).get("can_view", True))
+
+    def _column_can_write(self, module_key: str, column_key: str) -> bool:
+        if self.is_admin:
+            return True
+        if self.user_info.get("role") not in {"write", "admin"}:
+            return False
+        module = self.user_permissions.get("modules", {}).get(module_key, {})
+        return bool(module.get("can_view", True) and module.get("columns", {}).get(column_key, False))
+
+    def _can_write_all(self, module_key: str, column_keys: list[str]) -> bool:
+        return all(self._column_can_write(module_key, key) for key in column_keys)
+
     def setup_ui(self):
         """Configurar interfaz de usuario profesional"""
         try:
@@ -1830,10 +1881,33 @@ class ModernShippingMainWindow(QMainWindow):
         self.main_tab_widget.addTab(shipping_page, "Shipping")
         self.sills_page = self.create_sills_module_page()
         self.main_tab_widget.addTab(self.sills_page, "Sills")
+        self._apply_module_access_state()
         self.main_tab_widget.currentChanged.connect(self.on_main_tab_changed)
 
         tabs_layout.addWidget(self.main_tab_widget)
         layout.addWidget(tabs_container)
+
+    def _apply_module_access_state(self):
+        access_map = {0: ("shipping_schedule", "Shipping"), 1: ("sills", "Sills")}
+        for index, (module_key, label) in access_map.items():
+            if index >= self.main_tab_widget.count():
+                continue
+            page = self.main_tab_widget.widget(index)
+            has_access = self._module_can_view(module_key)
+            self.main_tab_widget.setTabEnabled(index, has_access)
+            self.main_tab_widget.setTabToolTip(
+                index,
+                "" if has_access else f"{label} is visible but blocked by permissions.",
+            )
+            if page is not None:
+                if has_access:
+                    page.setGraphicsEffect(None)
+                    page.setEnabled(True)
+                else:
+                    blur = QGraphicsBlurEffect(page)
+                    blur.setBlurRadius(8)
+                    page.setGraphicsEffect(blur)
+                    page.setEnabled(False)
 
     def create_shipping_logs_page(self):
         logs_page = QWidget()
@@ -2222,13 +2296,29 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_die_refresh_btn.clicked.connect(self.load_sill_dies)
         self.sills_die_table.itemDoubleClicked.connect(lambda _: self.open_edit_sill_die_dialog())
         tabs.currentChanged.connect(self._on_sills_tab_changed)
+        self._apply_sills_permission_state()
 
         self.load_sills()
         self.load_sill_dies()
         self.refresh_sills_dashboard()
         return page
 
+    def _apply_sills_permission_state(self):
+        can_edit_sills = self._can_write_all("sills", [field[0] for field in SillDialog.FIELDS])
+        for widget_name in ("sills_add_btn", "sills_edit_btn", "sills_delete_btn"):
+            widget = getattr(self, widget_name, None)
+            if widget is not None:
+                widget.setEnabled(can_edit_sills)
+        can_edit_dies = self._column_can_write("sills_database", "sills_database")
+        for widget_name in ("sills_die_add_btn", "sills_die_edit_btn", "sills_die_delete_btn"):
+            widget = getattr(self, widget_name, None)
+            if widget is not None:
+                widget.setEnabled(can_edit_dies)
+
     def load_sills(self):
+        if not self._module_can_view("sills"):
+            self.sills = []
+            return
         response = self.api_client.get_sills()
         if not response.is_success():
             self.show_error(response.get_error() or "Failed to load sills.")
@@ -2303,6 +2393,9 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_dashboard_cards["dies_total"].setText(str(len(self.sill_dies or [])))
 
     def load_sill_dies(self):
+        if not self._module_can_view("sills_database"):
+            self.sill_dies = []
+            return
         response = self.api_client.get_sill_dies()
         if not response.is_success():
             self.show_error(response.get_error() or "Failed to load die database.")
@@ -2339,8 +2432,8 @@ class ModernShippingMainWindow(QMainWindow):
         return self.sill_dies[row]
 
     def open_add_sill_dialog(self):
-        if self.read_only:
-            self.show_error("You only have read permissions.")
+        if not self._can_write_all("sills", [field[0] for field in SillDialog.FIELDS]):
+            self.show_error("You do not have permission to create sills.")
             return
         dialog = SillDialog(self, die_database=self.sill_dies)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -2352,16 +2445,28 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error(response.get_error() or "Failed to create sill.")
 
     def open_edit_sill_dialog(self):
-        if self.read_only:
-            self.show_error("You only have read permissions.")
+        editable_fields = {
+            field_key
+            for field_key, _label in SillDialog.FIELDS
+            if self._column_can_write("sills", field_key)
+        }
+        if not editable_fields:
+            self.show_error("You do not have permission to edit sill fields.")
             return
         sill = self._selected_sill()
         if not sill:
             self.show_error("Select a sill first.")
             return
-        dialog = SillDialog(self, sill_data=sill, die_database=self.sill_dies)
+        dialog = SillDialog(self, sill_data=sill, die_database=self.sill_dies, editable_fields=editable_fields)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            response = self.api_client.update_sill(int(sill["id"]), dialog.get_payload())
+            payload = {
+                key: value
+                for key, value in dialog.get_payload().items()
+                if key in editable_fields and str(value) != str(sill.get(key, ""))
+            }
+            if not payload:
+                return
+            response = self.api_client.update_sill(int(sill["id"]), payload)
             if response.is_success():
                 self.load_sills()
                 self.load_sills_logs()
@@ -2369,8 +2474,8 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error(response.get_error() or "Failed to update sill.")
 
     def delete_sill(self):
-        if self.read_only:
-            self.show_error("You only have read permissions.")
+        if not self._can_write_all("sills", [field[0] for field in SillDialog.FIELDS]):
+            self.show_error("You do not have permission to delete sills.")
             return
         sill = self._selected_sill()
         if not sill:
@@ -2387,8 +2492,8 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_error(response.get_error() or "Failed to delete sill.")
 
     def open_add_sill_die_dialog(self):
-        if self.read_only:
-            self.show_error("You only have read permissions.")
+        if not self._column_can_write("sills_database", "sills_database"):
+            self.show_error("You do not have permission to edit the Sills DB.")
             return
         dialog = SillDieDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -2399,8 +2504,8 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error(response.get_error() or "Failed to create die.")
 
     def open_edit_sill_die_dialog(self):
-        if self.read_only:
-            self.show_error("You only have read permissions.")
+        if not self._column_can_write("sills_database", "sills_database"):
+            self.show_error("You do not have permission to edit the Sills DB.")
             return
         die_data = self._selected_sill_die()
         if not die_data:
@@ -2415,8 +2520,8 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error(response.get_error() or "Failed to update die.")
 
     def delete_sill_die(self):
-        if self.read_only:
-            self.show_error("You only have read permissions.")
+        if not self._column_can_write("sills_database", "sills_database"):
+            self.show_error("You do not have permission to edit the Sills DB.")
             return
         die_data = self._selected_sill_die()
         if not die_data:
@@ -2999,10 +3104,11 @@ class ModernShippingMainWindow(QMainWindow):
                 "can_delete": False,
                 "can_change_status": False,
             }
+        can_write_shipping = self._can_write_all("shipping_schedule", [key for key in self.TABLE_COLUMN_KEYS if key != "job_number"])
         return {
-            "can_edit": True,
-            "can_delete": True,
-            "can_change_status": True,
+            "can_edit": can_write_shipping,
+            "can_delete": can_write_shipping,
+            "can_change_status": can_write_shipping,
         }
 
     def _get_module_policy(self, module_id: str) -> dict[str, bool]:
@@ -4699,7 +4805,10 @@ class ModernShippingMainWindow(QMainWindow):
                     shipment['version'] = 1
                 # job number no editable
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            elif col in self.CENTER_ALIGN_COLUMNS:
+            elif not self._column_can_write("shipping_schedule", key):
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+            if col in self.CENTER_ALIGN_COLUMNS:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignCenter)
             elif col in self.RIGHT_ALIGN_COLUMNS:
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
@@ -5017,6 +5126,9 @@ class ModernShippingMainWindow(QMainWindow):
         field = self.column_field_map.get(col)
 
         if field is None:
+            return
+        if not self._column_can_write("shipping_schedule", field):
+            self.show_error("You do not have write permission for this column.")
             return
 
         job_item = table.item(row, 0)
