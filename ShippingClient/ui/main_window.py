@@ -93,6 +93,73 @@ LOCAL_UPDATE_MARK_ROLE = Qt.ItemDataRole.UserRole + 20
 LOCAL_UPDATE_MARK_COLOR = "#1E90FF"
 
 
+CODE39_PATTERNS = {
+    "0": "nnnwwnwnn",
+    "1": "wnnwnnnnw",
+    "2": "nnwwnnnnw",
+    "3": "wnwwnnnnn",
+    "4": "nnnwwnnnw",
+    "5": "wnnwwnnnn",
+    "6": "nnwwwnnnn",
+    "7": "nnnwnnwnw",
+    "8": "wnnwnnwnn",
+    "9": "nnwwnnwnn",
+    "A": "wnnnnwnnw",
+    "B": "nnwnnwnnw",
+    "C": "wnwnnwnnn",
+    "D": "nnnnwwnnw",
+    "E": "wnnnwwnnn",
+    "F": "nnwnwwnnn",
+    "G": "nnnnnwwnw",
+    "H": "wnnnnwwnn",
+    "I": "nnwnnwwnn",
+    "J": "nnnnwwwnn",
+    "K": "wnnnnnnww",
+    "L": "nnwnnnnww",
+    "M": "wnwnnnnwn",
+    "N": "nnnnwnnww",
+    "O": "wnnnwnnwn",
+    "P": "nnwnwnnwn",
+    "Q": "nnnnnnwww",
+    "R": "wnnnnnwwn",
+    "S": "nnwnnnwwn",
+    "T": "nnnnwnwwn",
+    "U": "wwnnnnnnw",
+    "V": "nwwnnnnnw",
+    "W": "wwwnnnnnn",
+    "X": "nwnnwnnnw",
+    "Y": "wwnnwnnnn",
+    "Z": "nwwnwnnnn",
+    "-": "nwnnnnwnw",
+    ".": "wwnnnnwnn",
+    " ": "nwwnnnwnn",
+    "$": "nwnwnwnnn",
+    "/": "nwnwnnnwn",
+    "+": "nwnnnwnwn",
+    "%": "nnnwnwnwn",
+    "*": "nwnnwnwnn",
+}
+
+
+def to_code39_value(value: str) -> str:
+    allowed = set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%")
+    normalized = (value or "").upper().strip()
+    filtered = "".join(ch for ch in normalized if ch in allowed)
+    return filtered or "BLANK"
+
+
+def code39_pattern_units(value: str) -> list[bool]:
+    encoded_value = f"*{to_code39_value(value)}*"
+    units: list[bool] = []
+    for char_index, char in enumerate(encoded_value):
+        pattern = CODE39_PATTERNS.get(char, CODE39_PATTERNS[" "])
+        for element_index, element_width in enumerate(pattern):
+            units.extend([element_index % 2 == 0] * (3 if element_width == "w" else 1))
+        if char_index < len(encoded_value) - 1:
+            units.append(False)
+    return units
+
+
 def get_local_update_mark_color(index) -> Optional[QColor]:
     """Return the local update mark color stored on an item index, if any."""
     color = index.data(LOCAL_UPDATE_MARK_ROLE)
@@ -776,6 +843,81 @@ class StatusChipDelegate(QStyledItemDelegate):
         return QSize(hint.width(), max(hint.height(), 40))
 
 
+class Code39BarcodeDelegate(QStyledItemDelegate):
+    """Render the assembly number as a Code39 barcode in read-only table cells."""
+
+    _PADDING_H = 8
+    _PADDING_V = 5
+    _TEXT_GAP = 3
+    _MIN_HEIGHT = 46
+    _MIN_BAR_HEIGHT = 18
+    _BAR_COLOR = QColor("#0F172A")
+    _SELECTED_TEXT_COLOR = QColor("#0F2A57")
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        assembly_number = opt.text
+        opt.text = ""
+
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+
+        mark_color = get_local_update_mark_color(index)
+        if mark_color is not None:
+            draw_local_update_mark_background(painter, opt.rect, mark_color)
+
+        if not assembly_number:
+            return
+
+        barcode_value = to_code39_value(assembly_number)
+        barcode_units = code39_pattern_units(barcode_value)
+        if not barcode_units:
+            return
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        content_rect = opt.rect.adjusted(self._PADDING_H, self._PADDING_V, -self._PADDING_H, -self._PADDING_V)
+        metrics = QFontMetrics(opt.font)
+        text_height = metrics.height()
+        bar_rect_height = max(self._MIN_BAR_HEIGHT, content_rect.height() - text_height - self._TEXT_GAP)
+
+        quiet_units = 10
+        total_units = len(barcode_units) + (quiet_units * 2)
+        unit_width = max(1, int(content_rect.width() / max(1, total_units)))
+        barcode_width = unit_width * len(barcode_units)
+        x = content_rect.left() + max(0, int((content_rect.width() - barcode_width) / 2))
+        y = content_rect.top()
+        bar_height = min(bar_rect_height, content_rect.height())
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self._BAR_COLOR)
+        for is_bar in barcode_units:
+            if is_bar:
+                painter.fillRect(QRect(int(x), int(y), int(unit_width), int(bar_height)), self._BAR_COLOR)
+            x += unit_width
+
+        text_color = (
+            self._SELECTED_TEXT_COLOR
+            if opt.state & QStyle.StateFlag.State_Selected
+            else opt.palette.text().color()
+        )
+        painter.setPen(text_color)
+        text_rect = QRect(
+            content_rect.left(),
+            int(y + bar_height + self._TEXT_GAP),
+            content_rect.width(),
+            max(0, content_rect.height() - bar_height - self._TEXT_GAP),
+        )
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, barcode_value)
+        painter.restore()
+
+    def sizeHint(self, option, index):  # type: ignore[override]
+        hint = super().sizeHint(option, index)
+        return QSize(max(hint.width(), 160), max(hint.height(), self._MIN_HEIGHT))
+
+
 class LocalUpdateMarkDelegate(QStyledItemDelegate):
     """Default table delegate that keeps local blue marks visible while selected."""
 
@@ -1081,6 +1223,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.status_chip_delegate = StatusChipDelegate(self)
         self.local_update_mark_delegate = LocalUpdateMarkDelegate(self)
         self.wrap_anywhere_delegate = WrapAnywhereDelegate(self)
+        self.code39_barcode_delegate = Code39BarcodeDelegate(self)
         self._refresh_animation: Optional[QVariantAnimation] = None
         self._refresh_icon_base: Optional[QPixmap] = None
         self._refresh_animating = False
@@ -2239,6 +2382,7 @@ class ModernShippingMainWindow(QMainWindow):
         sills_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         sills_header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.sills_table.setWordWrap(True)
+        self.sills_table.setItemDelegateForColumn(9, self.code39_barcode_delegate)  # Assembly Number barcode
         self.sills_table.setItemDelegateForColumn(10, self.wrap_anywhere_delegate)  # Description
         self.sills_table.setItemDelegateForColumn(13, self.wrap_anywhere_delegate)  # Notes
         self._apply_table_style(self.sills_table)
@@ -5856,12 +6000,6 @@ class ModernShippingMainWindow(QMainWindow):
 
                 wrapped_cols = set(range(len(headers))) if wrap_columns is None else set(wrap_columns)
                 barcode_cols = set(barcode_columns or [])
-
-                def to_code39_value(value: str) -> str:
-                    allowed = set("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%")
-                    normalized = (value or "").upper().strip()
-                    filtered = "".join(ch for ch in normalized if ch in allowed)
-                    return filtered or "BLANK"
 
                 def clamp_cell_text(cell_text, col_width):
                     """Limitar altura de celdas para evitar filas imposibles de dividir entre páginas."""
