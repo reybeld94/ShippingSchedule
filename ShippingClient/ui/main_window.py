@@ -2572,7 +2572,7 @@ class ModernShippingMainWindow(QMainWindow):
         for row_index, sill in enumerate(rows):
             issue_quantity = str(sill.get("issue_quantity") or "0").strip() or "0"
             issue_required = str(sill.get("issue_quantity_required") or "").strip()
-            issue_progress = f"Issue {issue_quantity}/{issue_required}" if issue_required else f"Issue {issue_quantity}"
+            issue_progress = f"{issue_quantity}/{issue_required}" if issue_required else issue_quantity
             row_values = {**sill, "issue_progress": issue_progress}
             issue_status = str(sill.get("issue_status") or "pending").strip().lower()
             if issue_status == "complete":

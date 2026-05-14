@@ -281,7 +281,6 @@ class SillResponse(BaseModel):
     issue_quantity_required: str = ""
     issue_status: str = "pending"
     issue_checked_at: datetime | None = None
-    issue_completed_at: datetime | None = None
     description: str
     qty: str
     dimension_needed: str
@@ -1303,72 +1302,10 @@ def _format_issue_quantity(value: Decimal) -> str:
     return format(normalized, "f")
 
 
-def _parse_assembly_pk(assembly_number: str) -> int | None:
-    cleaned = str(assembly_number or "").strip()
-    if not cleaned:
-        return None
-    try:
-        decimal_value = Decimal(cleaned)
-    except (InvalidOperation, ValueError):
-        return None
-    if decimal_value != decimal_value.to_integral_value():
-        return None
-    return int(decimal_value)
-
-
-def _fetch_mie_trak_bom_statuses(cursor) -> dict[int, dict[str, str]]:
-    """Load BOM statuses so FK values are verified against Mie Trak metadata."""
-    cursor.execute(
-        """
-        SELECT
-            WorkOrderAssemblyBOMStatusPK,
-            Code,
-            Description
-        FROM dbo.WorkOrderAssemblyBOMStatus
-        ORDER BY WorkOrderAssemblyBOMStatusPK
-        """
-    )
-    rows = cursor.fetchall() or []
-    statuses: dict[int, dict[str, str]] = {}
-    for row in rows:
-        try:
-            status_pk = int(row.get("WorkOrderAssemblyBOMStatusPK"))
-        except (TypeError, ValueError):
-            continue
-        statuses[status_pk] = {
-            "code": str(row.get("Code") or "").strip(),
-            "description": str(row.get("Description") or "").strip(),
-        }
-    return statuses
-
-
-def _issued_bom_status_pks(statuses: dict[int, dict[str, str]]) -> set[int]:
-    issued_pks: set[int] = set()
-    for status_pk, status_row in statuses.items():
-        code = status_row.get("code", "").strip().lower()
-        description = status_row.get("description", "").strip().lower()
-        if "issued" in code or "issued" in description:
-            issued_pks.add(status_pk)
-    if 5 not in issued_pks:
-        status_5 = statuses.get(5, {})
-        status_5_text = f"{status_5.get('code', '')} {status_5.get('description', '')}".lower()
-        if "issued" in status_5_text:
-            issued_pks.add(5)
-    return issued_pks
-
-
-def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str | bool]:
-    """Return issue quantities for one Mie Trak WorkOrderAssemblyPK."""
-    assembly_pk = _parse_assembly_pk(assembly_number)
-    if assembly_pk is None:
-        return {
-            "issue_quantity": "0",
-            "issue_quantity_required": "",
-            "issue_status": ISSUE_PENDING_STATUS,
-            "issued_bom_status": False,
-        }
-
+def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
+    """Return issue quantities for one Mie Trak WorkOrderAssemblyNumber."""
     pymssql = importlib.import_module("pymssql")
+    cleaned_assembly = str(assembly_number or "").strip()
     conn = None
     try:
         conn = pymssql.connect(
@@ -1378,25 +1315,16 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str | bool
             database=MIE_TRAK_DATABASE,
         )
         cursor = conn.cursor(as_dict=True)
-        bom_statuses = _fetch_mie_trak_bom_statuses(cursor)
-        issued_status_pks = _issued_bom_status_pks(bom_statuses)
-        if 5 not in issued_status_pks:
-            logger.warning(
-                "Mie Trak BOM status 5 was not verified as Issued; verified issued status PKs: %s",
-                sorted(issued_status_pks),
-            )
-
         cursor.execute(
             """
-            SELECT
-                woa.WorkOrderAssemblyPK AS assemblyNumber,
-                woa.WorkOrderAssemblyBOMStatusFK AS bomStatusFk,
-                woa.QuantityRequired AS quantityRequired,
-                COALESCE(woa.QuantityIssued, 0) AS issuedQuantity
-            FROM dbo.WorkOrderAssembly woa
-            WHERE woa.WorkOrderAssemblyPK = %s
+            SELECT TOP 1
+                WorkOrderAssemblyNumber,
+                WorkOrderAssemblyBOMStatusFK,
+                QuantityRequired
+            FROM WorkOrderAssembly
+            WHERE WorkOrderAssemblyNumber = %s
             """,
-            (assembly_pk,),
+            (cleaned_assembly,),
         )
         assembly_row = cursor.fetchone()
         if not assembly_row:
@@ -1404,16 +1332,22 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str | bool
                 "issue_quantity": "0",
                 "issue_quantity_required": "",
                 "issue_status": ISSUE_PENDING_STATUS,
-                "issued_bom_status": False,
             }
 
-        required = _decimal_from_value(assembly_row.get("quantityRequired"))
-        issued = _decimal_from_value(assembly_row.get("issuedQuantity"))
-        try:
-            bom_status_fk = int(assembly_row.get("bomStatusFk"))
-        except (TypeError, ValueError):
-            bom_status_fk = None
-        issued_bom_status = bom_status_fk in issued_status_pks
+        required = _decimal_from_value(assembly_row.get("QuantityRequired"))
+        bom_status = str(assembly_row.get("WorkOrderAssemblyBOMStatusFK") or "").strip()
+        issued = Decimal("0")
+        if bom_status == "5":
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(Quantity), 0) AS QuantityIssued
+                FROM WorkOrderCollection
+                WHERE WorkOrderAssemblyNumber = %s
+                """,
+                (cleaned_assembly,),
+            )
+            collection_row = cursor.fetchone() or {}
+            issued = _decimal_from_value(collection_row.get("QuantityIssued"))
 
         if required > 0 and issued >= required:
             status = ISSUE_COMPLETE_STATUS
@@ -1426,7 +1360,6 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str | bool
             "issue_quantity": _format_issue_quantity(issued),
             "issue_quantity_required": _format_issue_quantity(required) if required else "",
             "issue_status": status,
-            "issued_bom_status": issued_bom_status,
         }
     finally:
         if conn:
@@ -1444,27 +1377,16 @@ def _refresh_pending_sills_issue_status(db: Session) -> int:
         .filter(Sill.issue_status != ISSUE_COMPLETE_STATUS)
         .all()
     )
-    snapshots_by_assembly: dict[str, dict[str, str | bool]] = {}
     updated_count = 0
-    now = datetime.utcnow()
     for sill in pending_sills:
-        assembly_key = str(sill.assembly_number or "").strip()
-        if assembly_key not in snapshots_by_assembly:
-            snapshots_by_assembly[assembly_key] = _fetch_mie_trak_issue_snapshot(assembly_key)
-        snapshot = snapshots_by_assembly[assembly_key]
+        snapshot = _fetch_mie_trak_issue_snapshot(sill.assembly_number)
+        now = datetime.utcnow()
         changed = False
         for field_name in ("issue_quantity", "issue_quantity_required", "issue_status"):
-            value = str(snapshot[field_name])
+            value = snapshot[field_name]
             if getattr(sill, field_name) != value:
                 setattr(sill, field_name, value)
                 changed = True
-        completed_at = sill.issue_completed_at
-        if snapshot["issue_status"] == ISSUE_COMPLETE_STATUS and completed_at is None:
-            sill.issue_completed_at = now
-            changed = True
-        elif snapshot["issue_status"] != ISSUE_COMPLETE_STATUS and completed_at is not None:
-            sill.issue_completed_at = None
-            changed = True
         sill.issue_checked_at = now
         if changed:
             sill.updated_at = now
