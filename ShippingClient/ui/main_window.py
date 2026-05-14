@@ -87,6 +87,44 @@ from PyQt6.QtGui import (
     QCursor,
 )
 
+
+
+LOCAL_UPDATE_MARK_ROLE = Qt.ItemDataRole.UserRole + 20
+LOCAL_UPDATE_MARK_COLOR = "#1E90FF"
+
+
+def get_local_update_mark_color(index) -> Optional[QColor]:
+    """Return the local update mark color stored on an item index, if any."""
+    color = index.data(LOCAL_UPDATE_MARK_ROLE)
+    if not color:
+        return None
+    qcolor = QColor(str(color))
+    return qcolor if qcolor.isValid() else None
+
+
+def draw_local_update_mark_background(painter: QPainter, rect: QRect, color: QColor) -> None:
+    """Paint a local update mark over style/selection backgrounds."""
+    painter.fillRect(rect, color)
+
+
+def paint_marked_item_text(painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+    """Paint default item text after the local mark background has been drawn."""
+    text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+    if not text:
+        return
+
+    painter.save()
+    painter.setPen(
+        option.palette.highlightedText().color()
+        if option.state & QStyle.StateFlag.State_Selected
+        else option.palette.text().color()
+    )
+    painter.drawText(
+        option.rect.adjusted(14, 0, -14, 0),
+        option.displayAlignment or (Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
+        text,
+    )
+    painter.restore()
 # Imports locales
 from .widgets import ModernButton
 from .date_delegate import DateDelegate
@@ -675,6 +713,10 @@ class StatusChipDelegate(QStyledItemDelegate):
         style = widget.style() if widget else QApplication.style()
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
 
+        mark_color = get_local_update_mark_color(index)
+        if mark_color is not None:
+            draw_local_update_mark_background(painter, opt.rect, mark_color)
+
         job_number = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
         if not job_number:
             return
@@ -734,6 +776,46 @@ class StatusChipDelegate(QStyledItemDelegate):
         return QSize(hint.width(), max(hint.height(), 40))
 
 
+class LocalUpdateMarkDelegate(QStyledItemDelegate):
+    """Default table delegate that keeps local blue marks visible while selected."""
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        mark_color = get_local_update_mark_color(index)
+        if mark_color is None:
+            super().paint(painter, option, index)
+            return
+
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+        draw_local_update_mark_background(painter, opt.rect, mark_color)
+        paint_marked_item_text(painter, opt, index)
+
+
+class LocalUpdateMarkDateDelegate(DateDelegate):
+    """Date editor delegate that also paints local blue marks over selection."""
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        mark_color = get_local_update_mark_color(index)
+        if mark_color is None:
+            super().paint(painter, option, index)
+            return
+
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+        draw_local_update_mark_background(painter, opt.rect, mark_color)
+        paint_marked_item_text(painter, opt, index)
+
+
 class WrapAnywhereDelegate(QStyledItemDelegate):
     """Custom delegate that allows long text chunks to wrap in table cells."""
 
@@ -753,6 +835,10 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
         widget = opt.widget
         style = widget.style() if widget else QApplication.style()
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+
+        mark_color = get_local_update_mark_color(index)
+        if mark_color is not None:
+            draw_local_update_mark_background(painter, opt.rect, mark_color)
 
         text_rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, widget)
         if not text:
@@ -993,6 +1079,7 @@ class ModernShippingMainWindow(QMainWindow):
         }
         self._pinned_views: Dict[str, dict[str, object]] = {}
         self.status_chip_delegate = StatusChipDelegate(self)
+        self.local_update_mark_delegate = LocalUpdateMarkDelegate(self)
         self.wrap_anywhere_delegate = WrapAnywhereDelegate(self)
         self._refresh_animation: Optional[QVariantAnimation] = None
         self._refresh_icon_base: Optional[QPixmap] = None
@@ -2608,10 +2695,12 @@ class ModernShippingMainWindow(QMainWindow):
 
         if not is_history_table:
             table.setItemDelegate(self.wrap_anywhere_delegate)
+        else:
+            table.setItemDelegate(self.local_update_mark_delegate)
         table.setItemDelegateForColumn(0, self.status_chip_delegate)
 
         # Delegates para campos de fecha
-        date_delegate = DateDelegate(table)
+        date_delegate = LocalUpdateMarkDateDelegate(table)
         for col in (3, 5, 6, 7):
             table.setItemDelegateForColumn(col, date_delegate)
 
@@ -3912,12 +4001,19 @@ class ModernShippingMainWindow(QMainWindow):
             shipment_id = self.get_shipment_id_from_row(table, row)
             field_name = self.column_to_field_name.get(item.column())
             if shipment_id and field_name:
-                if action_id == "update_mark":
-                    item.setBackground(QColor("#1E90FF"))
-                    self.shipment_colors[module_id][(shipment_id, field_name)] = "#1E90FF"
-                else:
-                    item.setBackground(QColor("transparent"))
-                    self.shipment_colors[module_id].pop((shipment_id, field_name), None)
+                blocker = QSignalBlocker(table)
+                try:
+                    if action_id == "update_mark":
+                        item.setData(LOCAL_UPDATE_MARK_ROLE, LOCAL_UPDATE_MARK_COLOR)
+                        item.setBackground(QColor(LOCAL_UPDATE_MARK_COLOR))
+                        self.shipment_colors[module_id][(shipment_id, field_name)] = LOCAL_UPDATE_MARK_COLOR
+                    else:
+                        item.setData(LOCAL_UPDATE_MARK_ROLE, None)
+                        item.setBackground(QBrush())
+                        self.shipment_colors[module_id].pop((shipment_id, field_name), None)
+                finally:
+                    del blocker
+                table.viewport().update(table.visualItemRect(item))
                 self.save_shipment_colors(module_id)
             return
 
@@ -4071,6 +4167,7 @@ class ModernShippingMainWindow(QMainWindow):
                 if color:
                     item = table.item(row, col)
                     if item:
+                        item.setData(LOCAL_UPDATE_MARK_ROLE, color)
                         item.setBackground(QColor(color))
     
     def create_professional_status_bar(self):
