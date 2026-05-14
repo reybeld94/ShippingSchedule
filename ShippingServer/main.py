@@ -2,17 +2,19 @@
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Any
 from datetime import timedelta, datetime, date
 import json
 import asyncio
 import logging
 import time
+import importlib
+from decimal import Decimal, InvalidOperation
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm.exc import StaleDataError
 
 # Imports locales
-from database import get_db, create_tables, create_admin_user
+from database import get_db, create_tables, create_admin_user, SessionLocal
 from models import User, Shipment, AuditLog, ShippingLog, AppConnectionSettings, Sill, SillLog, SillDieDatabase, UserPermission
 from auth import authenticate_user, create_access_token, get_current_user, get_current_admin_user, Token, UserLogin, UserCreate
 from pydantic import BaseModel, Field
@@ -275,6 +277,11 @@ class SillResponse(BaseModel):
     sales_order: str
     work_order: str
     assembly_number: str
+    issue_quantity: str = "0"
+    issue_quantity_required: str = ""
+    issue_status: str = "pending"
+    issue_checked_at: datetime | None = None
+    issue_completed_at: datetime | None = None
     description: str
     qty: str
     dimension_needed: str
@@ -1191,6 +1198,7 @@ async def startup_event():
     create_tables()
     print("👤 Configurando usuario admin...")
     create_admin_user()
+    asyncio.create_task(_sills_issue_status_scheduler())
     print("✅ Servidor listo en http://localhost:8000")
     print("📡 WebSocket disponible en ws://localhost:8000/ws")
 
@@ -1270,6 +1278,220 @@ async def get_shipping_logs(
     ]
 
 
+
+MIE_TRAK_SERVER = "GUNDMAIN"
+MIE_TRAK_DATABASE = "GunderlinLive"
+MIE_TRAK_USER = "mie"
+MIE_TRAK_PASSWORD = "mie"
+ISSUE_COMPLETE_STATUS = "complete"
+ISSUE_PARTIAL_STATUS = "partial"
+ISSUE_PENDING_STATUS = "pending"
+ISSUE_CHECK_INTERVAL_SECONDS = 60 * 60
+
+
+def _decimal_from_value(value: Any) -> Decimal:
+    if value is None or value == "":
+        return Decimal("0")
+    try:
+        return Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return Decimal("0")
+
+
+def _format_issue_quantity(value: Decimal) -> str:
+    normalized = value.quantize(Decimal("0.001")).normalize()
+    return format(normalized, "f")
+
+
+def _parse_assembly_pk(assembly_number: str) -> int | None:
+    cleaned = str(assembly_number or "").strip()
+    if not cleaned:
+        return None
+    try:
+        decimal_value = Decimal(cleaned)
+    except (InvalidOperation, ValueError):
+        return None
+    if decimal_value != decimal_value.to_integral_value():
+        return None
+    return int(decimal_value)
+
+
+def _fetch_mie_trak_bom_statuses(cursor) -> dict[int, dict[str, str]]:
+    """Load BOM statuses so FK values are verified against Mie Trak metadata."""
+    cursor.execute(
+        """
+        SELECT
+            WorkOrderAssemblyBOMStatusPK,
+            Code,
+            Description
+        FROM dbo.WorkOrderAssemblyBOMStatus
+        ORDER BY WorkOrderAssemblyBOMStatusPK
+        """
+    )
+    rows = cursor.fetchall() or []
+    statuses: dict[int, dict[str, str]] = {}
+    for row in rows:
+        try:
+            status_pk = int(row.get("WorkOrderAssemblyBOMStatusPK"))
+        except (TypeError, ValueError):
+            continue
+        statuses[status_pk] = {
+            "code": str(row.get("Code") or "").strip(),
+            "description": str(row.get("Description") or "").strip(),
+        }
+    return statuses
+
+
+def _issued_bom_status_pks(statuses: dict[int, dict[str, str]]) -> set[int]:
+    issued_pks: set[int] = set()
+    for status_pk, status_row in statuses.items():
+        code = status_row.get("code", "").strip().lower()
+        description = status_row.get("description", "").strip().lower()
+        if "issued" in code or "issued" in description:
+            issued_pks.add(status_pk)
+    if 5 not in issued_pks:
+        status_5 = statuses.get(5, {})
+        status_5_text = f"{status_5.get('code', '')} {status_5.get('description', '')}".lower()
+        if "issued" in status_5_text:
+            issued_pks.add(5)
+    return issued_pks
+
+
+def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str | bool]:
+    """Return issue quantities for one Mie Trak WorkOrderAssemblyPK."""
+    assembly_pk = _parse_assembly_pk(assembly_number)
+    if assembly_pk is None:
+        return {
+            "issue_quantity": "0",
+            "issue_quantity_required": "",
+            "issue_status": ISSUE_PENDING_STATUS,
+            "issued_bom_status": False,
+        }
+
+    pymssql = importlib.import_module("pymssql")
+    conn = None
+    try:
+        conn = pymssql.connect(
+            server=MIE_TRAK_SERVER,
+            user=MIE_TRAK_USER,
+            password=MIE_TRAK_PASSWORD,
+            database=MIE_TRAK_DATABASE,
+        )
+        cursor = conn.cursor(as_dict=True)
+        bom_statuses = _fetch_mie_trak_bom_statuses(cursor)
+        issued_status_pks = _issued_bom_status_pks(bom_statuses)
+        if 5 not in issued_status_pks:
+            logger.warning(
+                "Mie Trak BOM status 5 was not verified as Issued; verified issued status PKs: %s",
+                sorted(issued_status_pks),
+            )
+
+        cursor.execute(
+            """
+            SELECT
+                woa.WorkOrderAssemblyPK AS assemblyNumber,
+                woa.WorkOrderAssemblyBOMStatusFK AS bomStatusFk,
+                woa.QuantityRequired AS quantityRequired,
+                COALESCE(woa.QuantityIssued, 0) AS issuedQuantity
+            FROM dbo.WorkOrderAssembly woa
+            WHERE woa.WorkOrderAssemblyPK = %s
+            """,
+            (assembly_pk,),
+        )
+        assembly_row = cursor.fetchone()
+        if not assembly_row:
+            return {
+                "issue_quantity": "0",
+                "issue_quantity_required": "",
+                "issue_status": ISSUE_PENDING_STATUS,
+                "issued_bom_status": False,
+            }
+
+        required = _decimal_from_value(assembly_row.get("quantityRequired"))
+        issued = _decimal_from_value(assembly_row.get("issuedQuantity"))
+        try:
+            bom_status_fk = int(assembly_row.get("bomStatusFk"))
+        except (TypeError, ValueError):
+            bom_status_fk = None
+        issued_bom_status = bom_status_fk in issued_status_pks
+
+        if required > 0 and issued >= required:
+            status = ISSUE_COMPLETE_STATUS
+        elif issued > 0:
+            status = ISSUE_PARTIAL_STATUS
+        else:
+            status = ISSUE_PENDING_STATUS
+
+        return {
+            "issue_quantity": _format_issue_quantity(issued),
+            "issue_quantity_required": _format_issue_quantity(required) if required else "",
+            "issue_status": status,
+            "issued_bom_status": issued_bom_status,
+        }
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _refresh_pending_sills_issue_status(db: Session) -> int:
+    """Refresh all Sills that still need Mie Trak issue verification."""
+    pending_sills = (
+        db.query(Sill)
+        .filter(Sill.assembly_number != "")
+        .filter(Sill.issue_status != ISSUE_COMPLETE_STATUS)
+        .all()
+    )
+    snapshots_by_assembly: dict[str, dict[str, str | bool]] = {}
+    updated_count = 0
+    now = datetime.utcnow()
+    for sill in pending_sills:
+        assembly_key = str(sill.assembly_number or "").strip()
+        if assembly_key not in snapshots_by_assembly:
+            snapshots_by_assembly[assembly_key] = _fetch_mie_trak_issue_snapshot(assembly_key)
+        snapshot = snapshots_by_assembly[assembly_key]
+        changed = False
+        for field_name in ("issue_quantity", "issue_quantity_required", "issue_status"):
+            value = str(snapshot[field_name])
+            if getattr(sill, field_name) != value:
+                setattr(sill, field_name, value)
+                changed = True
+        completed_at = sill.issue_completed_at
+        if snapshot["issue_status"] == ISSUE_COMPLETE_STATUS and completed_at is None:
+            sill.issue_completed_at = now
+            changed = True
+        elif snapshot["issue_status"] != ISSUE_COMPLETE_STATUS and completed_at is not None:
+            sill.issue_completed_at = None
+            changed = True
+        sill.issue_checked_at = now
+        if changed:
+            sill.updated_at = now
+            updated_count += 1
+    if pending_sills:
+        db.commit()
+    return updated_count
+
+
+async def _sills_issue_status_scheduler():
+    await asyncio.sleep(5)
+    while True:
+        db = SessionLocal()
+        try:
+            updated_count = await asyncio.to_thread(_refresh_pending_sills_issue_status, db)
+            if updated_count:
+                await manager.broadcast(json.dumps({
+                    "type": "sills_issue_status_updated",
+                    "data": {"updated_count": updated_count},
+                }))
+        except Exception as exc:
+            logger.warning(f"Failed to refresh Sills issue status: {exc}")
+        finally:
+            db.close()
+        await asyncio.sleep(ISSUE_CHECK_INTERVAL_SECONDS)
+
+
 # ============ ENDPOINTS DE SILLS ============
 
 @app.get("/sills", response_model=List[SillResponse])
@@ -1334,6 +1556,12 @@ async def update_sill(
         if old_value != new_value:
             setattr(sill, field, new_value)
             changes_made[field] = {"old": old_value, "new": new_value}
+            if field == "assembly_number":
+                sill.issue_quantity = "0"
+                sill.issue_quantity_required = ""
+                sill.issue_status = ISSUE_PENDING_STATUS
+                sill.issue_checked_at = None
+                sill.issue_completed_at = None
 
     if not changes_made:
         return sill

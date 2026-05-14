@@ -2369,10 +2369,10 @@ class ModernShippingMainWindow(QMainWindow):
         actions_layout.addLayout(secondary_actions)
 
         self.sills_table = QTableWidget()
-        self.sills_table.setColumnCount(15)
+        self.sills_table.setColumnCount(16)
         self.sills_table.setHorizontalHeaderLabels([
             "Material", "Dimension", "Location", "Die #", "Type", "Speed", "Width",
-            "Sales Order", "Work Order", "Assembly Number", "Description", "Qty",
+            "Sales Order", "Work Order", "Assembly Number", "Issue", "Description", "Qty",
             "Dimension Needed", "Notes", "Week to Print",
         ])
         self.sills_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -2383,8 +2383,8 @@ class ModernShippingMainWindow(QMainWindow):
         sills_header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.sills_table.setWordWrap(True)
         self.sills_table.setItemDelegateForColumn(9, self.code39_barcode_delegate)  # Assembly Number barcode
-        self.sills_table.setItemDelegateForColumn(10, self.wrap_anywhere_delegate)  # Description
-        self.sills_table.setItemDelegateForColumn(13, self.wrap_anywhere_delegate)  # Notes
+        self.sills_table.setItemDelegateForColumn(11, self.wrap_anywhere_delegate)  # Description
+        self.sills_table.setItemDelegateForColumn(14, self.wrap_anywhere_delegate)  # Notes
         self._apply_table_style(self.sills_table)
         self._configure_table_row_metrics(self.sills_table)
 
@@ -2566,13 +2566,29 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_table.setRowCount(len(rows))
         field_order = [
             "material", "dimension", "location", "die_number", "type", "speed", "width",
-            "sales_order", "work_order", "assembly_number", "description", "qty",
+            "sales_order", "work_order", "assembly_number", "issue_progress", "description", "qty",
             "dimension_needed", "notes", "week_to_print",
         ]
         for row_index, sill in enumerate(rows):
+            issue_quantity = str(sill.get("issue_quantity") or "0").strip() or "0"
+            issue_required = str(sill.get("issue_quantity_required") or "").strip()
+            issue_progress = f"Issue {issue_quantity}/{issue_required}" if issue_required else f"Issue {issue_quantity}"
+            row_values = {**sill, "issue_progress": issue_progress}
+            issue_status = str(sill.get("issue_status") or "pending").strip().lower()
+            if issue_status == "complete":
+                row_background = QBrush(QColor("#DCFCE7"))
+            elif issue_status == "partial":
+                row_background = QBrush(QColor("#FEF9C3"))
+            else:
+                row_background = None
             for col_index, field in enumerate(field_order):
-                value = "" if sill.get(field) is None else str(sill.get(field))
-                self.sills_table.setItem(row_index, col_index, QTableWidgetItem(value))
+                value = "" if row_values.get(field) is None else str(row_values.get(field))
+                item = QTableWidgetItem(value)
+                if field == "issue_progress":
+                    item.setToolTip("Issued Quantity / Quantity Required")
+                if row_background is not None:
+                    item.setBackground(row_background)
+                self.sills_table.setItem(row_index, col_index, item)
         self.sills_table.resizeColumnsToContents()
         self.sills_table.resizeRowsToContents()
 
@@ -4435,6 +4451,10 @@ class ModernShippingMainWindow(QMainWindow):
             data = json.loads(message)
             msg_type = data.get("type")
             
+            if msg_type == "sills_issue_status_updated":
+                self.load_sills()
+                return
+
             if msg_type in ["shipment_created", "shipment_updated", "shipment_deleted"]:
                 action_by = data["data"].get("action_by", "User")
                 job_number = data["data"].get("job_number", "")
@@ -5763,13 +5783,14 @@ class ModernShippingMainWindow(QMainWindow):
                 "Job",
                 "WO",
                 "Assembly",
+                "Issue",
                 "Description",
                 "Qty",
                 "Dim",
                 "Notes",
                 "Week",
             ],
-            column_map=list(range(15)),
+            column_map=list(range(16)),
             column_weights=[
                 3,   # Mat (narrow)
                 3,   # Dim (narrow)
@@ -5780,14 +5801,15 @@ class ModernShippingMainWindow(QMainWindow):
                 4,   # Width
                 6,   # Job
                 5,   # WO
-                20,  # Assembly
+                18,  # Assembly
+                5,   # Issue
                 14,  # Description
                 3,   # Qty
                 3,   # Dim (narrow)
-                26,  # Notes (widest)
+                24,  # Notes (widest)
                 6,   # Week
             ],
-            wrap_columns=[10, 13],  # Solo Description y Notes
+            wrap_columns=[11, 14],  # Solo Description y Notes
             page_size=(17, 11),
             min_font_size=12,
             min_title_font_size=18,

@@ -260,6 +260,8 @@ class Sill(Base):
         Index("ix_sills_week_to_print", "week_to_print"),
         Index("ix_sills_sales_order", "sales_order"),
         Index("ix_sills_work_order", "work_order"),
+        Index("ix_sills_assembly_number", "assembly_number"),
+        Index("ix_sills_issue_status", "issue_status"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -273,6 +275,11 @@ class Sill(Base):
     sales_order = Column(String(30), nullable=False, default="", server_default=text("''"))
     work_order = Column(String(30), nullable=False, default="", server_default=text("''"))
     assembly_number = Column(String(50), nullable=False, default="", server_default=text("''"))
+    issue_quantity = Column(String(30), nullable=False, default="0", server_default=text("'0'"))
+    issue_quantity_required = Column(String(30), nullable=False, default="", server_default=text("''"))
+    issue_status = Column(String(20), nullable=False, default="pending", server_default=text("'pending'"))
+    issue_checked_at = Column(DateTime, nullable=True)
+    issue_completed_at = Column(DateTime, nullable=True)
     description = Column(Text, nullable=False, default="", server_default=text("''"))
     qty = Column(String(20), nullable=False, default="", server_default=text("''"))
     dimension_needed = Column(String(30), nullable=False, default="", server_default=text("''"))
