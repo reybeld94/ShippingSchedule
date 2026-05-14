@@ -10,6 +10,7 @@ import logging
 import time
 import importlib
 from decimal import Decimal, InvalidOperation
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -281,6 +282,7 @@ class SillResponse(BaseModel):
     issue_quantity_required: str = ""
     issue_status: str = "pending"
     issue_checked_at: datetime | None = None
+    issue_completed_at: datetime | None = None
     description: str
     qty: str
     dimension_needed: str
@@ -1285,7 +1287,7 @@ MIE_TRAK_PASSWORD = "mie"
 ISSUE_COMPLETE_STATUS = "complete"
 ISSUE_PARTIAL_STATUS = "partial"
 ISSUE_PENDING_STATUS = "pending"
-ISSUE_CHECK_INTERVAL_SECONDS = 60 * 60
+ISSUE_CHECK_INTERVAL_SECONDS = 15 * 60
 
 
 def _decimal_from_value(value: Any) -> Decimal:
@@ -1336,18 +1338,19 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
 
         required = _decimal_from_value(assembly_row.get("QuantityRequired"))
         bom_status = str(assembly_row.get("WorkOrderAssemblyBOMStatusFK") or "").strip()
-        issued = Decimal("0")
-        if bom_status == "5":
-            cursor.execute(
-                """
-                SELECT COALESCE(SUM(Quantity), 0) AS QuantityIssued
-                FROM WorkOrderCollection
-                WHERE WorkOrderAssemblyNumber = %s
-                """,
-                (cleaned_assembly,),
-            )
-            collection_row = cursor.fetchone() or {}
-            issued = _decimal_from_value(collection_row.get("QuantityIssued"))
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(Quantity), 0) AS QuantityIssued
+            FROM WorkOrderCollection
+            WHERE WorkOrderAssemblyNumber = %s
+            """,
+            (cleaned_assembly,),
+        )
+        collection_row = cursor.fetchone() or {}
+        issued = _decimal_from_value(collection_row.get("QuantityIssued"))
+
+        if bom_status == "5" and issued <= 0 and required > 0:
+            issued = required
 
         if required > 0 and issued >= required:
             status = ISSUE_COMPLETE_STATUS
@@ -1369,39 +1372,89 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
                 pass
 
 
-def _refresh_pending_sills_issue_status(db: Session) -> int:
-    """Refresh all Sills that still need Mie Trak issue verification."""
-    pending_sills = (
+def _get_sills_due_for_issue_status(db: Session, *, only_due: bool = True) -> list[Sill]:
+    """Return Sills that still need Mie Trak issue verification."""
+    query = (
         db.query(Sill)
         .filter(Sill.assembly_number != "")
         .filter(Sill.issue_status != ISSUE_COMPLETE_STATUS)
-        .all()
     )
+    if only_due:
+        due_before = datetime.utcnow() - timedelta(seconds=ISSUE_CHECK_INTERVAL_SECONDS)
+        query = query.filter(
+            or_(Sill.issue_checked_at.is_(None), Sill.issue_checked_at < due_before)
+        )
+    return query.all()
+
+
+def _apply_sill_issue_snapshot(sill: Sill, snapshot: dict[str, str], checked_at: datetime) -> bool:
+    """Apply a Mie Trak issue snapshot to one Sill and return whether visible data changed."""
+    changed = False
+    old_status = _safe_text(getattr(sill, "issue_status", ""))
+    for field_name in ("issue_quantity", "issue_quantity_required", "issue_status"):
+        value = snapshot[field_name]
+        if getattr(sill, field_name) != value:
+            setattr(sill, field_name, value)
+            changed = True
+
+    sill.issue_checked_at = checked_at
+    if snapshot["issue_status"] == ISSUE_COMPLETE_STATUS and old_status != ISSUE_COMPLETE_STATUS:
+        sill.issue_completed_at = checked_at
+        changed = True
+    if changed:
+        sill.updated_at = checked_at
+    return changed
+
+
+def _refresh_pending_sills_issue_status(db: Session, *, only_due: bool = True) -> int:
+    """Refresh Sills that still need Mie Trak issue verification."""
+    pending_sills = _get_sills_due_for_issue_status(db, only_due=only_due)
     updated_count = 0
+    checked_count = 0
     for sill in pending_sills:
-        snapshot = _fetch_mie_trak_issue_snapshot(sill.assembly_number)
-        now = datetime.utcnow()
-        changed = False
-        for field_name in ("issue_quantity", "issue_quantity_required", "issue_status"):
-            value = snapshot[field_name]
-            if getattr(sill, field_name) != value:
-                setattr(sill, field_name, value)
-                changed = True
-        sill.issue_checked_at = now
-        if changed:
-            sill.updated_at = now
-            updated_count += 1
-    if pending_sills:
+        try:
+            snapshot = _fetch_mie_trak_issue_snapshot(sill.assembly_number)
+            checked_at = datetime.utcnow()
+            if _apply_sill_issue_snapshot(sill, snapshot, checked_at):
+                updated_count += 1
+            checked_count += 1
+        except Exception as exc:
+            logger.warning(
+                "Failed to refresh Sill issue status for id=%s assembly=%s: %s",
+                sill.id,
+                sill.assembly_number,
+                exc,
+            )
+
+    if checked_count:
         db.commit()
+    logger.info(
+        "Sills issue status refresh checked=%s updated=%s interval_seconds=%s",
+        checked_count,
+        updated_count,
+        ISSUE_CHECK_INTERVAL_SECONDS,
+    )
     return updated_count
 
 
+def _refresh_pending_sills_issue_status_with_new_session(*, only_due: bool = True) -> int:
+    """Refresh Sills issue status in a worker thread with its own DB session."""
+    db = SessionLocal()
+    try:
+        return _refresh_pending_sills_issue_status(db, only_due=only_due)
+    finally:
+        db.close()
+
+
 async def _sills_issue_status_scheduler():
-    await asyncio.sleep(5)
+    force_full_refresh = True
     while True:
-        db = SessionLocal()
         try:
-            updated_count = await asyncio.to_thread(_refresh_pending_sills_issue_status, db)
+            updated_count = await asyncio.to_thread(
+                _refresh_pending_sills_issue_status_with_new_session,
+                only_due=not force_full_refresh,
+            )
+            force_full_refresh = False
             if updated_count:
                 await manager.broadcast(json.dumps({
                     "type": "sills_issue_status_updated",
@@ -1409,8 +1462,6 @@ async def _sills_issue_status_scheduler():
                 }))
         except Exception as exc:
             logger.warning(f"Failed to refresh Sills issue status: {exc}")
-        finally:
-            db.close()
         await asyncio.sleep(ISSUE_CHECK_INTERVAL_SECONDS)
 
 
@@ -1419,6 +1470,10 @@ async def _sills_issue_status_scheduler():
 @app.get("/sills", response_model=List[SillResponse])
 async def get_sills(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _ensure_module_view(db, current_user, "sills")
+    try:
+        await asyncio.to_thread(_refresh_pending_sills_issue_status_with_new_session)
+    except Exception as exc:
+        logger.warning(f"Unable to refresh Sills issue status before listing: {exc}")
     return db.query(Sill).order_by(Sill.id.desc()).all()
 
 
