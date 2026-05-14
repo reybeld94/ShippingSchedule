@@ -4,6 +4,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, date, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Optional, Dict, Any
 import os
 import textwrap
@@ -2561,6 +2562,27 @@ class ModernShippingMainWindow(QMainWindow):
         self.populate_sills_table()
         self.refresh_sills_dashboard()
 
+    def _parse_issue_decimal(self, value):
+        cleaned = str(value or "").strip()
+        if not cleaned:
+            return Decimal("0")
+        try:
+            return Decimal(cleaned)
+        except (InvalidOperation, ValueError):
+            return Decimal("0")
+
+    def _sill_issue_row_background(self, sill):
+        issue_status = str(sill.get("issue_status") or "pending").strip().lower()
+        issued = self._parse_issue_decimal(sill.get("issue_quantity"))
+        required_text = str(sill.get("issue_quantity_required") or "").strip()
+        required = self._parse_issue_decimal(required_text)
+
+        if issue_status in {"complete", "completed"} or (required_text and issued >= required):
+            return QBrush(QColor("#DCFCE7"))
+        if issue_status == "partial" or (required_text and issued > 0 and issued < required):
+            return QBrush(QColor("#FEF9C3"))
+        return None
+
     def populate_sills_table(self):
         rows = self.sills or []
         self.sills_table.setRowCount(len(rows))
@@ -2574,13 +2596,7 @@ class ModernShippingMainWindow(QMainWindow):
             issue_required = str(sill.get("issue_quantity_required") or "").strip()
             issue_progress = f"{issue_quantity}/{issue_required}" if issue_required else issue_quantity
             row_values = {**sill, "issue_progress": issue_progress}
-            issue_status = str(sill.get("issue_status") or "pending").strip().lower()
-            if issue_status == "complete":
-                row_background = QBrush(QColor("#DCFCE7"))
-            elif issue_status == "partial":
-                row_background = QBrush(QColor("#FEF9C3"))
-            else:
-                row_background = None
+            row_background = self._sill_issue_row_background(sill)
             for col_index, field in enumerate(field_order):
                 value = "" if row_values.get(field) is None else str(row_values.get(field))
                 item = QTableWidgetItem(value)
@@ -2588,6 +2604,7 @@ class ModernShippingMainWindow(QMainWindow):
                     item.setToolTip("Issued Quantity / Quantity Required")
                 if row_background is not None:
                     item.setBackground(row_background)
+                    item.setData(Qt.ItemDataRole.BackgroundRole, row_background)
                 self.sills_table.setItem(row_index, col_index, item)
         self.sills_table.resizeColumnsToContents()
         self.sills_table.resizeRowsToContents()
