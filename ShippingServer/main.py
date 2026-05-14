@@ -1335,7 +1335,7 @@ def _fetch_mie_trak_issue_snapshot(assembly_number: str) -> dict[str, str]:
             SELECT
                 woa.WorkOrderAssemblyPK AS assemblyNumber,
                 woa.WorkOrderAssemblyBOMStatusFK AS bomStatusFk,
-                COALESCE(woa.TotalQuantityRequired, 0) AS quantityRequired,
+                COALESCE(woa.QuantityRequired, 0) AS quantityRequired,
                 COALESCE(woa.QuantityIssued, 0) AS issuedQuantity
             FROM dbo.WorkOrderAssembly woa
             WHERE woa.WorkOrderAssemblyPK = %s;
