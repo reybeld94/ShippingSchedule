@@ -1,4 +1,4 @@
-﻿# ui/main_window.py - Ventana principal con diseño profesional
+# ui/main_window.py - Ventana principal con diseño profesional
 import csv
 import json
 import time
@@ -816,9 +816,9 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
 
         cell_rect = option.rect
         editor_width = max(self._EDITOR_MIN_WIDTH, min(cell_rect.width(), viewport_width - 20))
+        fm = editor.fontMetrics()
         text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
         if text:
-            fm = editor.fontMetrics()
             lines = text.count('\n') + 1
             words = len(text) / max(1, editor_width / max(1, fm.averageCharWidth()))
             needed_lines = max(lines, int(words) + 1)
