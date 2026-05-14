@@ -58,6 +58,22 @@ PERMISSION_MODULES = {
     "sills": set(SILLS_PERMISSION_COLUMNS),
     "sills_database": {SILLS_DIE_PERMISSION_KEY},
 }
+PERMISSION_COLUMN_ALIASES = {
+    module: {column.replace("_", "").lower(): column for column in columns}
+    for module, columns in PERMISSION_MODULES.items()
+}
+
+
+def _normalize_permission_column_key(module: str, column_key: str) -> str:
+    """Return the canonical column key accepted by the permissions API."""
+    cleaned_key = str(column_key or "").strip()
+    if cleaned_key in PERMISSION_MODULES.get(module, set()):
+        return cleaned_key
+    alias_key = cleaned_key.replace(" ", "_").replace("-", "_").lower()
+    if alias_key in PERMISSION_MODULES.get(module, set()):
+        return alias_key
+    compact_key = alias_key.replace("_", "")
+    return PERMISSION_COLUMN_ALIASES.get(module, {}).get(compact_key, cleaned_key)
 
 # Crear app FastAPI
 app = FastAPI(title="Shipping Schedule API", version="1.0.0")
@@ -666,13 +682,14 @@ async def update_user_permissions(
         )
         valid_columns = PERMISSION_MODULES[module]
         for column_key, can_write in module_update.columns.items():
-            if column_key not in valid_columns:
+            normalized_column_key = _normalize_permission_column_key(module, column_key)
+            if normalized_column_key not in valid_columns:
                 raise HTTPException(status_code=400, detail=f"Unknown permission column: {module}.{column_key}")
             _upsert_permission(
                 db,
                 target_user_id=user_id,
                 module=module,
-                column_key=column_key,
+                column_key=normalized_column_key,
                 can_view=False,
                 can_write=bool(can_write),
                 updated_by=current_admin.id,
