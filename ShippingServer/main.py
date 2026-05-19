@@ -1591,9 +1591,16 @@ async def delete_sill(
         "notes": sill.notes,
         "week_to_print": sill.week_to_print,
     }
-    # Use sill_id=None so the log rows have no FK reference to the sill being
-    # deleted — avoids IntegrityError when the sill row is removed on commit.
-    # (sills_logs.sill_id is nullable=True for exactly this reason.)
+    # Nullify sill_id on ALL historical logs for this sill before deletion.
+    # PostgreSQL enforces the FK strictly, so any existing log rows that
+    # reference this sill would block the DELETE otherwise.
+    # Migration 012 adds ON DELETE SET NULL to handle this automatically
+    # going forward, but this explicit update makes the endpoint safe even
+    # before the migration is applied.
+    db.query(SillLog).filter(SillLog.sill_id == sill_id).update({"sill_id": None})
+    db.flush()
+
+    # Log the deletion itself with sill_id=None (sill no longer exists).
     _append_sills_logs(
         db,
         sill_id=None,
