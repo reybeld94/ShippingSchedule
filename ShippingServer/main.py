@@ -56,9 +56,10 @@ SILLS_PERMISSION_COLUMNS = [
     "week_to_print",
 ]
 SILLS_DIE_PERMISSION_KEY = "sills_database"
+SILLS_DELETE_PERMISSION_KEY = "sills_delete"
 PERMISSION_MODULES = {
     "shipping_schedule": set(SHIPPING_PERMISSION_COLUMNS),
-    "sills": set(SILLS_PERMISSION_COLUMNS),
+    "sills": set(SILLS_PERMISSION_COLUMNS) | {SILLS_DELETE_PERMISSION_KEY},
     "sills_database": {SILLS_DIE_PERMISSION_KEY},
 }
 PERMISSION_COLUMN_ALIASES = {
@@ -422,7 +423,10 @@ def _admin_permissions_payload() -> dict:
             },
             "sills": {
                 "can_view": True,
-                "columns": {column: True for column in SILLS_PERMISSION_COLUMNS},
+                "columns": {
+                    **{column: True for column in SILLS_PERMISSION_COLUMNS},
+                    SILLS_DELETE_PERMISSION_KEY: True,
+                },
             },
             "sills_database": {
                 "can_view": True,
@@ -444,7 +448,10 @@ def _get_user_permissions_payload(db: Session, user: User) -> dict:
             },
             "sills": {
                 "can_view": True,
-                "columns": {column: user.role == "write" for column in SILLS_PERMISSION_COLUMNS},
+                "columns": {
+                    **{column: user.role == "write" for column in SILLS_PERMISSION_COLUMNS},
+                    SILLS_DELETE_PERMISSION_KEY: False,  # delete requires explicit grant by admin
+                },
             },
             "sills_database": {
                 "can_view": True,
@@ -1560,7 +1567,8 @@ async def delete_sill(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    _ensure_column_write(db, current_user, "sills", SILLS_PERMISSION_COLUMNS)
+    # Requires the explicit "sills_delete" permission, separate from edit access
+    _ensure_column_write(db, current_user, "sills", [SILLS_DELETE_PERMISSION_KEY])
 
     sill = db.query(Sill).filter(Sill.id == sill_id).first()
     if not sill:
@@ -1583,9 +1591,12 @@ async def delete_sill(
         "notes": sill.notes,
         "week_to_print": sill.week_to_print,
     }
+    # Use sill_id=None so the log rows have no FK reference to the sill being
+    # deleted — avoids IntegrityError when the sill row is removed on commit.
+    # (sills_logs.sill_id is nullable=True for exactly this reason.)
     _append_sills_logs(
         db,
-        sill_id=sill.id,
+        sill_id=None,
         action="delete",
         user_id=current_user.id,
         changes={key: {"old": _safe_text(value), "new": ""} for key, value in backup_data.items()},

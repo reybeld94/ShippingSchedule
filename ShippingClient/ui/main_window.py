@@ -460,7 +460,9 @@ class SillDialog(QDialog):
         self._set_autofilled_fields_editable(False)
 
     def _set_autofilled_fields_editable(self, editable: bool) -> None:
-        for field_name in ("type", "speed", "width", "notes"):
+        # "notes" is intentionally excluded — it belongs to the sill entry,
+        # not to the die template, so it must always remain editable.
+        for field_name in ("type", "speed", "width"):
             widget = self.inputs.get(field_name)
             if isinstance(widget, QLineEdit):
                 widget.setReadOnly(not editable)
@@ -2367,10 +2369,16 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_die_add_btn = ModernButton("Add Die", "primary", min_height=30, min_width=100, padding=(4, 10))
         self.sills_die_edit_btn = ModernButton("Edit Selected", "outline", min_height=30, min_width=120, padding=(4, 10))
         self.sills_die_delete_btn = ModernButton("Delete Selected", "danger-outline", min_height=30, min_width=120, padding=(4, 10))
+        self.sills_die_import_btn = ModernButton("Import CSV", "outline", min_height=30, min_width=110, padding=(4, 10))
+        self.sills_die_import_btn.setToolTip(
+            "Import dies from a CSV file.\n"
+            "Required columns: Die #, Type, Speed, Width, Supplier, Notes, Vendor Drawing"
+        )
         self.sills_die_refresh_btn = ModernButton("Refresh", "outline", min_height=30, min_width=88, padding=(4, 10))
         die_actions_layout.addWidget(self.sills_die_add_btn)
         die_actions_layout.addWidget(self.sills_die_edit_btn)
         die_actions_layout.addWidget(self.sills_die_delete_btn)
+        die_actions_layout.addWidget(self.sills_die_import_btn)
         die_actions_layout.addStretch(1)
         die_actions_layout.addWidget(self.sills_die_refresh_btn)
 
@@ -2455,6 +2463,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_die_add_btn.clicked.connect(self.open_add_sill_die_dialog)
         self.sills_die_edit_btn.clicked.connect(self.open_edit_sill_die_dialog)
         self.sills_die_delete_btn.clicked.connect(self.delete_sill_die)
+        self.sills_die_import_btn.clicked.connect(self.import_sill_dies_from_csv)
         self.sills_die_refresh_btn.clicked.connect(self.load_sill_dies)
         self.sills_die_table.itemDoubleClicked.connect(lambda _: self.open_edit_sill_die_dialog())
         tabs.currentChanged.connect(self._on_sills_tab_changed)
@@ -2467,12 +2476,16 @@ class ModernShippingMainWindow(QMainWindow):
 
     def _apply_sills_permission_state(self):
         can_edit_sills = self._can_write_all("sills", [field[0] for field in SillDialog.FIELDS])
-        for widget_name in ("sills_add_btn", "sills_edit_btn", "sills_delete_btn"):
+        for widget_name in ("sills_add_btn", "sills_edit_btn"):
             widget = getattr(self, widget_name, None)
             if widget is not None:
                 widget.setEnabled(can_edit_sills)
+        can_delete_sills = self._column_can_write("sills", "sills_delete")
+        sills_delete_btn = getattr(self, "sills_delete_btn", None)
+        if sills_delete_btn is not None:
+            sills_delete_btn.setEnabled(can_delete_sills)
         can_edit_dies = self._column_can_write("sills_database", "sills_database")
-        for widget_name in ("sills_die_add_btn", "sills_die_edit_btn", "sills_die_delete_btn"):
+        for widget_name in ("sills_die_add_btn", "sills_die_edit_btn", "sills_die_delete_btn", "sills_die_import_btn"):
             widget = getattr(self, widget_name, None)
             if widget is not None:
                 widget.setEnabled(can_edit_dies)
@@ -2675,7 +2688,7 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error(response.get_error() or "Failed to update sill.")
 
     def delete_sill(self):
-        if not self._can_write_all("sills", [field[0] for field in SillDialog.FIELDS]):
+        if not self._column_can_write("sills", "sills_delete"):
             self.show_error("You do not have permission to delete sills.")
             return
         sill = self._selected_sill()
@@ -2703,6 +2716,121 @@ class ModernShippingMainWindow(QMainWindow):
                 self.load_sill_dies()
             else:
                 self.show_error(response.get_error() or "Failed to create die.")
+
+    def import_sill_dies_from_csv(self):
+        """Import multiple dies from a CSV file into the Die # Database."""
+        if not self._column_can_write("sills_database", "sills_database"):
+            self.show_error("You do not have permission to edit the Sills DB.")
+            return
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select CSV File",
+            "",
+            "CSV Files (*.csv);;All Files (*)",
+        )
+        if not file_path:
+            return
+
+        # Map from display header names → API field keys
+        HEADER_MAP = {
+            "die #":          "die_number",
+            "die#":           "die_number",
+            "die_number":     "die_number",
+            "type":           "type",
+            "speed":          "speed",
+            "width":          "width",
+            "supplier":       "supplier",
+            "notes":          "notes",
+            "vendor drawing": "vendor_drawing",
+            "vendor_drawing": "vendor_drawing",
+        }
+        REQUIRED_FIELDS = {"die_number"}
+        VALID_TYPES  = {"Car", "Hatch", "Extension"}
+        VALID_SPEEDS = {"0", "1", "2", "3"}
+
+        try:
+            with open(file_path, newline="", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                if reader.fieldnames is None:
+                    self.show_error("The CSV file is empty or has no header row.")
+                    return
+
+                # Normalize header names
+                col_map: dict[str, str] = {}
+                for raw_header in reader.fieldnames:
+                    normalized = raw_header.strip().lower()
+                    if normalized in HEADER_MAP:
+                        col_map[raw_header] = HEADER_MAP[normalized]
+
+                missing_required = REQUIRED_FIELDS - set(col_map.values())
+                if missing_required:
+                    self.show_error(
+                        f"CSV is missing required column(s): {', '.join(missing_required)}\n\n"
+                        "Expected columns: Die #, Type, Speed, Width, Supplier, Notes, Vendor Drawing"
+                    )
+                    return
+
+                rows = list(reader)
+
+            if not rows:
+                self.show_error("The CSV file contains no data rows.")
+                return
+
+            imported = 0
+            skipped: list[str] = []
+
+            for line_num, row in enumerate(rows, start=2):  # line 1 = header
+                payload: dict[str, str] = {}
+                for raw_header, field_key in col_map.items():
+                    payload[field_key] = str(row.get(raw_header, "") or "").strip()
+
+                die_number = payload.get("die_number", "")
+                if not die_number:
+                    skipped.append(f"Row {line_num}: missing Die #")
+                    continue
+
+                # Coerce Type to a valid value if possible
+                raw_type = payload.get("type", "")
+                if raw_type and raw_type not in VALID_TYPES:
+                    matched = next((v for v in VALID_TYPES if v.lower() == raw_type.lower()), None)
+                    payload["type"] = matched or raw_type
+
+                # Coerce Speed to a valid value if possible
+                raw_speed = payload.get("speed", "")
+                if raw_speed not in VALID_SPEEDS:
+                    payload["speed"] = "0"
+
+                response = self.api_client.create_sill_die(payload)
+                if response.is_success():
+                    imported += 1
+                else:
+                    err = response.get_error() or "Unknown error"
+                    skipped.append(f"Row {line_num} (Die #{die_number}): {err}")
+
+        except Exception as exc:
+            self.show_error(f"Failed to read CSV file:\n{exc}")
+            return
+
+        # Reload table to reflect new entries
+        self.load_sill_dies()
+
+        # Show result summary
+        if skipped:
+            skip_detail = "\n".join(skipped[:20])
+            if len(skipped) > 20:
+                skip_detail += f"\n… and {len(skipped) - 20} more"
+            QMessageBox.warning(
+                self,
+                "Import Complete with Warnings",
+                f"Imported: {imported} die(s)\nSkipped: {len(skipped)}\n\n{skip_detail}",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Import Successful",
+                f"Successfully imported {imported} die(s) into the database.",
+            )
 
     def open_edit_sill_die_dialog(self):
         if not self._column_can_write("sills_database", "sills_database"):

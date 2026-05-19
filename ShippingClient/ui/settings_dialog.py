@@ -384,6 +384,7 @@ class SettingsDialog(QDialog):
                 ("dimension_needed", "Dimension Needed"),
                 ("notes", "Notes"),
                 ("week_to_print", "Week to Print"),
+                ("sills_delete", "Delete Sills"),
             ],
             extra_rows=[("sills_database", "Sills DB (all fields)")],
         )
