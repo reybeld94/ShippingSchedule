@@ -1,4 +1,4 @@
-"""Utilities for normalizing Shipping Schedule WebSocket URLs."""
+"""Utilities for normalizing Schedule WebSocket URLs."""
 from urllib.parse import urlsplit, urlunsplit
 
 DEFAULT_WEBSOCKET_PATH = "/ws"

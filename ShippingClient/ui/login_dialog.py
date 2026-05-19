@@ -6,15 +6,14 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QFrame,
-    QMessageBox,
-    QLineEdit,
     QStyle,
     QCheckBox,
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon
 
-from .widgets import ModernButton, ModernLineEdit
+from .widgets import ModernButton, ModernLineEdit, PasswordLineEdit
+from .dialogs import show_warning
 from .settings_dialog import SettingsDialog
 from core.settings_manager import SettingsManager
 from core.api_client import RobustApiClient
@@ -22,10 +21,9 @@ from core.config import (
     get_server_url,
     LOGIN_WIDTH,
     LOGIN_HEIGHT,
-    MODERN_FONT,
     ICON_PATH,
 )
-from .utils import apply_scaled_font, get_base_font_size, refresh_scaled_fonts
+from .utils import apply_scaled_font, refresh_scaled_fonts
 from .style_tokens import (
     COLOR_BG_APP,
     COLOR_BG_SUBTLE,
@@ -33,9 +31,12 @@ from .style_tokens import (
     COLOR_PRIMARY,
     COLOR_SUCCESS,
     COLOR_SUCCESS_SOFT_TEXT,
+    COLOR_SURFACE,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
-    COLOR_SURFACE,
+    COLOR_TOAST_DANGER,
+    COLOR_TOAST_SUCCESS,
+    COLOR_TOAST_WARNING,
     CONTROL_HEIGHT_LARGE,
     RADIUS_MD,
     SPACE_12,
@@ -47,7 +48,7 @@ from .style_tokens import (
 class ModernLoginDialog(QDialog):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Shipping Schedule")
+        self.setWindowTitle("Schedule")
         if os.path.exists(ICON_PATH):
             self.setWindowIcon(QIcon(ICON_PATH))
         self.setMinimumSize(600, 600)
@@ -76,14 +77,14 @@ class ModernLoginDialog(QDialog):
         # Contenedor con fondo gradiente
         background_frame = QFrame()
         background_frame.setObjectName("loginBackground")
-        background_frame.setStyleSheet("""
-            QFrame#loginBackground {
+        background_frame.setStyleSheet(f"""
+            QFrame#loginBackground {{
                 background: qlineargradient(
                     x1: 0, y1: 0, x2: 1, y2: 1,
-                    stop: 0 #F5F7FA,
-                    stop: 1 #E8EDF3
+                    stop: 0 {COLOR_BG_APP},
+                    stop: 1 {COLOR_BG_SUBTLE}
                 );
-            }
+            }}
         """)
         
         background_layout = QVBoxLayout(background_frame)
@@ -96,8 +97,8 @@ class ModernLoginDialog(QDialog):
         login_card.setFixedWidth(420)
         login_card.setStyleSheet(f"""
             QFrame#loginCard {{
-                background: #FFFFFF;
-                border: 1px solid #E5EAF0;
+                background: {COLOR_SURFACE};
+                border: 1px solid {COLOR_BORDER};
                 border-radius: {RADIUS_MD}px;
             }}
         """)
@@ -132,7 +133,7 @@ class ModernLoginDialog(QDialog):
         header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
     
         # Título principal
-        title_label = QLabel("Shipping Schedule")
+        title_label = QLabel("Schedule")
         apply_scaled_font(title_label, offset=6, weight=QFont.Weight.DemiBold)
         title_label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY}; border: none; background: transparent;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -179,8 +180,7 @@ class ModernLoginDialog(QDialog):
             f"color: {COLOR_TEXT_PRIMARY}; background: transparent; border: none;"
         )
 
-        self.password_edit = ModernLineEdit("Enter your password")
-        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_edit = PasswordLineEdit("Enter your password")
 
         password_layout.addWidget(password_label)
         password_layout.addWidget(self.password_edit)
@@ -272,7 +272,7 @@ class ModernLoginDialog(QDialog):
                 border: 1px solid {COLOR_BORDER};
             }}
             QPushButton:pressed {{
-                background: #E2E8F0;
+                background: {COLOR_BORDER};
             }}
             """
         )
@@ -318,15 +318,15 @@ class ModernLoginDialog(QDialog):
                 except Exception:
                     self.result_ready.emit(False)
 
-        self._update_connection_ui("Checking...", "#F59E0B", "#F59E0B")
+        self._update_connection_ui("Checking...", COLOR_TOAST_WARNING, COLOR_TOAST_WARNING)
         self._connection_checker = _ConnectionChecker(get_server_url(), self)
         self._connection_checker.start()
 
     def _on_connection_checked(self, success):
         if success:
-            self._update_connection_ui("Connected", COLOR_SUCCESS_SOFT_TEXT, "#10B981")
+            self._update_connection_ui("Connected", COLOR_SUCCESS_SOFT_TEXT, COLOR_TOAST_SUCCESS)
         else:
-            self._update_connection_ui("Disconnected", "#EF4444", "#EF4444")
+            self._update_connection_ui("Disconnected", COLOR_TOAST_DANGER, COLOR_TOAST_DANGER)
 
     def _update_connection_ui(self, text, text_color, indicator_color=None):
         self.connection_text.setText(text)
@@ -373,47 +373,8 @@ class ModernLoginDialog(QDialog):
             self.password_edit.setEnabled(True)
     
     def show_professional_error(self, message):
-        """Mostrar mensaje de error con estilo profesional"""
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setWindowTitle("Authentication Error")
-        msg.setText(message)
-        
-        # Estilo profesional para el mensaje de error
-        base = get_base_font_size()
-        label_size = max(8, base + 3)
-        button_size = max(8, base + 2)
-        msg.setStyleSheet(
-            f"""
-            QMessageBox {{
-                background: #FFFFFF;
-                font-family: '{MODERN_FONT}';
-            }}
-            QMessageBox QLabel {{
-                color: #374151;
-                font-size: {label_size}px;
-                padding: 10px;
-            }}
-            QMessageBox QPushButton {{
-                background: #3B82F6;
-                color: white;
-                border: none;
-                padding: 8px 24px;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: {button_size}px;
-                min-width: 80px;
-            }}
-            QMessageBox QPushButton:hover {{
-                background: #2563EB;
-            }}
-            QMessageBox QPushButton:pressed {{
-                background: #1D4ED8;
-            }}
-        """
-        )
-        
-        msg.exec()
+        """Show an authentication error using the centralized dialog helper."""
+        show_warning(self, message, title="Authentication Error")
 
     def open_settings_dialog(self):
         """Open settings dialog for server configuration and re-check connection after."""

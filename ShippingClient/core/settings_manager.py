@@ -5,11 +5,37 @@ from .websocket_url import normalize_websocket_url
 
 
 class SettingsManager:
-    """Simple wrapper around QSettings for storing user preferences."""
+    """Simple wrapper around QSettings for storing user preferences.
+
+    Call ``set_current_user(username)`` after login so that all
+    layout preferences (column widths, sort state, date filters, colours)
+    are scoped to the logged-in user.  Global settings (server URLs, font
+    size, saved credentials) are never scoped and remain shared.
+    """
 
     def __init__(self):
         # Organization and application names define where the settings are stored
         self._settings = QSettings("ShippingSchedule", "Client")
+        self._user_prefix: str = ""
+
+    def set_current_user(self, username: str) -> None:
+        """Scope all layout preferences to *username*.
+
+        Must be called once, right after login, before any load/save of
+        per-user data.  Safe to call with an empty string (no scoping).
+        """
+        self._user_prefix = username.strip()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _scoped(self, key: str) -> str:
+        """Return *key* prefixed with the current user so settings don't
+        bleed between accounts that share the same Windows profile."""
+        if self._user_prefix:
+            return f"users/{self._user_prefix}/{key}"
+        return key
 
     def get_server_url(self) -> str:
         """Return stored server URL or default."""
@@ -50,11 +76,11 @@ class SettingsManager:
     def save_cell_colors(self, table_name: str, colors: dict[tuple[int, int], str]):
         """DEPRECATED: persist colors by (row, column) for legacy support."""
         serialized = {f"{r},{c}": color for (r, c), color in colors.items()}
-        self._settings.setValue(f"{table_name}_cell_colors", json.dumps(serialized))
+        self._settings.setValue(self._scoped(f"{table_name}_cell_colors"), json.dumps(serialized))
 
     def load_cell_colors(self, table_name: str) -> dict[tuple[int, int], str]:
         """DEPRECATED: retrieve colors stored by (row, column)."""
-        data = self._settings.value(f"{table_name}_cell_colors", "{}")
+        data = self._settings.value(self._scoped(f"{table_name}_cell_colors"), "{}")
         try:
             raw = json.loads(data)
         except Exception:
@@ -71,11 +97,11 @@ class SettingsManager:
     def save_shipment_colors(self, table_name: str, colors: dict[tuple[int, str], str]):
         """Persist background colors for shipment cells by (shipment_id, field_name)."""
         serialized = {f"{sid},{field}": color for (sid, field), color in colors.items()}
-        self._settings.setValue(f"{table_name}_shipment_colors", json.dumps(serialized))
+        self._settings.setValue(self._scoped(f"{table_name}_shipment_colors"), json.dumps(serialized))
 
     def load_shipment_colors(self, table_name: str) -> dict[tuple[int, str], str]:
         """Retrieve stored background colors for shipment cells."""
-        data = self._settings.value(f"{table_name}_shipment_colors", "{}")
+        data = self._settings.value(self._scoped(f"{table_name}_shipment_colors"), "{}")
         try:
             raw = json.loads(data)
         except Exception:
@@ -105,12 +131,12 @@ class SettingsManager:
                 "include_blank": include_blank,
             }
 
-        self._settings.setValue(f"{table_name}_date_filters", json.dumps(serialized))
+        self._settings.setValue(self._scoped(f"{table_name}_date_filters"), json.dumps(serialized))
 
     def load_date_filters(self, table_name: str) -> dict[int, dict[str, object]]:
         """Retrieve previously applied date filters for a table."""
 
-        data = self._settings.value(f"{table_name}_date_filters", "{}")
+        data = self._settings.value(self._scoped(f"{table_name}_date_filters"), "{}")
         try:
             raw = json.loads(data)
         except Exception:
@@ -140,8 +166,8 @@ class SettingsManager:
         return result
 
     def save_column_widths(self, table_name: str, widths: list[int]):
-        """Persist column widths for a table."""
-        self._settings.beginGroup(table_name)
+        """Persist column widths for a table, scoped to the current user."""
+        self._settings.beginGroup(self._scoped(table_name))
         for i, width in enumerate(widths):
             self._settings.setValue(f"col_{i}_width", width)
         self._settings.endGroup()
@@ -149,7 +175,7 @@ class SettingsManager:
     def load_column_widths(self, table_name: str, column_count: int) -> list[int | None]:
         """Retrieve stored widths. Returns list with None for missing values."""
         widths: list[int | None] = []
-        self._settings.beginGroup(table_name)
+        self._settings.beginGroup(self._scoped(table_name))
         for i in range(column_count):
             value = self._settings.value(f"col_{i}_width")
             try:
@@ -161,16 +187,16 @@ class SettingsManager:
 
     def save_sort_state(self, table_name: str, column: int, order: Qt.SortOrder) -> None:
         """Persist the last used sort column and order for a table."""
-        self._settings.setValue(f"{table_name}_sort_column", int(column))
+        self._settings.setValue(self._scoped(f"{table_name}_sort_column"), int(column))
         # Qt.SortOrder is an enum in Qt6; casting directly to int raises TypeError.
         # Use the enum's integer value to ensure the setting can be serialized.
         order_value = int(order.value) if hasattr(order, "value") else int(order)
-        self._settings.setValue(f"{table_name}_sort_order", order_value)
+        self._settings.setValue(self._scoped(f"{table_name}_sort_order"), order_value)
 
     def load_sort_state(self, table_name: str) -> tuple[int, Qt.SortOrder] | None:
         """Retrieve the persisted sort configuration for a table."""
-        column_value = self._settings.value(f"{table_name}_sort_column")
-        order_value = self._settings.value(f"{table_name}_sort_order")
+        column_value = self._settings.value(self._scoped(f"{table_name}_sort_column"))
+        order_value = self._settings.value(self._scoped(f"{table_name}_sort_order"))
 
         try:
             column = int(column_value)

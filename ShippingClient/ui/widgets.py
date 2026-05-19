@@ -6,19 +6,38 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QComboBox,
     QFrame,
+    QHBoxLayout,
     QLabel,
+    QToolButton,
     QVBoxLayout,
+    QWidget,
 )
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import pyqtSignal, Qt
 from core.config import MODERN_FONT
 from .utils import apply_scaled_font
 from .style_tokens import (
+    COLOR_BG_SUBTLE,
     COLOR_BORDER,
     COLOR_BORDER_STRONG,
+    COLOR_DANGER,
+    COLOR_DANGER_HOVER,
+    COLOR_DANGER_PRESSED,
+    COLOR_DANGER_SOFT_BG,
+    COLOR_DANGER_SOFT_BORDER,
+    COLOR_DANGER_SOFT_TEXT,
+    COLOR_INFO_SOFT_BG,
+    COLOR_INFO_SOFT_BORDER,
+    COLOR_INFO_SOFT_TEXT,
+    COLOR_NEUTRAL_SOFT_BG,
+    COLOR_NEUTRAL_SOFT_BORDER,
+    COLOR_NEUTRAL_SOFT_TEXT,
     COLOR_PRIMARY,
     COLOR_PRIMARY_HOVER,
     COLOR_PRIMARY_PRESSED,
+    COLOR_PRIMARY_SUBTLE_BG,
+    COLOR_SELECTION_BG,
+    COLOR_SELECTION_TEXT,
     COLOR_SUCCESS,
     COLOR_SUCCESS_HOVER,
     COLOR_SUCCESS_PRESSED,
@@ -26,10 +45,19 @@ from .style_tokens import (
     COLOR_SUCCESS_SOFT_BORDER,
     COLOR_SUCCESS_SOFT_TEXT,
     COLOR_SURFACE,
+    COLOR_TEXT_DISABLED,
+    COLOR_TEXT_ON_ACCENT,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
+    COLOR_WARNING,
+    COLOR_WARNING_HOVER,
+    COLOR_WARNING_PRESSED,
+    COLOR_WARNING_SOFT_BG,
+    COLOR_WARNING_SOFT_BORDER,
+    COLOR_WARNING_SOFT_TEXT,
     CONTROL_HEIGHT,
     RADIUS_MD,
+    RADIUS_SM,
     SPACE_12,
     SPACE_16,
     SPACE_20,
@@ -66,22 +94,24 @@ class ModernButton(QPushButton):
         self.apply_professional_style()
 
     def apply_professional_style(self):
-        """Aplicar estilos profesionales según el tipo de botón"""
+        """Apply Fluent-flavored styling per button type."""
         base_style = f"""
             QPushButton {{
                 border: 1px solid transparent;
                 border-radius: {RADIUS_MD}px;
                 padding: {self._padding_vertical}px {self._padding_horizontal}px;
-                font-weight: 500;
-                letter-spacing: 0.3px;
+                font-weight: 600;
                 text-align: center;
                 min-height: {self._min_height}px;
                 min-width: {self._min_width}px;
             }}
             QPushButton:disabled {{
-                background-color: #F1F5F9;
+                background-color: {COLOR_BG_SUBTLE};
                 border-color: {COLOR_BORDER};
-                color: #94A3B8;
+                color: {COLOR_TEXT_DISABLED};
+            }}
+            QPushButton:focus {{
+                outline: none;
             }}
         """
 
@@ -89,85 +119,114 @@ class ModernButton(QPushButton):
             style = base_style + f"""
                 QPushButton {{
                     background-color: {COLOR_PRIMARY};
-                    color: #FFFFFF;
+                    color: {COLOR_TEXT_ON_ACCENT};
+                    border-color: {COLOR_PRIMARY};
                 }}
                 QPushButton:hover {{
                     background-color: {COLOR_PRIMARY_HOVER};
+                    border-color: {COLOR_PRIMARY_HOVER};
                 }}
                 QPushButton:pressed {{
                     background-color: {COLOR_PRIMARY_PRESSED};
+                    border-color: {COLOR_PRIMARY_PRESSED};
                 }}
             """
         elif self.button_type in ("secondary", "outline"):
             style = base_style + f"""
                 QPushButton {{
                     background-color: {COLOR_SURFACE};
-                    color: {COLOR_TEXT_SECONDARY};
-                    border-color: {COLOR_BORDER};
+                    color: {COLOR_TEXT_PRIMARY};
+                    border-color: {COLOR_BORDER_STRONG};
                 }}
                 QPushButton:hover {{
-                    background-color: #F8FAFC;
+                    background-color: {COLOR_BG_SUBTLE};
                     border-color: {COLOR_BORDER_STRONG};
                 }}
                 QPushButton:pressed {{
-                    background-color: #E2E8F0;
-                    border-color: {COLOR_BORDER_STRONG};
+                    background-color: {COLOR_BG_SUBTLE};
+                    border-color: {COLOR_TEXT_SECONDARY};
+                }}
+            """
+        elif self.button_type == "subtle":
+            # Fluent subtle button: transparent, only shows on hover
+            style = base_style + f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {COLOR_TEXT_PRIMARY};
+                    border-color: transparent;
+                }}
+                QPushButton:hover {{
+                    background-color: {COLOR_BG_SUBTLE};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLOR_BORDER};
                 }}
             """
         elif self.button_type == "success":
             style = base_style + f"""
                 QPushButton {{
                     background-color: {COLOR_SUCCESS};
-                    color: #FFFFFF;
+                    color: {COLOR_TEXT_ON_ACCENT};
+                    border-color: {COLOR_SUCCESS};
                 }}
                 QPushButton:hover {{
                     background-color: {COLOR_SUCCESS_HOVER};
+                    border-color: {COLOR_SUCCESS_HOVER};
                 }}
                 QPushButton:pressed {{
                     background-color: {COLOR_SUCCESS_PRESSED};
+                    border-color: {COLOR_SUCCESS_PRESSED};
                 }}
             """
         elif self.button_type == "danger":
-            style = base_style + """
-                QPushButton {
-                    background-color: #DC2626;
-                    color: #FFFFFF;
-                }
-                QPushButton:hover {
-                    background-color: #B91C1C;
-                }
-                QPushButton:pressed {
-                    background-color: #991B1B;
-                }
+            style = base_style + f"""
+                QPushButton {{
+                    background-color: {COLOR_DANGER};
+                    color: {COLOR_TEXT_ON_ACCENT};
+                    border-color: {COLOR_DANGER};
+                }}
+                QPushButton:hover {{
+                    background-color: {COLOR_DANGER_HOVER};
+                    border-color: {COLOR_DANGER_HOVER};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLOR_DANGER_PRESSED};
+                    border-color: {COLOR_DANGER_PRESSED};
+                }}
             """
         elif self.button_type == "danger-outline":
-            style = base_style + """
-                QPushButton {
-                    background-color: #FFFFFF;
-                    color: #B91C1C;
-                    border-color: #E5E7EB;
-                }
-                QPushButton:hover {
-                    background-color: #FEF2F2;
-                    border-color: #F1F5F9;
-                }
-                QPushButton:pressed {
-                    background-color: #FDE8E8;
-                    border-color: #F1F5F9;
-                }
+            style = base_style + f"""
+                QPushButton {{
+                    background-color: {COLOR_SURFACE};
+                    color: {COLOR_DANGER_SOFT_TEXT};
+                    border-color: {COLOR_BORDER_STRONG};
+                }}
+                QPushButton:hover {{
+                    background-color: {COLOR_DANGER_SOFT_BG};
+                    border-color: {COLOR_DANGER_SOFT_BORDER};
+                    color: {COLOR_DANGER_HOVER};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLOR_DANGER_SOFT_BG};
+                    border-color: {COLOR_DANGER};
+                    color: {COLOR_DANGER_PRESSED};
+                }}
             """
         elif self.button_type == "warning":
-            style = base_style + """
-                QPushButton {
-                    background-color: #F59E0B;
-                    color: #FFFFFF;
-                }
-                QPushButton:hover {
-                    background-color: #D97706;
-                }
-                QPushButton:pressed {
-                    background-color: #B45309;
-                }
+            style = base_style + f"""
+                QPushButton {{
+                    background-color: {COLOR_WARNING};
+                    color: {COLOR_TEXT_ON_ACCENT};
+                    border-color: {COLOR_WARNING};
+                }}
+                QPushButton:hover {{
+                    background-color: {COLOR_WARNING_HOVER};
+                    border-color: {COLOR_WARNING_HOVER};
+                }}
+                QPushButton:pressed {{
+                    background-color: {COLOR_WARNING_PRESSED};
+                    border-color: {COLOR_WARNING_PRESSED};
+                }}
             """
         else:
             style = base_style
@@ -202,37 +261,32 @@ class ModernLineEdit(QLineEdit):
         self.apply_professional_style()
 
     def apply_professional_style(self):
-        """Aplicar estilo profesional al input"""
+        """Fluent-styled text input."""
         font_size = max(13, self.font().pointSize() + 2)
-        placeholder_font_size = font_size
         self.setStyleSheet(
             f"""
             QLineEdit {{
                 background: {COLOR_SURFACE};
-                border: 1px solid {COLOR_BORDER};
+                border: 1px solid {COLOR_BORDER_STRONG};
                 border-radius: {RADIUS_MD}px;
-                padding: {SPACE_8}px {SPACE_12}px;
+                padding: {SPACE_8 - 2}px {SPACE_12}px;
                 font-size: {font_size}px;
                 color: {COLOR_TEXT_PRIMARY};
-                selection-background-color: #DBEAFE;
+                selection-background-color: {COLOR_SELECTION_BG};
+                selection-color: {COLOR_SELECTION_TEXT};
             }}
-            QLineEdit::placeholder {{
-                color: #9CA3AF;
-                font-size: {placeholder_font_size}px;
+            QLineEdit:hover {{
+                border-color: {COLOR_TEXT_SECONDARY};
             }}
             QLineEdit:focus {{
                 border-color: {COLOR_PRIMARY};
                 background: {COLOR_SURFACE};
                 outline: none;
-
-            }}
-            QLineEdit:hover {{
-                border-color: {COLOR_BORDER_STRONG};
             }}
             QLineEdit:disabled {{
-                background-color: #F9FAFB;
-                color: #6B7280;
-                border-color: #E5E7EB;
+                background-color: {COLOR_BG_SUBTLE};
+                color: {COLOR_TEXT_DISABLED};
+                border-color: {COLOR_BORDER};
             }}
         """
         )
@@ -252,6 +306,60 @@ class ModernLineEdit(QLineEdit):
                 self._handling_font_change = False
         super().changeEvent(event)
 
+class PasswordLineEdit(QWidget):
+    """ModernLineEdit in password echo mode with a show/hide toggle button."""
+
+    returnPressed = pyqtSignal()
+
+    def __init__(self, placeholder: str = "Password", parent=None):
+        super().__init__(parent)
+        self._visible = False
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        self._edit = ModernLineEdit(placeholder)
+        self._edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self._edit.returnPressed.connect(self.returnPressed)
+
+        self._toggle_btn = QToolButton()
+        self._toggle_btn.setText("Show")
+        self._toggle_btn.setFixedWidth(48)
+        self._toggle_btn.setMinimumHeight(CONTROL_HEIGHT)
+        self._toggle_btn.clicked.connect(self._toggle_visibility)
+        apply_scaled_font(self._toggle_btn, offset=-1)
+
+        layout.addWidget(self._edit)
+        layout.addWidget(self._toggle_btn)
+
+    def _toggle_visibility(self) -> None:
+        self._visible = not self._visible
+        mode = QLineEdit.EchoMode.Normal if self._visible else QLineEdit.EchoMode.Password
+        self._edit.setEchoMode(mode)
+        self._toggle_btn.setText("Hide" if self._visible else "Show")
+
+    def text(self) -> str:
+        return self._edit.text()
+
+    def setText(self, value: str) -> None:
+        self._edit.setText(value)
+
+    def clear(self) -> None:
+        self._edit.clear()
+
+    def setPlaceholderText(self, text: str) -> None:
+        self._edit.setPlaceholderText(text)
+
+    def placeholderText(self) -> str:
+        return self._edit.placeholderText()
+
+    def setEnabled(self, enabled: bool) -> None:
+        super().setEnabled(enabled)
+        self._edit.setEnabled(enabled)
+        self._toggle_btn.setEnabled(enabled)
+
+
 class ModernComboBox(QComboBox):
     def __init__(self):
         super().__init__()
@@ -260,65 +368,68 @@ class ModernComboBox(QComboBox):
         self.apply_professional_style()
 
     def apply_professional_style(self):
-        """Aplicar estilo profesional al combobox"""
+        """Fluent-styled combobox."""
         font_size = max(12, self.font().pointSize() + 2)
         self.setStyleSheet(
             f"""
             QComboBox {{
                 background: {COLOR_SURFACE};
-                border: 1px solid {COLOR_BORDER};
+                border: 1px solid {COLOR_BORDER_STRONG};
                 border-radius: {RADIUS_MD}px;
-                padding: {SPACE_8}px {SPACE_12}px;
+                padding: {SPACE_8 - 2}px {SPACE_12}px;
                 font-size: {font_size}px;
                 color: {COLOR_TEXT_PRIMARY};
                 min-width: 140px;
-                selection-background-color: #DBEAFE;
+                selection-background-color: {COLOR_SELECTION_BG};
+                selection-color: {COLOR_SELECTION_TEXT};
             }}
-            QComboBox:focus {{
+            QComboBox:hover {{
+                border-color: {COLOR_TEXT_SECONDARY};
+            }}
+            QComboBox:focus, QComboBox:on {{
                 border-color: {COLOR_PRIMARY};
                 outline: none;
             }}
-            QComboBox:hover {{
-                border-color: {COLOR_BORDER_STRONG};
+            QComboBox:disabled {{
+                background-color: {COLOR_BG_SUBTLE};
+                color: {COLOR_TEXT_DISABLED};
+                border-color: {COLOR_BORDER};
             }}
             QComboBox::drop-down {{
                 border: none;
-                width: 30px;
+                width: 24px;
                 background: transparent;
             }}
             QComboBox::down-arrow {{
                 image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 6px solid #6B7280;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid {COLOR_TEXT_SECONDARY};
                 margin-right: 8px;
             }}
-            QComboBox:on {{
-                border-color: #3B82F6;
-            }}
             QComboBox::down-arrow:on {{
-                border-top-color: #3B82F6;
+                border-top-color: {COLOR_PRIMARY};
             }}
             QComboBox QAbstractItemView {{
-                border: 1px solid {COLOR_BORDER};
+                border: 1px solid {COLOR_BORDER_STRONG};
                 border-radius: {RADIUS_MD}px;
                 background: {COLOR_SURFACE};
-                selection-background-color: #EFF6FF;
-                selection-color: #1F2937;
+                selection-background-color: {COLOR_PRIMARY_SUBTLE_BG};
+                selection-color: {COLOR_TEXT_PRIMARY};
                 padding: 4px;
                 outline: none;
             }}
             QComboBox QAbstractItemView::item {{
-                padding: 8px 12px;
-                border-radius: {SPACE_8}px;
-                margin: 1px;
+                padding: 7px 10px;
+                border-radius: {RADIUS_SM}px;
+                margin: 1px 2px;
             }}
             QComboBox QAbstractItemView::item:selected {{
-                background-color: #EFF6FF;
-                color: #1F2937;
+                background-color: {COLOR_PRIMARY_SUBTLE_BG};
+                color: {COLOR_TEXT_PRIMARY};
             }}
             QComboBox QAbstractItemView::item:hover {{
-                background-color: #F3F4F6;
+                background-color: {COLOR_BG_SUBTLE};
             }}
         """
         )
@@ -358,12 +469,12 @@ class ProfessionalCard(QFrame):
             self.card_layout.addWidget(self.title_label)
     
     def apply_card_style(self):
-        """Aplicar estilo de tarjeta profesional"""
+        """Fluent card surface."""
         self.setStyleSheet(f"""
             QFrame {{
                 background: {COLOR_SURFACE};
                 border: 1px solid {COLOR_BORDER};
-                border-radius: {RADIUS_MD}px;
+                border-radius: 8px;
             }}
         """)
     
@@ -385,60 +496,27 @@ class StatusBadge(QLabel):
         self.apply_badge_style()
     
     def apply_badge_style(self):
-        """Aplicar estilo según el tipo de status"""
-        base_style = """
-            QLabel {
-                padding: 4px 10px;
+        """Fluent-styled status pill."""
+        palettes = {
+            "success": (COLOR_SUCCESS_SOFT_BG, COLOR_SUCCESS_SOFT_BORDER, COLOR_SUCCESS_SOFT_TEXT),
+            "warning": (COLOR_WARNING_SOFT_BG, COLOR_WARNING_SOFT_BORDER, COLOR_WARNING_SOFT_TEXT),
+            "error":   (COLOR_DANGER_SOFT_BG, COLOR_DANGER_SOFT_BORDER, COLOR_DANGER_SOFT_TEXT),
+            "info":    (COLOR_INFO_SOFT_BG, COLOR_INFO_SOFT_BORDER, COLOR_INFO_SOFT_TEXT),
+            "default": (COLOR_NEUTRAL_SOFT_BG, COLOR_NEUTRAL_SOFT_BORDER, COLOR_NEUTRAL_SOFT_TEXT),
+        }
+        bg, border, fg = palettes.get(self.status_type, palettes["default"])
+        self.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {bg};
+                border: 1px solid {border};
+                color: {fg};
+                padding: 3px 10px;
                 border-radius: 10px;
-                border: 1px solid transparent;
-                font-weight: 500;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-        """
-        
-        if self.status_type == "success":
-            style = base_style + f"""
-                QLabel {
-                    background-color: {COLOR_SUCCESS_SOFT_BG};
-                    border-color: {COLOR_SUCCESS_SOFT_BORDER};
-                    color: {COLOR_SUCCESS_SOFT_TEXT};
-                }
+                font-weight: 600;
+            }}
             """
-        elif self.status_type == "warning":
-            style = base_style + """
-                QLabel {
-                    background-color: #FFFBEB;
-                    border-color: #FDE68A;
-                    color: #92400E;
-                }
-            """
-        elif self.status_type == "error":
-            style = base_style + """
-                QLabel {
-                    background-color: #FEF2F2;
-                    border-color: #FECACA;
-                    color: #B91C1C;
-                }
-            """
-        elif self.status_type == "info":
-            style = base_style + """
-                QLabel {
-                    background-color: #EFF6FF;
-                    border-color: #BFDBFE;
-                    color: #1D4ED8;
-                }
-            """
-        else:  # default
-            style = base_style + """
-                QLabel {
-                    background-color: #F1F5F9;
-                    border-color: #CBD5E1;
-                    color: #475569;
-                }
-            """
-        
-        self.setStyleSheet(style)
+        )
     
     def update_status(self, text, status_type):
         """Actualizar el texto y tipo del badge"""
@@ -457,11 +535,11 @@ class ProfessionalSeparator(QFrame):
             self.setFrameShape(QFrame.Shape.VLine)
             self.setFixedWidth(1)
         
-        self.setStyleSheet("""
-            QFrame {
-                background-color: #E5E7EB;
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {COLOR_BORDER};
                 border: none;
-            }
+            }}
         """)
 
 class ProfessionalSpinner(QLabel):
@@ -472,13 +550,12 @@ class ProfessionalSpinner(QLabel):
         self.setFixedSize(size, size)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # Crear animación simple con texto
         self.setText("●")
         font_size = max(6, self.font().pointSize() - 2)
         self.setStyleSheet(
             f"""
             QLabel {{
-                color: #3B82F6;
+                color: {COLOR_PRIMARY};
                 font-size: {font_size}px;
                 font-weight: bold;
             }}

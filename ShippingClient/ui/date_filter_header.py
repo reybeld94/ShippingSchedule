@@ -4,6 +4,8 @@ from PyQt6.QtCore import QPoint, QPointF, QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import QHeaderView
 
+from .style_tokens import COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY
+
 
 class DateFilterHeader(QHeaderView):
     """Header view that shows a filter indicator for date columns."""
@@ -55,7 +57,7 @@ class DateFilterHeader(QHeaderView):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-        color = QColor("#1F2937" if logicalIndex in self._active_filters else "#6B7280")
+        color = QColor(COLOR_TEXT_PRIMARY if logicalIndex in self._active_filters else COLOR_TEXT_SECONDARY)
         painter.setBrush(color)
         painter.setPen(QPen(Qt.PenStyle.NoPen))
 

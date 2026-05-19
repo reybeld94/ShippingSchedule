@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
-from .widgets import ModernButton, ModernComboBox, ModernLineEdit
+from .widgets import ModernButton, ModernComboBox, ModernLineEdit, PasswordLineEdit
 from .user_dialog import UserManagementWidget
 from core.settings_manager import SettingsManager
 from core.config import MODERN_FONT
@@ -30,7 +30,10 @@ from .utils import apply_scaled_font
 from .style_tokens import (
     COLOR_BG_SUBTLE,
     COLOR_BORDER,
+    COLOR_BORDER_STRONG,
     COLOR_PRIMARY,
+    COLOR_PRIMARY_SUBTLE_BG,
+    COLOR_PRIMARY_SUBTLE_BORDER,
     COLOR_SURFACE,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
@@ -209,8 +212,7 @@ class SettingsDialog(QDialog):
         apply_scaled_font(self.fedex_enabled, offset=1, weight=QFont.Weight.Medium)
         self.fedex_api_key_edit = ModernLineEdit("FedEx API Key")
         self.fedex_api_key_edit.setEnabled(self.is_admin)
-        self.fedex_secret_key_edit = ModernLineEdit("FedEx Secret Key")
-        self.fedex_secret_key_edit.setEchoMode(ModernLineEdit.EchoMode.Password)
+        self.fedex_secret_key_edit = PasswordLineEdit("FedEx Secret Key")
         self.fedex_secret_key_edit.setEnabled(self.is_admin)
         self.fedex_base_url_edit = ModernLineEdit("FedEx Base URL (optional)")
         self.fedex_base_url_edit.setPlaceholderText("https://apis.fedex.com or https://apis-sandbox.fedex.com")
@@ -345,7 +347,7 @@ class SettingsDialog(QDialog):
         self._add_permission_section(
             content_layout,
             module_key="shipping_schedule",
-            title="Shipping Schedule",
+            title="Schedule",
             rows=[
                 ("job_number", "Job Number"),
                 ("job_name", "Job Name"),
@@ -607,11 +609,11 @@ class SettingsDialog(QDialog):
                 background: {COLOR_SURFACE};
             }}
             QCheckBox::indicator:hover {{
-                border-color: #94A3B8;
+                border-color: {COLOR_BORDER_STRONG};
             }}
             QCheckBox::indicator:checked {{
                 border-color: {COLOR_PRIMARY};
-                background-color: #DBEAFE;
+                background-color: {COLOR_PRIMARY};
             }}
             QTabWidget#settingsTabs::pane {{
                 border: none;
@@ -634,13 +636,13 @@ class SettingsDialog(QDialog):
                 font-weight: 500;
             }}
             QTabWidget#settingsTabs QTabBar::tab:hover:!selected {{
-                background: #F8FAFC;
-                color: #334155;
+                background: {COLOR_BG_SUBTLE};
+                color: {COLOR_TEXT_PRIMARY};
             }}
             QTabWidget#settingsTabs QTabBar::tab:selected {{
-                background: #EFF6FF;
+                background: {COLOR_PRIMARY_SUBTLE_BG};
                 color: {COLOR_TEXT_PRIMARY};
-                border: 1px solid #BFDBFE;
+                border: 1px solid {COLOR_PRIMARY_SUBTLE_BORDER};
                 border-bottom: 2px solid {COLOR_PRIMARY};
                 font-weight: 600;
             }}

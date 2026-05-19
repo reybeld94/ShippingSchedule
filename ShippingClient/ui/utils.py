@@ -4,6 +4,7 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import QTimer, Qt, QPoint
 
 from core.config import MODERN_FONT
+from .style_tokens import COLOR_TOAST_INFO
 
 
 def _resolve_base_font_size(default: int = 10) -> int:
@@ -63,7 +64,7 @@ def refresh_scaled_fonts(root: QWidget) -> None:
         widget.setFont(font)
 
 
-def show_popup_notification(parent, message, duration=3000, color="#3B82F6"):
+def show_popup_notification(parent, message, duration=3000, color=COLOR_TOAST_INFO):
     popup = QLabel(parent)
     popup.setText(f"  ●  {message}")
     font_size = max(8, _resolve_base_font_size() + 4)

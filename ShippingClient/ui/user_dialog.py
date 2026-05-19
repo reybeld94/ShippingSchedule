@@ -4,8 +4,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QLabel,
     QHBoxLayout,
-    QMessageBox,
-    QLineEdit,
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
@@ -15,8 +13,15 @@ from PyQt6.QtCore import Qt
 
 import requests
 
-from .widgets import ModernButton, ModernLineEdit, ModernComboBox, ProfessionalCard
-from core.config import get_server_url, REQUEST_TIMEOUT, MODERN_FONT
+from .widgets import ModernButton, ModernLineEdit, ModernComboBox, PasswordLineEdit, ProfessionalCard
+from .dialogs import ask_confirm, show_error
+from .style_tokens import (
+    COLOR_BG_SUBTLE,
+    COLOR_BORDER,
+    COLOR_BORDER_STRONG,
+    COLOR_TEXT_PRIMARY,
+)
+from core.config import get_server_url, REQUEST_TIMEOUT
 from .utils import apply_scaled_font, get_base_font_size
 
 
@@ -40,8 +45,7 @@ class UserFormDialog(QDialog):
 
         self.username_edit = ModernLineEdit("Username")
         self.email_edit = ModernLineEdit("Email")
-        self.password_edit = ModernLineEdit("Password")
-        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_edit = PasswordLineEdit("Password")
         self.role_combo = ModernComboBox()
         self.role_combo.addItems(["read", "write", "admin"])
 
@@ -70,7 +74,7 @@ class UserFormDialog(QDialog):
         """Create a consistently styled form label."""
         label = QLabel(text)
         apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
-        label.setStyleSheet("color: #374151;")
+        label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
         return label
 
     def populate(self, user):
@@ -117,40 +121,7 @@ class UserFormDialog(QDialog):
             self.show_error(str(e))
 
     def show_error(self, message):
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Critical)
-        msg.setWindowTitle("Error")
-        msg.setText(message)
-        base = get_base_font_size()
-        label_size = max(8, base + 3)
-        button_size = max(8, base + 2)
-        msg.setStyleSheet(
-            f"""
-            QMessageBox {{
-                background: #FFFFFF;
-                font-family: '{MODERN_FONT}';
-            }}
-            QMessageBox QLabel {{
-                color: #374151;
-                font-size: {label_size}px;
-                padding: 8px;
-            }}
-            QMessageBox QPushButton {{
-                background: #3B82F6;
-                color: white;
-                border: none;
-                padding: 6px 20px;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: {button_size}px;
-                min-width: 80px;
-            }}
-            QMessageBox QPushButton:hover {{
-                background: #2563EB;
-            }}
-        """
-        )
-        msg.exec()
+        show_error(self, message)
 
 
 class UserManagementDialog(QDialog):
@@ -189,11 +160,11 @@ class UserManagementWidget(QWidget):
         self.table.setStyleSheet(
             f"""
     QHeaderView::section {{
-        background-color: #E5E5E5;
-        color: #000000;
+        background-color: {COLOR_BG_SUBTLE};
+        color: {COLOR_TEXT_PRIMARY};
         padding: 8px 4px;
         border: none;
-        border-right: 1px solid #D1D5DB;
+        border-right: 1px solid {COLOR_BORDER_STRONG};
         font-size: {header_font}px;
         font-weight: 600;
     }}
@@ -253,7 +224,7 @@ class UserManagementWidget(QWidget):
     def _create_form_label(self, text: str) -> QLabel:
         label = QLabel(text)
         apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
-        label.setStyleSheet("color: #374151;")
+        label.setStyleSheet(f"color: {COLOR_TEXT_PRIMARY};")
         return label
 
     def edit_user(self):
@@ -270,30 +241,27 @@ class UserManagementWidget(QWidget):
         if not user:
             self.show_error("Select a user")
             return
-        msg = QMessageBox.question(
+        if not ask_confirm(
             self,
-            "Confirm",
             f"Delete user {user['username']}?",
-        )
-        if msg == QMessageBox.StandardButton.Yes:
-            headers = {"Authorization": f"Bearer {self.token}"}
-            try:
-                server_url = get_server_url()
-                resp = requests.delete(
-                    f"{server_url}/users/{user['id']}",
-                    headers=headers,
-                    timeout=REQUEST_TIMEOUT,
-                )
-                if resp.status_code == 200:
-                    self.load_users()
-                else:
-                    self.show_error(resp.text)
-            except Exception as e:
-                self.show_error(str(e))
+            title="Confirm delete",
+            destructive=True,
+        ):
+            return
+        headers = {"Authorization": f"Bearer {self.token}"}
+        try:
+            server_url = get_server_url()
+            resp = requests.delete(
+                f"{server_url}/users/{user['id']}",
+                headers=headers,
+                timeout=REQUEST_TIMEOUT,
+            )
+            if resp.status_code == 200:
+                self.load_users()
+            else:
+                self.show_error(resp.text)
+        except Exception as e:
+            self.show_error(str(e))
 
     def show_error(self, message):
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Critical)
-        msg.setWindowTitle("Error")
-        msg.setText(message)
-        msg.exec()
+        show_error(self, message)

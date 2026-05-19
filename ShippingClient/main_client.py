@@ -6,6 +6,7 @@ from PyQt6.QtGui import QFont, QIcon
 
 # Imports locales
 from ui.login_dialog import ModernLoginDialog
+from ui.theme import apply_fluent_theme
 from core import config as app_config
 from core.config import MODERN_FONT, ICON_PATH, get_font_size, ensure_font_available
 
@@ -14,16 +15,17 @@ def main():
     if os.path.exists(ICON_PATH):
         app.setWindowIcon(QIcon(ICON_PATH))
 
-    # Verificar y ajustar la fuente para el OS actual (requiere QApplication)
-    verified_font = ensure_font_available(MODERN_FONT)
-    app_config.MODERN_FONT = verified_font  # actualizar para todo el modulo
-
-    # Configurar fuente del sistema
-    font = QFont(verified_font, get_font_size())
-    app.setFont(font)
-    
-    # Estilo de aplicación moderno
+    # Use a neutral base style so our QSS controls the look across platforms
     app.setStyle('Fusion')
+
+    # Install the global Fluent theme (typography + QSS for every widget).
+    # apply_fluent_theme picks Segoe UI Variable when available and falls
+    # back to MODERN_FONT-equivalent families on other OSes.
+    user_font_size = get_font_size()
+    resolved_family = apply_fluent_theme(app, point_size=user_font_size)
+
+    # Keep MODERN_FONT in sync for legacy callers that still reference it.
+    app_config.MODERN_FONT = resolved_family or ensure_font_available(MODERN_FONT)
     
     try:
         # Login

@@ -10,13 +10,14 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QWidget,
     QTextEdit,
-    QMessageBox,
     QStyle,
 )
 from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtCore import Qt
 
 from .widgets import ModernButton, ModernLineEdit, ModernComboBox, ProfessionalCard, StatusBadge
+from .dialogs import show_warning
+from .date_delegate import OptionalDateEdit
 from core.api_client import RobustApiClient
 from core.config import (
     DIALOG_WIDTH,
@@ -31,6 +32,8 @@ from .style_tokens import (
     COLOR_BORDER,
     COLOR_BORDER_STRONG,
     COLOR_PRIMARY,
+    COLOR_SELECTION_BG,
+    COLOR_SELECTION_TEXT,
     COLOR_SURFACE,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
@@ -93,11 +96,11 @@ class ModernShipmentDialog(QDialog):
         """Crear header profesional"""
         header_frame = QFrame()
         header_frame.setFixedHeight(70)
-        header_frame.setStyleSheet("""
-            QFrame {
-                background-color: #FFFFFF;
+        header_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {COLOR_SURFACE};
                 border: none;
-            }
+            }}
         """)
         
         header_layout = QHBoxLayout(header_frame)
@@ -169,23 +172,11 @@ class ModernShipmentDialog(QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # Scroll area uses the global Fluent QSS — only override the frame.
         scroll.setStyleSheet("""
             QScrollArea {
                 background: transparent;
                 border: none;
-            }
-            QScrollBar:vertical {
-                background: #F3F4F6;
-                width: 8px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:vertical {
-                background: #D1D5DB;
-                border-radius: 4px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #9CA3AF;
             }
         """)
         
@@ -262,20 +253,20 @@ class ModernShipmentDialog(QDialog):
         
         # Fila 1: QC Release y Crated
         dates_grid.addWidget(self.create_field_label("QC Release"), 0, 0)
-        self.qc_release_edit = ModernLineEdit("MM/DD/YY")
+        self.qc_release_edit = OptionalDateEdit("MM/DD/YY")
         dates_grid.addWidget(self.qc_release_edit, 0, 1)
 
         dates_grid.addWidget(self.create_field_label("Crated"), 0, 2)
-        self.created_edit = ModernLineEdit("MM/DD/YY")
+        self.created_edit = OptionalDateEdit("MM/DD/YY")
         dates_grid.addWidget(self.created_edit, 0, 3)
 
         # Fila 2: Ship Plan y Shipped
         dates_grid.addWidget(self.create_field_label("Ship Plan"), 1, 0)
-        self.ship_plan_edit = ModernLineEdit("MM/DD/YY")
+        self.ship_plan_edit = OptionalDateEdit("MM/DD/YY")
         dates_grid.addWidget(self.ship_plan_edit, 1, 1)
 
         dates_grid.addWidget(self.create_field_label("Shipped"), 1, 2)
-        self.shipped_edit = ModernLineEdit("MM/DD/YY")
+        self.shipped_edit = OptionalDateEdit("MM/DD/YY")
         dates_grid.addWidget(self.shipped_edit, 1, 3)
         
         dates_card.add_layout(dates_grid)
@@ -343,7 +334,8 @@ class ModernShipmentDialog(QDialog):
                 font-family: '{MODERN_FONT}';
                 font-size: {text_size}px;
                 color: {COLOR_TEXT_PRIMARY};
-                selection-background-color: #DBEAFE;
+                selection-background-color: {COLOR_SELECTION_BG};
+                selection-color: {COLOR_SELECTION_TEXT};
             }}
             QTextEdit:focus {{
                 border-color: {COLOR_PRIMARY};
@@ -361,11 +353,11 @@ class ModernShipmentDialog(QDialog):
         footer_frame = QFrame()
         footer_frame.setFixedHeight(70)
         footer_frame.setStyleSheet(f"""
-            QFrame {
+            QFrame {{
                 background: {COLOR_BG_SUBTLE};
                 border: none;
                 border-top: 1px solid {COLOR_BORDER};
-            }
+            }}
         """)
         
         footer_layout = QHBoxLayout(footer_frame)
@@ -522,41 +514,5 @@ class ModernShipmentDialog(QDialog):
             self.save_btn.setEnabled(True)
     
     def show_professional_error(self, message):
-        """Mostrar mensaje de error profesional"""
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setWindowTitle("Validation Error")
-        msg.setText(message)
-
-        # Estilo profesional
-        base = get_base_font_size()
-        label_size = max(8, base + 3)
-        button_size = max(8, base + 2)
-        msg.setStyleSheet(
-            f"""
-            QMessageBox {{
-                background: #FFFFFF;
-                font-family: '{MODERN_FONT}';
-            }}
-            QMessageBox QLabel {{
-                color: #374151;
-                font-size: {label_size}px;
-                padding: 10px;
-            }}
-            QMessageBox QPushButton {{
-                background: #3B82F6;
-                color: white;
-                border: none;
-                padding: 8px 24px;
-                border-radius: 6px;
-                font-weight: 500;
-                font-size: {button_size}px;
-                min-width: 80px;
-            }}
-            QMessageBox QPushButton:hover {{
-                background: #2563EB;
-            }}
-        """
-        )
-
-        msg.exec()
+        """Validation error using the centralized dialog helper."""
+        show_warning(self, message, title="Validation Error")

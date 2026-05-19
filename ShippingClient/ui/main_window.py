@@ -91,7 +91,8 @@ from PyQt6.QtGui import (
 
 
 LOCAL_UPDATE_MARK_ROLE = Qt.ItemDataRole.UserRole + 20
-LOCAL_UPDATE_MARK_COLOR = "#1E90FF"
+# LOCAL_UPDATE_MARK_COLOR is assigned below, after the style_tokens import.
+LOCAL_UPDATE_MARK_COLOR: str = ""
 
 
 CODE39_PATTERNS = {
@@ -195,6 +196,7 @@ def paint_marked_item_text(painter: QPainter, option: QStyleOptionViewItem, inde
     painter.restore()
 # Imports locales
 from .widgets import ModernButton
+from .dialogs import ask_confirm, show_error
 from .date_delegate import DateDelegate
 from .date_filter_dialog import DateFilterPopup
 from .date_filter_header import DateFilterHeader
@@ -205,23 +207,56 @@ from .style_tokens import (
     COLOR_BG_SUBTLE,
     COLOR_BORDER,
     COLOR_BORDER_STRONG,
+    COLOR_DANGER,
+    COLOR_DANGER_SOFT_BG,
+    COLOR_DANGER_SOFT_BORDER,
+    COLOR_DANGER_SOFT_TEXT,
+    COLOR_DIVIDER,
+    COLOR_LOCAL_EDIT_MARK,
+    COLOR_NEUTRAL_SOFT_BG,
+    COLOR_NEUTRAL_SOFT_TEXT,
     COLOR_PRIMARY,
+    COLOR_PRIMARY_SUBTLE_BG,
+    COLOR_PRIMARY_SUBTLE_BORDER,
+    COLOR_PRIMARY_SUBTLE_TEXT,
+    COLOR_SELECTION_BG,
+    COLOR_SELECTION_TEXT,
+    COLOR_SILL_ISSUE_COMPLETE_BG,
+    COLOR_SILL_ISSUE_PARTIAL_BG,
     COLOR_SUCCESS,
     COLOR_SUCCESS_SOFT_BG,
     COLOR_SUCCESS_SOFT_BORDER,
     COLOR_SUCCESS_SOFT_TEXT,
     COLOR_SURFACE,
+    COLOR_SURFACE_ALT,
+    COLOR_TEXT_ON_ACCENT,
     COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY,
+    COLOR_TEXT_TERTIARY,
+    COLOR_TOAST_DANGER,
+    COLOR_TOAST_INFO,
+    COLOR_TOAST_SUCCESS,
+    COLOR_TOAST_WARNING,
+    COLOR_WARNING_SOFT_BG,
+    COLOR_WARNING_SOFT_BORDER,
+    COLOR_WARNING_SOFT_TEXT,
     CONTROL_HEIGHT,
     CONTROL_HEIGHT_COMPACT,
+    RADIUS_LG,
     RADIUS_MD,
+    RADIUS_SM,
     SPACE_12,
     SPACE_16,
     SPACE_20,
     SPACE_24,
     SPACE_8,
 )
+
+# Resolve the local edit mark colour now that the tokens module is imported.
+# Module-level constants declared above this point can't reference tokens
+# directly because the import block lives further down in the file.
+LOCAL_UPDATE_MARK_COLOR = COLOR_LOCAL_EDIT_MARK
+
 from core.websocket_client import WebSocketClient
 from core.config import (
     get_server_url,
@@ -738,18 +773,18 @@ class StatusChipDelegate(QStyledItemDelegate):
 
     SUCCESS = (
         "Full",
-        QColor("#166534"),
-        QColor("#ECFDF5"),
+        QColor(COLOR_SUCCESS_SOFT_TEXT),
+        QColor(COLOR_SUCCESS_SOFT_BG),
     )
     WARNING = (
         "Partial",
-        QColor("#92400E"),
-        QColor("#FFFBEB"),
+        QColor(COLOR_WARNING_SOFT_TEXT),
+        QColor(COLOR_WARNING_SOFT_BG),
     )
     MUTED = (
         "—",
-        QColor("#475569"),
-        QColor("#F1F5F9"),
+        QColor(COLOR_NEUTRAL_SOFT_TEXT),
+        QColor(COLOR_NEUTRAL_SOFT_BG),
     )
 
     STATUS_MAP = {
@@ -852,8 +887,8 @@ class Code39BarcodeDelegate(QStyledItemDelegate):
     _TEXT_GAP = 3
     _MIN_HEIGHT = 46
     _MIN_BAR_HEIGHT = 18
-    _BAR_COLOR = QColor("#0F172A")
-    _SELECTED_TEXT_COLOR = QColor("#0F2A57")
+    _BAR_COLOR = QColor(COLOR_TEXT_PRIMARY)
+    _SELECTED_TEXT_COLOR = QColor(COLOR_SELECTION_TEXT)
 
     def paint(self, painter, option, index):  # type: ignore[override]
         opt = QStyleOptionViewItem(option)
@@ -967,7 +1002,7 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
     _MIN_HINT_WIDTH = 180
     _EDITOR_MAX_HEIGHT = 160
     _EDITOR_MIN_WIDTH = 280
-    _SELECTED_TEXT_COLOR = QColor("#0F2A57")
+    _SELECTED_TEXT_COLOR = QColor(COLOR_SELECTION_TEXT)
 
     def paint(self, painter, option, index):  # type: ignore[override]
         opt = QStyleOptionViewItem(option)
@@ -1192,6 +1227,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         # Manage persistent UI settings
         self.settings_mgr = SettingsManager()
+        self.settings_mgr.set_current_user(self.user_info.get("username", ""))
         self.tab_modules = list(self.TAB_MODULE_CONFIGS)
         self.tab_tables: dict[str, QTableWidget] = {}
         self.tab_pages: dict[str, TabPage] = {}
@@ -1299,7 +1335,7 @@ class ModernShippingMainWindow(QMainWindow):
         
         print(f"Initializing main window for user: {user_info['username']}")
         
-        self.setWindowTitle("Shipping Schedule")
+        self.setWindowTitle("Schedule")
         if os.path.exists(ICON_PATH):
             self.setWindowIcon(QIcon(ICON_PATH))
         self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -1465,8 +1501,8 @@ class ModernShippingMainWindow(QMainWindow):
             fallback_size = max(8, get_base_font_size() + 3)
             logo_label.setStyleSheet(
                 f"""
-                background-color: #1E3A8A;
-                color: #FFFFFF;
+                background-color: {COLOR_PRIMARY};
+                color: {COLOR_TEXT_ON_ACCENT};
                 font-weight: 600;
                 border-radius: 12px;
                 padding: 6px 10px;
@@ -1475,7 +1511,7 @@ class ModernShippingMainWindow(QMainWindow):
             )
             logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        title_label = QLabel("Shipping Schedule")
+        title_label = QLabel("Schedule")
         apply_scaled_font(title_label, offset=8, weight=QFont.Weight.Bold)
         title_label.setStyleSheet(
             f"color: {COLOR_TEXT_PRIMARY}; text-decoration: none; letter-spacing: 0.2px;"
@@ -1489,7 +1525,7 @@ class ModernShippingMainWindow(QMainWindow):
         search_container = QFrame()
         search_container.setObjectName("commandSearchContainer")
         search_container.setMinimumHeight(CONTROL_HEIGHT)
-        search_container.setMaximumWidth(920)
+        search_container.setMaximumWidth(1200)
         search_container.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed,
@@ -1600,7 +1636,7 @@ class ModernShippingMainWindow(QMainWindow):
         # Acciones a la derecha agrupadas
         right_container = QFrame()
         right_container.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
         right_container.setMinimumHeight(48)
         right_layout = QHBoxLayout(right_container)
@@ -1643,12 +1679,12 @@ class ModernShippingMainWindow(QMainWindow):
                 border-radius: {RADIUS_MD}px;
             }}
             QPushButton:hover {{
-                background-color: #EEF2F7;
+                background-color: {COLOR_SURFACE_ALT};
                 border-color: {COLOR_BORDER_STRONG};
                 color: {COLOR_TEXT_PRIMARY};
             }}
             QPushButton:pressed {{
-                background-color: #E2E8F0;
+                background-color: {COLOR_BORDER};
                 border-color: {COLOR_BORDER_STRONG};
             }}
         """
@@ -1674,7 +1710,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.avatar_label.setStyleSheet(
             f"""
-            background-color: #FFFFFF;
+            background-color: {COLOR_SURFACE};
             color: {COLOR_TEXT_PRIMARY};
             border-radius: {RADIUS_MD}px;
             border: 1px solid {COLOR_BORDER};
@@ -1769,11 +1805,11 @@ class ModernShippingMainWindow(QMainWindow):
                 font-weight: 600;
             }}
             QToolButton:hover {{
-                background-color: #F8FAFC;
+                background-color: {COLOR_BG_SUBTLE};
                 border-color: {COLOR_BORDER_STRONG};
             }}
             QToolButton:pressed {{
-                background-color: #E2E8F0;
+                background-color: {COLOR_BORDER};
                 border-color: {COLOR_BORDER_STRONG};
             }}
         """
@@ -1786,6 +1822,11 @@ class ModernShippingMainWindow(QMainWindow):
         user_layout.addWidget(self.settings_btn)
 
         right_layout.addWidget(user_widget)
+
+        # Column stretch: left=0 (fixed), search=4 (greedy), right=1 (just enough)
+        header_layout.setColumnStretch(0, 0)
+        header_layout.setColumnStretch(1, 4)
+        header_layout.setColumnStretch(2, 1)
 
         header_layout.addWidget(
             left_container,
@@ -1836,34 +1877,6 @@ class ModernShippingMainWindow(QMainWindow):
             padding=(6, SPACE_12),
         )
         apply_scaled_font(add_btn, offset=1, weight=QFont.Weight.Medium)
-        add_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: #3B82F6;
-                color: #FFFFFF;
-                border: 1px solid #2563EB;
-                border-radius: {RADIUS_MD}px;
-                padding: 6px {SPACE_12}px;
-                font-weight: 500;
-                letter-spacing: 0.2px;
-                min-height: 32px;
-                min-width: 104px;
-            }}
-            QPushButton:hover {{
-                background-color: #2563EB;
-                border-color: #1D4ED8;
-            }}
-            QPushButton:pressed {{
-                background-color: #1D4ED8;
-                border-color: #1E40AF;
-            }}
-            QPushButton:disabled {{
-                background-color: #BFDBFE;
-                border-color: #93C5FD;
-                color: #EFF6FF;
-            }}
-        """
-        )
         add_btn.clicked.connect(self.add_shipment)
 
         delete_btn = ModernButton(
@@ -1874,35 +1887,6 @@ class ModernShippingMainWindow(QMainWindow):
             padding=(6, 10),
         )
         apply_scaled_font(delete_btn, offset=1, weight=QFont.Weight.Medium)
-        delete_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: #FFFFFF;
-                color: #B91C1C;
-                border: 1px solid #FECACA;
-                border-radius: {RADIUS_MD}px;
-                padding: 6px 10px;
-                font-weight: 500;
-                min-height: 32px;
-                min-width: 84px;
-            }}
-            QPushButton:hover {{
-                background-color: #FEF2F2;
-                border-color: #FCA5A5;
-                color: #991B1B;
-            }}
-            QPushButton:pressed {{
-                background-color: #FEE2E2;
-                border-color: #F87171;
-                color: #7F1D1D;
-            }}
-            QPushButton:disabled {{
-                background-color: #F8FAFC;
-                border-color: {COLOR_BORDER};
-                color: #94A3B8;
-            }}
-        """
-        )
         delete_btn.clicked.connect(self.delete_shipment)
         delete_btn.setEnabled(False)
 
@@ -2002,34 +1986,37 @@ class ModernShippingMainWindow(QMainWindow):
         tabs_layout.setContentsMargins(SPACE_12, SPACE_12, SPACE_12, SPACE_12)
         tabs_layout.setSpacing(SPACE_12)
 
-        # Tab principal: módulo Shipping
+        # Tab principal: módulo Shipping. Estilo Fluent (underline accent).
         self.main_tab_widget = QTabWidget()
         self.main_tab_widget.setObjectName("mainModuleTabs")
         main_tab_font_size = max(8, get_base_font_size() + 2)
         self.main_tab_widget.setStyleSheet(
             textwrap.dedent(
                 f"""
-                QTabWidget::pane {{
+                QTabWidget#mainModuleTabs::pane {{
                     border: none;
                     background: transparent;
+                    top: -1px;
                 }}
-                QTabBar::tab {{
-                    background: #F8FAFC;
-                    color: #334155;
-                    padding: 10px 20px;
-                    margin-right: 1px;
-                    border-top-left-radius: 6px;
-                    border-top-right-radius: 6px;
+                QTabWidget#mainModuleTabs QTabBar::tab {{
+                    background: transparent;
+                    color: {COLOR_TEXT_SECONDARY};
+                    padding: 10px 18px;
+                    margin: 0 4px 0 0;
+                    border: none;
+                    border-bottom: 2px solid transparent;
                     font-weight: 600;
                     font-size: {main_tab_font_size}px;
                     min-width: 120px;
-                    border: 1px solid #E2E8F0;
-                    border-bottom: none;
                 }}
-                QTabBar::tab:selected {{
-                    background: #FFFFFF;
-                    color: #0F172A;
-                    border-bottom: 2px solid #2563EB;
+                QTabWidget#mainModuleTabs QTabBar::tab:hover {{
+                    color: {COLOR_TEXT_PRIMARY};
+                    background: {COLOR_BG_SUBTLE};
+                }}
+                QTabWidget#mainModuleTabs QTabBar::tab:selected {{
+                    color: {COLOR_PRIMARY};
+                    border-bottom: 2px solid {COLOR_PRIMARY};
+                    background: transparent;
                 }}
             """
             )
@@ -2040,46 +2027,39 @@ class ModernShippingMainWindow(QMainWindow):
         shipping_layout.setContentsMargins(0, SPACE_8, 0, 0)
         shipping_layout.setSpacing(SPACE_16)
 
-        # Subtabs internas del módulo Shipping
+        # Subtabs internas del módulo Shipping. Estilo Fluent pill suave.
         self.tab_widget = QTabWidget()
+        self.tab_widget.setObjectName("shippingSubTabs")
         sub_tab_font_size = max(8, get_base_font_size() + 1)
         self.tab_widget.setStyleSheet(
             textwrap.dedent(
                 f"""
-                QTabWidget::pane {{
+                QTabWidget#shippingSubTabs::pane {{
                     border: none;
-                    background: #FFFFFF;
-                    margin-top: 16px;
-                    border-radius: {RADIUS_MD}px;
+                    background: {COLOR_SURFACE};
+                    margin-top: 10px;
+                    border-radius: {RADIUS_LG}px;
                 }}
-                QTabBar::tab {{
-                    background: #F8FAFC;
-                    color: #64748B;
-                    padding: 11px 18px;
-                    margin-right: 6px;
-                    margin-bottom: 3px;
-                    border-radius: 10px;
-                    font-weight: 500;
+                QTabWidget#shippingSubTabs QTabBar::tab {{
+                    background: transparent;
+                    color: {COLOR_TEXT_SECONDARY};
+                    padding: 7px 16px;
+                    margin: 0 4px 0 0;
+                    border: 1px solid transparent;
+                    border-radius: {RADIUS_LG}px;
+                    font-weight: 600;
                     font-size: {sub_tab_font_size}px;
-                    min-width: 92px;
-                    border: 1px solid #E2E8F0;
+                    min-width: 88px;
                 }}
-                QTabBar::tab:selected {{
-                    background: #DBEAFE;
-                    color: #1E40AF;
-                    border: 1px solid #93C5FD;
-                    border-bottom: 3px solid #2563EB;
-                    margin-bottom: 0px;
-                    padding-top: 12px;
+                QTabWidget#shippingSubTabs QTabBar::tab:hover:!selected {{
+                    background: {COLOR_BG_SUBTLE};
+                    color: {COLOR_TEXT_PRIMARY};
+                }}
+                QTabWidget#shippingSubTabs QTabBar::tab:selected {{
+                    background: {COLOR_PRIMARY_SUBTLE_BG};
+                    color: {COLOR_PRIMARY_SUBTLE_TEXT};
+                    border: 1px solid {COLOR_PRIMARY_SUBTLE_BORDER};
                     font-weight: 700;
-                }}
-                QTabBar::tab:hover:!selected {{
-                    background: #F1F5F9;
-                    color: #334155;
-                    border: 1px solid #CBD5E1;
-                }}
-                QTabBar::tab:!selected {{
-                    margin-top: 2px;
                 }}
             """
             )
@@ -2174,7 +2154,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.logs_refresh_btn.clicked.connect(self.load_shipping_logs)
 
         self.logs_range_hint = QLabel("Default: Last 30 days - Present")
-        self.logs_range_hint.setStyleSheet("color: #6B7280;")
+        self.logs_range_hint.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
 
         filters_layout.addWidget(date_label)
         filters_layout.addWidget(self.logs_start_date)
@@ -2217,40 +2197,38 @@ class ModernShippingMainWindow(QMainWindow):
         page_layout.setSpacing(SPACE_12)
 
         tabs = QTabWidget()
+        tabs.setObjectName("sillsSubTabs")
         self.sills_tab_widget = tabs
         sub_tab_font_size = max(8, get_base_font_size() + 1)
         tabs.setStyleSheet(
             textwrap.dedent(
                 f"""
-                QTabWidget::pane {{
+                QTabWidget#sillsSubTabs::pane {{
                     border: none;
-                    background: #FFFFFF;
-                    margin-top: 16px;
-                    border-radius: {RADIUS_MD}px;
+                    background: {COLOR_SURFACE};
+                    margin-top: 10px;
+                    border-radius: {RADIUS_LG}px;
                 }}
-                QTabBar::tab {{
+                QTabWidget#sillsSubTabs QTabBar::tab {{
                     background: transparent;
-                    color: #64748B;
-                    padding: 10px 18px;
-                    margin-right: 6px;
-                    border-top-left-radius: 8px;
-                    border-top-right-radius: 8px;
-                    font-weight: 500;
-                    font-size: {sub_tab_font_size}px;
-                    min-width: 92px;
+                    color: {COLOR_TEXT_SECONDARY};
+                    padding: 7px 16px;
+                    margin: 0 4px 0 0;
                     border: 1px solid transparent;
-                    border-bottom: 2px solid transparent;
+                    border-radius: {RADIUS_LG}px;
+                    font-weight: 600;
+                    font-size: {sub_tab_font_size}px;
+                    min-width: 88px;
                 }}
-                QTabBar::tab:selected {{
-                    background: #EFF6FF;
-                    color: #1E3A8A;
-                    border: 1px solid #BFDBFE;
-                    border-bottom: 2px solid #2563EB;
+                QTabWidget#sillsSubTabs QTabBar::tab:hover:!selected {{
+                    background: {COLOR_BG_SUBTLE};
+                    color: {COLOR_TEXT_PRIMARY};
+                }}
+                QTabWidget#sillsSubTabs QTabBar::tab:selected {{
+                    background: {COLOR_PRIMARY_SUBTLE_BG};
+                    color: {COLOR_PRIMARY_SUBTLE_TEXT};
+                    border: 1px solid {COLOR_PRIMARY_SUBTLE_BORDER};
                     font-weight: 700;
-                }}
-                QTabBar::tab:hover:!selected {{
-                    background: #F8FAFC;
-                    color: #334155;
                 }}
             """
             )
@@ -2279,68 +2257,11 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.sills_add_btn = ModernButton("Add Sill", "primary", min_height=32, min_width=96, padding=(6, 10))
         apply_scaled_font(self.sills_add_btn, offset=1, weight=QFont.Weight.Medium)
-        self.sills_add_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: #3B82F6;
-                color: #FFFFFF;
-                border: 1px solid #2563EB;
-                border-radius: {RADIUS_MD}px;
-                padding: 6px 10px;
-                font-weight: 500;
-                letter-spacing: 0.2px;
-                min-height: 32px;
-                min-width: 96px;
-            }}
-            QPushButton:hover {{
-                background-color: #2563EB;
-                border-color: #1D4ED8;
-            }}
-            QPushButton:pressed {{
-                background-color: #1D4ED8;
-                border-color: #1E40AF;
-            }}
-            QPushButton:disabled {{
-                background-color: #BFDBFE;
-                border-color: #93C5FD;
-                color: #EFF6FF;
-            }}
-        """
-        )
 
         self.sills_edit_btn = ModernButton("Edit Selected", "outline", min_height=32, min_width=112, padding=(6, 10))
 
         self.sills_delete_btn = ModernButton("Delete Selected", "danger-outline", min_height=32, min_width=120, padding=(6, 10))
         apply_scaled_font(self.sills_delete_btn, offset=1, weight=QFont.Weight.Medium)
-        self.sills_delete_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: #FFFFFF;
-                color: #B91C1C;
-                border: 1px solid #FECACA;
-                border-radius: {RADIUS_MD}px;
-                padding: 6px 10px;
-                font-weight: 500;
-                min-height: 32px;
-                min-width: 120px;
-            }}
-            QPushButton:hover {{
-                background-color: #FEF2F2;
-                border-color: #FCA5A5;
-                color: #991B1B;
-            }}
-            QPushButton:pressed {{
-                background-color: #FEE2E2;
-                border-color: #F87171;
-                color: #7F1D1D;
-            }}
-            QPushButton:disabled {{
-                background-color: #F8FAFC;
-                border-color: {COLOR_BORDER};
-                color: #94A3B8;
-            }}
-        """
-        )
 
         self.sills_refresh_btn = ModernButton("Refresh", "outline", min_height=32, min_width=84, padding=(6, 10))
         self.sills_print_btn = ModernButton("Print", "outline", min_height=32, min_width=84, padding=(6, 10))
@@ -2388,6 +2309,12 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_table.setItemDelegateForColumn(14, self.wrap_anywhere_delegate)  # Notes
         self._apply_table_style(self.sills_table)
         self._configure_table_row_metrics(self.sills_table)
+
+        # Persistencia de anchos de columna para sills
+        self.restore_column_widths(self.sills_table, "sills")
+        sills_header.sectionResized.connect(
+            lambda _logical, _old, _new: self.save_table_column_widths(self.sills_table, "sills")
+        )
 
         sheet_layout.addWidget(actions_frame)
         sheet_layout.addWidget(self.sills_table)
@@ -2490,7 +2417,7 @@ class ModernShippingMainWindow(QMainWindow):
             card.setStyleSheet(
                 f"""
                 QFrame {{
-                    background: #FFFFFF;
+                    background: {COLOR_SURFACE};
                     border: 1px solid {COLOR_BORDER};
                     border-radius: {RADIUS_MD}px;
                 }}
@@ -2578,9 +2505,9 @@ class ModernShippingMainWindow(QMainWindow):
         required = self._parse_issue_decimal(required_text)
 
         if issue_status in {"complete", "completed"} or (required_text and issued >= required):
-            return QBrush(QColor("#DCFCE7"))
+            return QBrush(QColor(COLOR_SILL_ISSUE_COMPLETE_BG))
         if issue_status == "partial" or (required_text and issued > 0 and issued < required):
-            return QBrush(QColor("#FEF9C3"))
+            return QBrush(QColor(COLOR_SILL_ISSUE_PARTIAL_BG))
         return None
 
     def populate_sills_table(self):
@@ -2606,7 +2533,14 @@ class ModernShippingMainWindow(QMainWindow):
                     item.setBackground(row_background)
                     item.setData(Qt.ItemDataRole.BackgroundRole, row_background)
                 self.sills_table.setItem(row_index, col_index, item)
-        self.sills_table.resizeColumnsToContents()
+        # Solo auto-ajustar si el usuario no tiene anchos guardados
+        stored = self.settings_mgr.load_column_widths("sills", self.sills_table.columnCount())
+        if any(w is not None for w in stored):
+            for i, w in enumerate(stored):
+                if w is not None:
+                    self.sills_table.setColumnWidth(i, w)
+        else:
+            self.sills_table.resizeColumnsToContents()
         self.sills_table.resizeRowsToContents()
 
     def load_sills_logs(self):
@@ -3009,26 +2943,26 @@ class ModernShippingMainWindow(QMainWindow):
         pinned_view.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         pinned_view.viewport().setAutoFillBackground(True)
         pinned_view.setStyleSheet(
-            """
+            f"""
             QTableView,
-            QTableView::viewport {
-                background: #FFFFFF;
-                border-right: 1px solid #E7ECF3;
-            }
-            QTableView::item {
+            QTableView::viewport {{
+                background: {COLOR_SURFACE};
+                border-right: 1px solid {COLOR_BORDER};
+            }}
+            QTableView::item {{
                 padding: 10px 14px;
-                border-bottom: 1px solid #EFF3F8;
-            }
-            QTableView::item:!selected:alternate {
-                background: #FBFCFE;
-            }
-            QTableView::item:selected {
-                background: #DCE8FF;
-                color: #0F2A57;
-            }
-            QTableView::item:hover:!selected {
-                background: #F3F7FF;
-            }
+                border-bottom: 1px solid {COLOR_DIVIDER};
+            }}
+            QTableView::item:!selected:alternate {{
+                background: {COLOR_BG_SUBTLE};
+            }}
+            QTableView::item:selected {{
+                background: {COLOR_SELECTION_BG};
+                color: {COLOR_SELECTION_TEXT};
+            }}
+            QTableView::item:hover:!selected {{
+                background: {COLOR_PRIMARY_SUBTLE_BG};
+            }}
         """
         )
         pinned_view.setItemDelegateForColumn(0, self.status_chip_delegate)
@@ -3276,7 +3210,7 @@ class ModernShippingMainWindow(QMainWindow):
         end_value = self.logs_end_date.date().toString("yyyy-MM-dd")
         response = self.api_client.get_shipping_logs(start_date=start_value, end_date=end_value, limit=3000)
         if not response.is_success():
-            self.show_toast(response.get_error() or "Unable to load shipping logs", color="#EF4444")
+            self.show_toast(response.get_error() or "Unable to load shipping logs", color=COLOR_TOAST_DANGER)
             return
 
         self.shipping_logs = response.get_data() or []
@@ -3539,7 +3473,20 @@ class ModernShippingMainWindow(QMainWindow):
         if isinstance(columns_btn, QWidget):
             dialog.adjustSize()
             pos = columns_btn.mapToGlobal(QPoint(0, columns_btn.height()))
-            dialog.move(pos)
+
+            # Clamp so the dialog never goes off the visible screen area
+            screen = QApplication.screenAt(pos) or QApplication.primaryScreen()
+            if screen:
+                avail = screen.availableGeometry()
+                x = max(avail.left(), min(pos.x(), avail.right() - dialog.width()))
+                y = pos.y()
+                # If it falls below the screen show it above the button instead
+                if y + dialog.height() > avail.bottom():
+                    y = columns_btn.mapToGlobal(QPoint(0, 0)).y() - dialog.height()
+                y = max(avail.top(), y)
+                dialog.move(x, y)
+            else:
+                dialog.move(pos)
 
         dialog.exec()
 
@@ -3629,7 +3576,7 @@ class ModernShippingMainWindow(QMainWindow):
         if not self.date_filters.get(name):
             return
         self.clear_all_filters(name)
-        self.show_toast("Filters cleared", color="#0EA5E9")
+        self.show_toast("Filters cleared", color=COLOR_TOAST_INFO)
 
     def _handle_delete_shortcut(self):
         if self.read_only:
@@ -3707,7 +3654,7 @@ class ModernShippingMainWindow(QMainWindow):
                 if mode == "all_filtered"
                 else f"Exported {exported_count} rows to CSV"
             )
-            self.show_toast(message, color="#10B981")
+            self.show_toast(message, color=COLOR_TOAST_SUCCESS)
         except Exception as exc:
             self.show_error(f"Failed to export CSV: {exc}")
 
@@ -3768,48 +3715,48 @@ class ModernShippingMainWindow(QMainWindow):
         return False
 
     def _apply_table_style(self, table):
-        """Apply the dynamic table styling based on the global font size."""
+        """Apply Fluent table styling, scaled to the active font size."""
         base_size = get_base_font_size()
-        table_font_size = max(14, base_size + 4)
-        header_font_size = max(13, base_size + 3)
+        table_font_size = max(13, base_size + 3)
+        header_font_size = max(12, base_size + 2)
         table.setStyleSheet(
             f"""
     QTableWidget {{
         font-family: '{MODERN_FONT}';
         font-size: {table_font_size}px;
-        background: #FFFFFF;
-        gridline-color: #EDF1F7;
-        border: 1px solid #E7ECF3;
-        border-radius: 10px;
+        background: {COLOR_SURFACE};
+        alternate-background-color: {COLOR_BG_SUBTLE};
+        gridline-color: {COLOR_DIVIDER};
+        border: 1px solid {COLOR_BORDER};
+        border-radius: {RADIUS_LG}px;
+        selection-background-color: {COLOR_SELECTION_BG};
+        selection-color: {COLOR_SELECTION_TEXT};
         outline: none;
     }}
     QHeaderView::section {{
-        background-color: #F8FAFD;
-        color: #334155;
-        padding: 10px 14px;
+        background-color: {COLOR_SURFACE};
+        color: {COLOR_TEXT_SECONDARY};
+        padding: 9px 12px;
         border: none;
-        border-bottom: 1px solid #E7ECF3;
-        border-right: 1px solid #EDF1F7;
+        border-bottom: 1px solid {COLOR_BORDER};
+        border-right: 1px solid {COLOR_DIVIDER};
         font-weight: 600;
         font-size: {header_font_size}px;
-        text-transform: none;
     }}
     QHeaderView::section:hover {{
-        background-color: #F3F7FC;
+        background-color: {COLOR_BG_SUBTLE};
+        color: {COLOR_TEXT_PRIMARY};
     }}
     QTableWidget::item {{
-        padding: 10px 14px;
-        border-bottom: 1px solid #EFF3F8;
-    }}
-    QTableWidget::item:!selected:alternate {{
-        background: #FBFCFE;
+        padding: 8px 12px;
+        border: none;
     }}
     QTableWidget::item:selected {{
-        background: #DCE8FF;
-        color: #0F2A57;
+        background: {COLOR_SELECTION_BG};
+        color: {COLOR_SELECTION_TEXT};
     }}
     QTableWidget::item:hover:!selected {{
-        background: #F3F7FF;
+        background: {COLOR_PRIMARY_SUBTLE_BG};
     }}
         """
         )
@@ -3931,7 +3878,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         base_text = base_labels[column]
         header_item.setText(f"{base_text} 🔽" if active else base_text)
-        header_item.setForeground(QBrush(QColor("#1D4ED8" if active else "#000000")))
+        header_item.setForeground(QBrush(QColor(COLOR_PRIMARY if active else COLOR_TEXT_PRIMARY)))
 
         if active:
             tooltip = self._build_column_filter_tooltip(filter_data)
@@ -4252,7 +4199,7 @@ class ModernShippingMainWindow(QMainWindow):
             job_item.setBackground(QColor("transparent"))
             self.refresh_status_chip_for_row(table, row)
 
-            self.show_toast("Status updated successfully", color="#16A34A")
+            self.show_toast("Status updated successfully", color=COLOR_TOAST_SUCCESS)
 
         try:
             # Intentar con la versión actual conocida
@@ -4357,37 +4304,32 @@ class ModernShippingMainWindow(QMainWindow):
         # Widgets del status bar
         self.record_count_label = QLabel("Showing 0 of 0")
         apply_scaled_font(self.record_count_label, offset=1, weight=QFont.Weight.Medium)
-        self.record_count_label.setStyleSheet("color: #6B7280; font-weight: 500;")
+        self.record_count_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
 
         self.last_update_label = QLabel("Updated —")
         apply_scaled_font(self.last_update_label, offset=1)
-        self.last_update_label.setStyleSheet("color: #6B7280;")
+        self.last_update_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
         self.last_update_label.setToolTip("No updates yet")
 
         self.connection_status_label = QLabel("Disconnected")
         apply_scaled_font(self.connection_status_label, offset=0, weight=QFont.Weight.Medium)
-        self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 500;")
-        
+        self.connection_status_label.setStyleSheet(f"color: {COLOR_DANGER}; font-weight: 600;")
+
         self.status_bar.addWidget(self.record_count_label)
         self.status_bar.addPermanentWidget(self.last_update_label)
         self.status_bar.addPermanentWidget(self.connection_status_label)
-        
-        self.status_bar.setStyleSheet("""
-            QStatusBar {
-                background: #F9FAFB;
-                border-top: 1px solid #DDE3EA;
-                padding: 8px 16px;
-            }
-        """)
+
+        # Status bar surface is styled via the global Fluent QSS; no override needed.
     
     def apply_professional_theme(self):
-        """Aplicar tema profesional"""
+        """Window-level overrides on top of the global Fluent QSS."""
+        # The global theme is installed in main_client.apply_fluent_theme(); we
+        # only need to make sure the main window canvas uses the app surface
+        # token in case a future override is needed. Keep this minimal so the
+        # global stylesheet stays the source of truth for typography.
         self.setStyleSheet(f"""
             QMainWindow {{
                 background: {COLOR_BG_APP};
-            }}
-            QWidget {{
-                font-family: '{MODERN_FONT}', 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
             }}
         """)
 
@@ -4407,7 +4349,7 @@ class ModernShippingMainWindow(QMainWindow):
         """Actualizar status de conexión profesional"""
         if connected:
             self.connection_indicator.setStyleSheet(
-                "background-color: #10B981; border-radius: 4px;"
+                f"background-color: {COLOR_TOAST_SUCCESS}; border-radius: 4px;"
             )
             self.connection_indicator.setToolTip(f"Connected to {self.server_host}")
             if hasattr(self, "connection_state_label"):
@@ -4431,34 +4373,34 @@ class ModernShippingMainWindow(QMainWindow):
                     """
                 )
             self.connection_status_label.setText(f"Connected · {self.server_host}")
-            self.connection_status_label.setStyleSheet("color: #15803D; font-weight: 500;")
+            self.connection_status_label.setStyleSheet(f"color: {COLOR_SUCCESS_SOFT_TEXT}; font-weight: 600;")
         else:
             self.connection_indicator.setStyleSheet(
-                "background-color: #EF4444; border-radius: 4px;"
+                f"background-color: {COLOR_TOAST_DANGER}; border-radius: 4px;"
             )
             self.connection_indicator.setToolTip(f"Disconnected from {self.server_host}")
             if hasattr(self, "connection_state_label"):
                 self.connection_state_label.setText("Offline")
                 self.connection_state_label.setStyleSheet(
-                    "color: #B91C1C; border: none; background: transparent;"
+                    f"color: {COLOR_DANGER_SOFT_TEXT}; border: none; background: transparent;"
                 )
             if hasattr(self, "connection_host_label"):
                 self.connection_host_label.setText(self.server_host)
                 self.connection_host_label.setStyleSheet(
-                    "color: #9CA3AF; border: none; background: transparent;"
+                    f"color: {COLOR_TEXT_TERTIARY}; border: none; background: transparent;"
                 )
             if hasattr(self, "connection_badge"):
                 self.connection_badge.setStyleSheet(
-                    """
-                    QFrame {
-                        background-color: #FEF2F2;
-                        border: 1px solid #FECACA;
+                    f"""
+                    QFrame {{
+                        background-color: {COLOR_DANGER_SOFT_BG};
+                        border: 1px solid {COLOR_DANGER_SOFT_BORDER};
                         border-radius: 9px;
-                    }
+                    }}
                     """
                 )
             self.connection_status_label.setText("Disconnected")
-            self.connection_status_label.setStyleSheet("color: #EF4444; font-weight: 500;")
+            self.connection_status_label.setStyleSheet(f"color: {COLOR_DANGER}; font-weight: 600;")
     
     def handle_websocket_message(self, message):
         """Manejar mensajes del WebSocket"""
@@ -4517,7 +4459,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self._websocket_reload_timer.start(750)
 
-    def show_toast(self, message, color="#3B82F6"):
+    def show_toast(self, message, color=COLOR_TOAST_INFO):
         """Mostrar notificación visual flotante"""
         show_popup_notification(self, message, color=color)
     
@@ -4542,7 +4484,7 @@ class ModernShippingMainWindow(QMainWindow):
 
         self._auto_reset_filter_tabs.add(tab_id)
         self.clear_all_filters(tab_id)
-        self.show_toast("Saved filters were hiding all rows. Filters were cleared.", color="#0EA5E9")
+        self.show_toast("Saved filters were hiding all rows. Filters were cleared.", color=COLOR_TOAST_INFO)
 
     def on_tab_changed(self, index):
         """Manejar cambio de tab optimizado"""
@@ -4616,7 +4558,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_status()
 
     def on_tracking_error(self, message: str):
-        self.show_toast(message or "Unable to retrieve tracking details right now", color="#EF4444")
+        self.show_toast(message or "Unable to retrieve tracking details right now", color=COLOR_TOAST_DANGER)
         self.update_status()
     
     def get_current_table(self):
@@ -4694,12 +4636,12 @@ class ModernShippingMainWindow(QMainWindow):
         if self._history_is_fully_loaded():
             self.show_toast(
                 f"Shipment History fully loaded ({self._history_page_label()}).",
-                color="#10B981",
+                color=COLOR_TOAST_SUCCESS,
             )
             return
         self.show_toast(
             f"Shipment History page loaded ({self._history_page_label()}).",
-            color="#0EA5E9",
+            color=COLOR_TOAST_INFO,
         )
 
     def _sync_history_load_more_button(self):
@@ -5147,7 +5089,7 @@ class ModernShippingMainWindow(QMainWindow):
             if not is_active and col == 7 and item_text:  # Shipped en history
                 shipped_font = QFont(MODERN_FONT, max(6, get_base_font_size() + 1), QFont.Weight.Medium)
                 item.setFont(shipped_font)
-                item.setForeground(QColor("#059669"))
+                item.setForeground(QColor(COLOR_SUCCESS))
                 item.setData(Qt.ItemDataRole.UserRole + 5, 1)
 
             item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
@@ -5173,7 +5115,7 @@ class ModernShippingMainWindow(QMainWindow):
                 tracking_font = item.font()
                 tracking_font.setUnderline(True)
                 item.setFont(tracking_font)
-                item.setForeground(QBrush(QColor("#1D4ED8")))
+                item.setForeground(QBrush(QColor(COLOR_PRIMARY)))
                 item.setToolTip("Ctrl+Click to view FedEx tracking details")
             elif col in (1, 2) and metadata["normalized"]:
                 item.setToolTip(str(metadata["normalized"]))
@@ -5457,7 +5399,7 @@ class ModernShippingMainWindow(QMainWindow):
             dialog = ModernShipmentDialog(api_client=self.api_client)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_shipments_async()
-                self.show_toast("Shipment saved successfully", color="#16A34A")
+                self.show_toast("Shipment saved successfully", color=COLOR_TOAST_SUCCESS)
         except Exception as e:
             print(f"Error abriendo diálogo de nuevo shipment: {e}")
             self.show_error(f"Error opening new shipment dialog: {str(e)}")
@@ -5527,7 +5469,7 @@ class ModernShippingMainWindow(QMainWindow):
                         s[field] = new_value
                         s["version"] = shipment["version"]
                         break
-            self.show_toast("Changes saved successfully", color="#16A34A")
+            self.show_toast("Changes saved successfully", color=COLOR_TOAST_SUCCESS)
             # El campo "shipped" define si un shipment está en Active o History.
             # Re-cargamos los datos para evitar que una fila cambie de tabla
             # mientras Qt todavía finaliza la edición inline (causando cierres).
@@ -5584,7 +5526,7 @@ class ModernShippingMainWindow(QMainWindow):
                                 if key in shipment:
                                     shipment[key] = value
                             job_item.setData(Qt.ItemDataRole.UserRole, shipment)
-                            self.show_toast("Change cancelled - field updated with current value", color="#F59E0B")
+                            self.show_toast("Change cancelled - field updated with current value", color=COLOR_TOAST_WARNING)
                             return
 
                     # Actualizar datos locales con información más reciente (excepto el campo que estamos editando)
@@ -5641,80 +5583,30 @@ class ModernShippingMainWindow(QMainWindow):
             if not shipment:
                 return
             
-            # Confirmación profesional
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Icon.Question)
-            msg.setWindowTitle("Confirm Deletion")
-            msg.setText("Are you sure you want to delete this shipment?")
-            msg.setInformativeText(f"Job #{shipment['job_number']} - {shipment['job_name']}")
-            msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-            msg.setDefaultButton(QMessageBox.StandardButton.No)
-            
-            # Estilo profesional para el mensaje
-            msg.setStyleSheet(f"""
-                QMessageBox {{
-                    background: #FFFFFF;
-                    font-family: '{MODERN_FONT}';
-                }}
-                QMessageBox QPushButton {{
-                    background: #3B82F6;
-                    color: white;
-                    border: none;
-                    padding: 8px 20px;
-                    border-radius: 4px;
-                    font-weight: 500;
-                    min-width: 80px;
+            confirmed = ask_confirm(
+                self,
+                "Are you sure you want to delete this shipment?",
+                title="Confirm deletion",
+                detail=f"Job #{shipment['job_number']} - {shipment['job_name']}",
+                destructive=True,
+            )
+            if not confirmed:
+                return
 
-                }}
-                QMessageBox QPushButton:hover {{
-                    background: #2563EB;
-                }}
-                QMessageBox QPushButton[text="No"] {{
-                    background: #6B7280;
-                }}
-                QMessageBox QPushButton[text="No"]:hover {{
-                    background: #4B5563;
-                }}
-            """)
-            
-            if msg.exec() == QMessageBox.StandardButton.Yes:
-                api_response = self.api_client.delete_shipment(shipment['id'])
-
-                if api_response.is_success():
-                    self.load_shipments_async()
-                    self.show_toast(f"Shipment deleted: Job #{shipment['job_number']}")
-                else:
-                    self.show_error(f"Failed to delete shipment: {api_response.get_error()}")
+            api_response = self.api_client.delete_shipment(shipment['id'])
+            if api_response.is_success():
+                self.load_shipments_async()
+                self.show_toast(f"Shipment deleted: Job #{shipment['job_number']}")
+            else:
+                self.show_error(f"Failed to delete shipment: {api_response.get_error()}")
 
         except Exception as e:
             print(f"Error eliminando shipment: {e}")
             self.show_error(f"Error deleting shipment: {str(e)}")
     
     def show_error(self, message):
-        """Mostrar mensaje de error profesional"""
-        msg = QMessageBox(self)
-        msg.setIcon(QMessageBox.Icon.Critical)
-        msg.setWindowTitle("Error")
-        msg.setText(message)
-        msg.setStyleSheet(f"""
-            QMessageBox {{
-                background: #FFFFFF;
-                font-family: '{MODERN_FONT}';
-            }}
-            QMessageBox QPushButton {{
-                background: #EF4444;
-                color: white;
-                border: none;
-                padding: 8px 20px;
-                border-radius: 4px;
-                font-weight: 500;
-                min-width: 80px;
-            }}
-            QMessageBox QPushButton:hover {{
-                background: #DC2626;
-            }}
-        """)
-        msg.exec()
+        """Show an error using the centralized dialog helper."""
+        show_error(self, message)
 
     def keyPressEvent(self, event):  # type: ignore[override]
         if event.matches(QKeySequence.StandardKey.Find):
@@ -5757,21 +5649,21 @@ class ModernShippingMainWindow(QMainWindow):
             if self.sills_tab_widget.currentIndex() == 0:
                 self.print_sills_sheet_to_pdf()
                 return
-            self.show_toast("Print is available only in Sills Sheet.", color="#F59E0B")
+            self.show_toast("Print is available only in Sills Sheet.", color=COLOR_TOAST_WARNING)
             return
 
         if self.get_current_tab_id() == "active":
             self.print_active_shipments_to_pdf()
             return
 
-        self.show_toast("Print is available only in Active Shipments.", color="#F59E0B")
+        self.show_toast("Print is available only in Active Shipments.", color=COLOR_TOAST_WARNING)
 
     def print_active_shipments_to_pdf(self):
         """Export Active Shipments table to PDF."""
         self._print_table_to_pdf(
             table=self.active_table,
             tab_name="Active_Shipments",
-            title="Shipping Schedule - Active Shipments",
+            title="Schedule - Active Shipments",
             headers=[
                 "Job Number",
                 "Job Name",
@@ -6124,7 +6016,7 @@ class ModernShippingMainWindow(QMainWindow):
                         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
 
                         # Header styling
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E5E7EB")),
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(COLOR_BORDER)),
                         ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
                         ("FONTSIZE", (0, 0), (-1, 0), header_font_size),
                         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
@@ -6147,7 +6039,7 @@ class ModernShippingMainWindow(QMainWindow):
                             "ROWBACKGROUNDS",
                             (0, 1),
                             (-1, -1),
-                            [colors.white, colors.HexColor("#F8F9FA")],
+                            [colors.white, colors.HexColor(COLOR_BG_SUBTLE)],
                         ),
                     ]
                 )
@@ -6223,7 +6115,7 @@ class ModernShippingMainWindow(QMainWindow):
 
             print(f"✅ PDF generado exitosamente: {file_path}")
             self.show_toast(
-                f"PDF saved: {os.path.basename(file_path)}", color="#16A34A"
+                f"PDF saved: {os.path.basename(file_path)}", color=COLOR_TOAST_SUCCESS
             )
 
             # Abrir PDF automáticamente
@@ -6255,6 +6147,8 @@ class ModernShippingMainWindow(QMainWindow):
                 table = self.tab_tables.get(module.id)
                 if table is not None:
                     self.save_table_column_widths(table, module.id)
+            if hasattr(self, "sills_table"):
+                self.save_table_column_widths(self.sills_table, "sills")
 
             if hasattr(self, 'ws_client'):
                 self.ws_client.stop()

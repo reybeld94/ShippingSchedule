@@ -36,7 +36,9 @@ def _resolve_default_font() -> str:
     import platform
     system = platform.system()
     if system == "Windows":
-        return "Segoe UI"
+        # Segoe UI Variable Text is the Windows 11 / Fluent body font.
+        # ensure_font_available() falls back to Segoe UI on Windows 10.
+        return "Segoe UI Variable Text"
     elif system == "Darwin":
         return "Helvetica Neue"
     else:
@@ -52,7 +54,16 @@ def ensure_font_available(font_name: str) -> str:
     families = set(QFontDatabase.families())
     if font_name in families:
         return font_name
-    fallbacks = ["Arial", "Helvetica", "Sans Serif"]
+    fallbacks = [
+        "Segoe UI Variable Text",
+        "Segoe UI Variable",
+        "Segoe UI",
+        "Inter",
+        "Helvetica Neue",
+        "Arial",
+        "Helvetica",
+        "Sans Serif",
+    ]
     for fb in fallbacks:
         if fb in families:
             return fb
