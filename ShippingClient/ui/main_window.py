@@ -2292,19 +2292,19 @@ class ModernShippingMainWindow(QMainWindow):
         actions_layout.addStretch(1)
         actions_layout.addLayout(secondary_actions)
 
-        self.sills_table = QTableWidget()
-        self.sills_table.setColumnCount(16)
-        self.sills_table.setHorizontalHeaderLabels([
+        _SILLS_LABELS = [
             "Material", "Dimension", "Location", "Die #", "Type", "Speed", "Width",
             "Sales Order", "Work Order", "Assembly Number", "Issue", "Description", "Qty",
             "Dimension Needed", "Notes", "Week to Print",
-        ])
+        ]
+        _SILLS_WEEK_TO_PRINT_COL = 15  # index of "Week to Print"
+
+        self.sills_table = QTableWidget()
+        self.sills_table.setColumnCount(16)
+        self.sills_table.setHorizontalHeaderLabels(_SILLS_LABELS)
         self.sills_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.sills_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.sills_table.verticalHeader().setVisible(False)
-        sills_header = self.sills_table.horizontalHeader()
-        sills_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        sills_header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.sills_table.setWordWrap(True)
         self.sills_table.setItemDelegateForColumn(9, self.code39_barcode_delegate)  # Assembly Number barcode
         self.sills_table.setItemDelegateForColumn(11, self.wrap_anywhere_delegate)  # Description
@@ -2312,9 +2312,30 @@ class ModernShippingMainWindow(QMainWindow):
         self._apply_table_style(self.sills_table)
         self._configure_table_row_metrics(self.sills_table)
 
+        # Register base labels so update_header_filter_state can show the ▼ indicator
+        self._base_header_labels["sills"] = list(_SILLS_LABELS)
+
+        # Load persisted date filters for sills
+        self.date_filters.setdefault("sills", self.settings_mgr.load_date_filters("sills"))
+
+        # Attach DateFilterHeader with Week to Print (col 15) as the date column
+        sills_date_header = DateFilterHeader(self.sills_table, [_SILLS_WEEK_TO_PRINT_COL])
+        sills_date_header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        sills_date_header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.sills_table.setHorizontalHeader(sills_date_header)
+        sills_date_header.filter_requested.connect(
+            lambda col, pos: self.open_date_filter_popup(self.sills_table, "sills", col, pos)
+        )
+        self.date_filter_headers["sills"] = sills_date_header
+
+        # Restore any active filter indicators on the header
+        for col, fdata in self.date_filters.get("sills", {}).items():
+            sills_date_header.set_filter_active(col, True)
+            self.update_header_filter_state(self.sills_table, "sills", col, True, fdata)
+
         # Persistencia de anchos de columna para sills
         self.restore_column_widths(self.sills_table, "sills")
-        sills_header.sectionResized.connect(
+        sills_date_header.sectionResized.connect(
             lambda _logical, _old, _new: self.save_table_column_widths(self.sills_table, "sills")
         )
 
@@ -2555,6 +2576,10 @@ class ModernShippingMainWindow(QMainWindow):
         else:
             self.sills_table.resizeColumnsToContents()
         self.sills_table.resizeRowsToContents()
+
+        # Re-apply any active date filters after the table is repopulated
+        if self.date_filters.get("sills"):
+            self.apply_date_filters_to_table(self.sills_table, "sills")
 
     def load_sills_logs(self):
         start_value = self.sills_logs_start_date.date().toString("yyyy-MM-dd")
