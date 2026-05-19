@@ -1161,9 +1161,18 @@ async def delete_shipment(
         field_name: {"old": _safe_text(value), "new": ""}
         for field_name, value in backup_data.items()
     }
+    # Nullify shipment_id on ALL historical logs for this shipment before
+    # deletion.  PostgreSQL enforces the FK strictly, so any existing log rows
+    # that reference this shipment would block the DELETE otherwise.
+    # Migration 013 adds ON DELETE SET NULL to handle this automatically at
+    # the DB level going forward.
+    db.query(ShippingLog).filter(ShippingLog.shipment_id == shipment_id).update({"shipment_id": None})
+    db.flush()
+
+    # Log the deletion itself with shipment_id=None (shipment no longer exists).
     _append_shipping_logs(
         db,
-        shipment_id=shipment.id,
+        shipment_id=None,
         action="delete",
         user_id=current_user.id,
         changes=shipping_changes,
