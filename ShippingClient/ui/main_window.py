@@ -5444,7 +5444,10 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_filter_button_state()
 
     def iter_searchable_tables(self):
-        """Yield all tables affected by the global search input."""
+        """Yield all tables affected by the global search input.
+        NOTE: sills_die_table is intentionally excluded here — it has its
+        own dedicated search bar (_filter_die_table) and must not be
+        touched by the global search/reset logic."""
         for table_name, table in self.tab_tables.items():
             if table is not None:
                 yield table_name, table
@@ -5452,7 +5455,6 @@ class ModernShippingMainWindow(QMainWindow):
         for table_name, attr in (
             ("sills_sheet", "sills_table"),
             ("sills_logs", "sills_logs_table"),
-            ("sills_die", "sills_die_table"),
         ):
             table = getattr(self, attr, None)
             if table is not None:
@@ -5473,7 +5475,9 @@ class ModernShippingMainWindow(QMainWindow):
             if index == 1:
                 return "sills_logs", getattr(self, "sills_logs_table", None)
             if index == 2:
-                return "sills_die", getattr(self, "sills_die_table", None)
+                # Die # Database has its own dedicated search bar; the global
+                # search must not touch it (return None so perform_filter skips it).
+                return "sills_die", None
             if index == 3:
                 return "sills_dashboard", None
             return "sills_sheet", getattr(self, "sills_table", None)

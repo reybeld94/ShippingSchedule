@@ -41,7 +41,7 @@ def main():
             # Mostrar ventana principal
             try:
                 main_window = ModernShippingMainWindow(login_dialog.token, login_dialog.user_info)
-                main_window.show()
+                main_window.showMaximized()
             except Exception as init_error:
                 print(f"Failed to initialize main window: {init_error}")
                 import traceback
