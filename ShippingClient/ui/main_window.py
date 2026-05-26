@@ -454,9 +454,9 @@ class SillDialog(QDialog):
             if idx >= 0:
                 speed_widget.setCurrentIndex(idx)
 
-        notes_widget = self.inputs.get("notes")
-        if isinstance(notes_widget, QLineEdit):
-            notes_widget.setText(str(die_data.get("notes", "") or ""))
+        # NOTE: "notes" is intentionally NOT copied from the die database.
+        # The Notes field on the Sills Sheet belongs to the sill entry itself,
+        # not to the die template.
         self._set_autofilled_fields_editable(False)
 
     def _set_autofilled_fields_editable(self, editable: bool) -> None:
@@ -2097,6 +2097,9 @@ class ModernShippingMainWindow(QMainWindow):
         self.main_tab_widget.addTab(shipping_page, "Shipping")
         self.sills_page = self.create_sills_module_page()
         self.main_tab_widget.addTab(self.sills_page, "Sills")
+        from .bom_importer import BomImporterWidget
+        self.bom_importer_widget = BomImporterWidget()
+        self.main_tab_widget.addTab(self.bom_importer_widget, "BOM Importer")
         self._apply_module_access_state()
         self.main_tab_widget.currentChanged.connect(self.on_main_tab_changed)
 
@@ -2104,7 +2107,7 @@ class ModernShippingMainWindow(QMainWindow):
         layout.addWidget(tabs_container)
 
     def _apply_module_access_state(self):
-        access_map = {0: ("shipping_schedule", "Shipping"), 1: ("sills", "Sills")}
+        access_map = {0: ("shipping_schedule", "Shipping"), 1: ("sills", "Sills"), 2: ("bom_importer", "BOM Importer")}
         for index, (module_key, label) in access_map.items():
             if index >= self.main_tab_widget.count():
                 continue
@@ -2421,52 +2424,12 @@ class ModernShippingMainWindow(QMainWindow):
         die_layout.addLayout(die_actions_layout)
         die_layout.addWidget(self.sills_die_table)
 
-        dashboard_page = QWidget()
-        dashboard_layout = QVBoxLayout(dashboard_page)
-        dashboard_layout.setContentsMargins(0, 0, 0, 0)
-        dashboard_layout.setSpacing(SPACE_12)
-
-        dashboard_title = QLabel("Sills Dashboard")
-        apply_scaled_font(dashboard_title, offset=3, weight=QFont.Weight.DemiBold)
-        dashboard_layout.addWidget(dashboard_title)
-
-        cards_layout = QGridLayout()
-        cards_layout.setContentsMargins(0, 0, 0, 0)
-        cards_layout.setHorizontalSpacing(SPACE_12)
-        cards_layout.setVerticalSpacing(SPACE_12)
-
-        self.sills_dashboard_cards: Dict[str, QLabel] = {}
-        metrics = [
-            ("sheet_total", "Total Sills"),
-            ("logs_total", "Log Records"),
-            ("dies_total", "Total Dies"),
-        ]
-        for index, (metric_id, metric_label) in enumerate(metrics):
-            card = QFrame()
-            card.setStyleSheet(
-                f"""
-                QFrame {{
-                    background: {COLOR_SURFACE};
-                    border: 1px solid {COLOR_BORDER};
-                    border-radius: {RADIUS_MD}px;
-                }}
-                """
-            )
-            card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_16)
-            card_layout.setSpacing(SPACE_8)
-            label = QLabel(metric_label)
-            apply_scaled_font(label, offset=1, weight=QFont.Weight.Medium)
-            value = QLabel("0")
-            apply_scaled_font(value, offset=6, weight=QFont.Weight.Bold)
-            value.setStyleSheet(f"color: {COLOR_PRIMARY};")
-            card_layout.addWidget(label)
-            card_layout.addWidget(value)
-            self.sills_dashboard_cards[metric_id] = value
-            cards_layout.addWidget(card, 0, index)
-
-        dashboard_layout.addLayout(cards_layout)
-        dashboard_layout.addStretch(1)
+        from .sills_dashboard import SillsDashboardWidget
+        self.sills_dashboard_widget = SillsDashboardWidget(
+            server_provider=self.settings_mgr.get_mie_trak_server,
+            database_provider=self.settings_mgr.get_mie_trak_database,
+        )
+        dashboard_page = self.sills_dashboard_widget
 
         tabs.addTab(sheet_page, "Sills Sheet")
         tabs.addTab(logs_page, "Activity Log")
@@ -2625,11 +2588,11 @@ class ModernShippingMainWindow(QMainWindow):
         self.update_status()
 
     def refresh_sills_dashboard(self):
-        if not hasattr(self, "sills_dashboard_cards"):
+        widget = getattr(self, "sills_dashboard_widget", None)
+        if widget is None:
             return
-        self.sills_dashboard_cards["sheet_total"].setText(str(len(self.sills or [])))
-        self.sills_dashboard_cards["logs_total"].setText(str(len(self.sills_logs or [])))
-        self.sills_dashboard_cards["dies_total"].setText(str(len(self.sill_dies or [])))
+        if not getattr(widget, "_aggregates", None):
+            widget.reload()
 
     def load_sill_dies(self):
         if not self._module_can_view("sills_database"):
