@@ -1340,8 +1340,8 @@ class ModernShippingMainWindow(QMainWindow):
         self.setWindowTitle("Schedule")
         if os.path.exists(ICON_PATH):
             self.setWindowIcon(QIcon(ICON_PATH))
-        self.setGeometry(100, 100, WINDOW_WIDTH, WINDOW_HEIGHT)
-        self.showMaximized()
+        self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
         try:
             self.setup_ui()
             self.apply_global_font_preferences()
@@ -2635,21 +2635,27 @@ class ModernShippingMainWindow(QMainWindow):
         """Filter the Die # Database table rows based on the local search input."""
         search = text.lower().strip()
         table = self.sills_die_table
-        table.setUpdatesEnabled(False)
-        try:
-            for row in range(table.rowCount()):
-                if not search:
+        changed = False
+        for row in range(table.rowCount()):
+            if not search:
+                if table.isRowHidden(row):
                     table.setRowHidden(row, False)
-                    continue
-                row_match = False
-                for col in range(table.columnCount()):
-                    item = table.item(row, col)
-                    if item and search in item.text().lower():
-                        row_match = True
-                        break
-                table.setRowHidden(row, not row_match)
-        finally:
-            table.setUpdatesEnabled(True)
+                    changed = True
+                continue
+            row_match = False
+            for col in range(table.columnCount()):
+                item = table.item(row, col)
+                if item and search in item.text().lower():
+                    row_match = True
+                    break
+            should_hide = not row_match
+            if table.isRowHidden(row) != should_hide:
+                table.setRowHidden(row, should_hide)
+                changed = True
+        if changed:
+            model = table.model()
+            if model is not None:
+                model.layoutChanged.emit()
 
     def _selected_sill(self) -> Optional[dict]:
         row = self.sills_table.currentRow()
@@ -5371,27 +5377,30 @@ class ModernShippingMainWindow(QMainWindow):
 
         active_filters = self.date_filters.get(name, {})
         visible_count = 0
+        changed = False
 
-        table.setUpdatesEnabled(False)
-        try:
-            for row in range(table.rowCount()):
-                visible = search_matches[row]
-                if visible and active_filters:
-                    for column, filter_data in active_filters.items():
-                        if not self.row_matches_date_filter(table, row, column, filter_data):
-                            visible = False
-                            break
+        for row in range(table.rowCount()):
+            visible = search_matches[row]
+            if visible and active_filters:
+                for column, filter_data in active_filters.items():
+                    if not self.row_matches_date_filter(table, row, column, filter_data):
+                        visible = False
+                        break
 
-                should_hide = not visible
-                if table.isRowHidden(row) != should_hide:
-                    table.setRowHidden(row, should_hide)
+            should_hide = not visible
+            if table.isRowHidden(row) != should_hide:
+                table.setRowHidden(row, should_hide)
+                changed = True
 
-                if visible:
-                    visible_count += 1
-        finally:
-            table.setUpdatesEnabled(True)
+            if visible:
+                visible_count += 1
 
         self.sync_pinned_row_visibility(table, name)
+
+        if changed:
+            model = table.model()
+            if model is not None:
+                model.layoutChanged.emit()
 
         return visible_count
 
@@ -5982,9 +5991,14 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error("No data to export")
                 return
 
+            visible_row_indices = [r for r in range(rows) if not table.isRowHidden(r)]
+            if not visible_row_indices:
+                self.show_error("No results to export (all rows hidden by filters).")
+                return
+
             # Preparar datos con solo las columnas seleccionadas
             raw_data = [headers]
-            for row in range(rows):
+            for row in visible_row_indices:
                 row_data = []
                 for col_index in column_map:
                     item = table.item(row, col_index)
