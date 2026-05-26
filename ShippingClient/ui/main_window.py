@@ -2399,11 +2399,21 @@ class ModernShippingMainWindow(QMainWindow):
             "Required columns: Die #, Type, Speed, Width, Supplier, Notes, Vendor Drawing"
         )
         self.sills_die_refresh_btn = ModernButton("Refresh", "outline", min_height=30, min_width=88, padding=(4, 10))
+
+        # Dedicated search box for the Die # Database tab
+        self.sills_die_search_edit = QLineEdit()
+        self.sills_die_search_edit.setPlaceholderText("Search die #, type, supplier…")
+        self.sills_die_search_edit.setClearButtonEnabled(True)
+        self.sills_die_search_edit.setFixedHeight(30)
+        self.sills_die_search_edit.setMinimumWidth(220)
+        self.sills_die_search_edit.setMaximumWidth(400)
+
         die_actions_layout.addWidget(self.sills_die_add_btn)
         die_actions_layout.addWidget(self.sills_die_edit_btn)
         die_actions_layout.addWidget(self.sills_die_delete_btn)
         die_actions_layout.addWidget(self.sills_die_import_btn)
         die_actions_layout.addStretch(1)
+        die_actions_layout.addWidget(self.sills_die_search_edit)
         die_actions_layout.addWidget(self.sills_die_refresh_btn)
 
         self.sills_die_table = QTableWidget()
@@ -2450,6 +2460,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_die_import_btn.clicked.connect(self.import_sill_dies_from_csv)
         self.sills_die_refresh_btn.clicked.connect(self.load_sill_dies)
         self.sills_die_table.itemDoubleClicked.connect(lambda _: self.open_edit_sill_die_dialog())
+        self.sills_die_search_edit.textChanged.connect(self._filter_die_table)
         tabs.currentChanged.connect(self._on_sills_tab_changed)
         self._apply_sills_permission_state()
 
@@ -2616,6 +2627,29 @@ class ModernShippingMainWindow(QMainWindow):
                 self.sills_die_table.setItem(row_index, col_index, QTableWidgetItem(value))
         self.sills_die_table.resizeColumnsToContents()
         self.sills_die_table.resizeRowsToContents()
+        # Re-apply any active local search after repopulating
+        if hasattr(self, "sills_die_search_edit"):
+            self._filter_die_table(self.sills_die_search_edit.text())
+
+    def _filter_die_table(self, text: str):
+        """Filter the Die # Database table rows based on the local search input."""
+        search = text.lower().strip()
+        table = self.sills_die_table
+        table.setUpdatesEnabled(False)
+        try:
+            for row in range(table.rowCount()):
+                if not search:
+                    table.setRowHidden(row, False)
+                    continue
+                row_match = False
+                for col in range(table.columnCount()):
+                    item = table.item(row, col)
+                    if item and search in item.text().lower():
+                        row_match = True
+                        break
+                table.setRowHidden(row, not row_match)
+        finally:
+            table.setUpdatesEnabled(True)
 
     def _selected_sill(self) -> Optional[dict]:
         row = self.sills_table.currentRow()
