@@ -248,6 +248,9 @@ class RobustApiClient:
     def update_sill(self, sill_id: int, data: Dict) -> ApiResponse:
         return self.put(f"/sills/{sill_id}", data=data)
 
+    def set_sill_hold(self, sill_id: int, hold: bool) -> ApiResponse:
+        return self.put(f"/sills/{sill_id}/hold", data={"hold": hold})
+
     def delete_sill(self, sill_id: int) -> ApiResponse:
         return self.delete(f"/sills/{sill_id}")
 

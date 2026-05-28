@@ -144,6 +144,9 @@ COLOR_LOCAL_EDIT_MARK = "#1E90FF"
 # soft palette so entire rows don't drown the table content.
 COLOR_SILL_ISSUE_COMPLETE_BG = "#DCFCE7"
 COLOR_SILL_ISSUE_PARTIAL_BG = "#FEF9C3"
+# Manual "Hold" status row background — a light amber, warmer/more golden than
+# the partial-issue yellow so the two are distinguishable at a glance.
+COLOR_SILL_HOLD_BG = "#FDE68A"
 
 # ============================================================================
 # Elevation / shadow (Fluent uses subtle layered shadows)

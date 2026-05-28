@@ -267,6 +267,10 @@ class SillUpdate(BaseModel):
     week_to_print: str | None = None
 
 
+class SillHoldUpdate(BaseModel):
+    hold: bool
+
+
 class SillResponse(BaseModel):
     id: int
     material: str
@@ -284,6 +288,7 @@ class SillResponse(BaseModel):
     issue_status: str = "pending"
     issue_checked_at: datetime | None = None
     issue_completed_at: datetime | None = None
+    hold_status: str = ""
     description: str
     qty: str
     dimension_needed: str
@@ -1567,6 +1572,43 @@ async def update_sill(
     )
     db.commit()
     db.refresh(sill)
+    return sill
+
+
+@app.put("/sills/{sill_id}/hold", response_model=SillResponse)
+async def update_sill_hold(
+    sill_id: int,
+    payload: SillHoldUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _ensure_module_view(db, current_user, "sills")
+    if current_user.role not in ("write", "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions to change hold status")
+
+    sill = db.query(Sill).filter(Sill.id == sill_id).first()
+    if not sill:
+        raise HTTPException(status_code=404, detail="Sill not found")
+
+    new_value = "hold" if payload.hold else ""
+    old_value = _safe_text(getattr(sill, "hold_status", ""))
+    if old_value != new_value:
+        sill.hold_status = new_value
+        sill.last_modified_by = current_user.id
+        sill.updated_at = datetime.utcnow()
+        _append_sills_logs(
+            db,
+            sill_id=sill.id,
+            action="update",
+            user_id=current_user.id,
+            changes={"hold_status": {"old": old_value, "new": new_value}},
+        )
+        db.commit()
+        db.refresh(sill)
+        await manager.broadcast(json.dumps({
+            "type": "sills_issue_status_updated",
+            "data": {"sill_id": sill.id, "hold_status": new_value},
+        }))
     return sill
 
 

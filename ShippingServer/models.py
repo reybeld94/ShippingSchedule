@@ -280,6 +280,7 @@ class Sill(Base):
     issue_status = Column(String(20), nullable=False, default="pending", server_default=text("'pending'"))
     issue_checked_at = Column(DateTime, nullable=True)
     issue_completed_at = Column(DateTime, nullable=True)
+    hold_status = Column(String(10), nullable=False, default="", server_default=text("''"))
     description = Column(Text, nullable=False, default="", server_default=text("''"))
     qty = Column(String(20), nullable=False, default="", server_default=text("''"))
     dimension_needed = Column(String(30), nullable=False, default="", server_default=text("''"))

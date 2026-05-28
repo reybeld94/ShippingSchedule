@@ -93,6 +93,10 @@ from PyQt6.QtGui import (
 LOCAL_UPDATE_MARK_ROLE = Qt.ItemDataRole.UserRole + 20
 # LOCAL_UPDATE_MARK_COLOR is assigned below, after the style_tokens import.
 LOCAL_UPDATE_MARK_COLOR: str = ""
+# Carries the issue-status row colour for Sills. A QSS ``QTableWidget::item``
+# rule makes ``QTableWidgetItem.setBackground`` ineffective, so the colour is
+# stored here and painted by the delegates instead.
+SILL_ISSUE_BG_ROLE = Qt.ItemDataRole.UserRole + 21
 
 
 CODE39_PATTERNS = {
@@ -194,6 +198,27 @@ def paint_marked_item_text(painter: QPainter, option: QStyleOptionViewItem, inde
         text,
     )
     painter.restore()
+
+
+def get_sill_issue_bg_color(index) -> Optional[QColor]:
+    """Return the issue-status background colour stored on an item index, if any."""
+    color = index.data(SILL_ISSUE_BG_ROLE)
+    if not color:
+        return None
+    qcolor = QColor(str(color))
+    return qcolor if qcolor.isValid() else None
+
+
+def draw_sill_issue_background(painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+    """Paint the issue-status row colour beneath cell content.
+
+    Skipped while the row is selected so the selection highlight stays visible.
+    """
+    if option.state & QStyle.StateFlag.State_Selected:
+        return
+    color = get_sill_issue_bg_color(index)
+    if color is not None:
+        painter.fillRect(option.rect, color)
 # Imports locales
 from .widgets import ModernButton
 from .dialogs import ask_confirm, show_error
@@ -221,6 +246,7 @@ from .style_tokens import (
     COLOR_PRIMARY_SUBTLE_TEXT,
     COLOR_SELECTION_BG,
     COLOR_SELECTION_TEXT,
+    COLOR_SILL_HOLD_BG,
     COLOR_SILL_ISSUE_COMPLETE_BG,
     COLOR_SILL_ISSUE_PARTIAL_BG,
     COLOR_SUCCESS,
@@ -902,6 +928,8 @@ class Code39BarcodeDelegate(QStyledItemDelegate):
         style = widget.style() if widget else QApplication.style()
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
 
+        draw_sill_issue_background(painter, opt, index)
+
         mark_color = get_local_update_mark_color(index)
         if mark_color is not None:
             draw_local_update_mark_background(painter, opt.rect, mark_color)
@@ -996,6 +1024,46 @@ class LocalUpdateMarkDateDelegate(DateDelegate):
         paint_marked_item_text(painter, opt, index)
 
 
+class SillIssueRowDelegate(QStyledItemDelegate):
+    """Default Sills delegate that paints the issue-status row colour.
+
+    The table stylesheet defines ``QTableWidget::item`` rules, which make
+    ``QTableWidgetItem.setBackground`` ineffective, so the colour is painted
+    here from :data:`SILL_ISSUE_BG_ROLE` instead.
+    """
+
+    def paint(self, painter, option, index):  # type: ignore[override]
+        if option.state & QStyle.StateFlag.State_Selected or get_sill_issue_bg_color(index) is None:
+            super().paint(painter, option, index)
+            return
+
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        text = opt.text
+        opt.text = ""
+
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+
+        draw_sill_issue_background(painter, opt, index)
+
+        mark_color = get_local_update_mark_color(index)
+        if mark_color is not None:
+            draw_local_update_mark_background(painter, opt.rect, mark_color)
+
+        if not text:
+            return
+        painter.save()
+        painter.setPen(opt.palette.text().color())
+        painter.drawText(
+            opt.rect.adjusted(14, 0, -14, 0),
+            opt.displayAlignment or (Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
+            text,
+        )
+        painter.restore()
+
+
 class WrapAnywhereDelegate(QStyledItemDelegate):
     """Custom delegate that allows long text chunks to wrap in table cells."""
 
@@ -1015,6 +1083,8 @@ class WrapAnywhereDelegate(QStyledItemDelegate):
         widget = opt.widget
         style = widget.style() if widget else QApplication.style()
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+
+        draw_sill_issue_background(painter, opt, index)
 
         mark_color = get_local_update_mark_color(index)
         if mark_color is not None:
@@ -2270,6 +2340,13 @@ class ModernShippingMainWindow(QMainWindow):
 
         self.sills_refresh_btn = ModernButton("Refresh", "outline", min_height=32, min_width=84, padding=(6, 10))
         self.sills_print_btn = ModernButton("Print", "outline", min_height=32, min_width=84, padding=(6, 10))
+        self.sills_material_label = QLabel("Material:")
+        apply_scaled_font(self.sills_material_label, offset=0, weight=QFont.Weight.Medium)
+        self.sills_material_filter = QComboBox()
+        self.sills_material_filter.setFixedHeight(30)
+        self.sills_material_filter.setMinimumWidth(120)
+        self.sills_material_filter.addItem("All Materials", "")
+        apply_scaled_font(self.sills_material_filter, offset=0)
         sills_print_icon_enum = getattr(
             QStyle.StandardPixmap,
             "SP_DialogPrintButton",
@@ -2288,6 +2365,8 @@ class ModernShippingMainWindow(QMainWindow):
         secondary_actions = QHBoxLayout()
         secondary_actions.setContentsMargins(0, 0, 0, 0)
         secondary_actions.setSpacing(10)
+        secondary_actions.addWidget(self.sills_material_label)
+        secondary_actions.addWidget(self.sills_material_filter)
         secondary_actions.addWidget(self.sills_print_btn)
         secondary_actions.addWidget(self.sills_refresh_btn)
 
@@ -2309,11 +2388,14 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.sills_table.verticalHeader().setVisible(False)
         self.sills_table.setWordWrap(True)
+        self.sills_table.setItemDelegate(SillIssueRowDelegate(self.sills_table))
         self.sills_table.setItemDelegateForColumn(9, self.code39_barcode_delegate)  # Assembly Number barcode
         self.sills_table.setItemDelegateForColumn(11, self.wrap_anywhere_delegate)  # Description
         self.sills_table.setItemDelegateForColumn(14, self.wrap_anywhere_delegate)  # Notes
         self._apply_table_style(self.sills_table)
         self._configure_table_row_metrics(self.sills_table)
+        self.sills_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.sills_table.customContextMenuRequested.connect(self._show_sills_context_menu)
 
         # Register base labels so update_header_filter_state can show the ▼ indicator
         self._base_header_labels["sills"] = list(_SILLS_LABELS)
@@ -2354,7 +2436,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_logs_start_date = QDateEdit()
         self.sills_logs_start_date.setCalendarPopup(True)
         self.sills_logs_start_date.setDisplayFormat("yyyy-MM-dd")
-        self.sills_logs_start_date.setDate(QDate.currentDate().addDays(-30))
+        self.sills_logs_start_date.setDate(QDate(2000, 1, 1))
         self.sills_logs_end_date = QDateEdit()
         self.sills_logs_end_date.setCalendarPopup(True)
         self.sills_logs_end_date.setDisplayFormat("yyyy-MM-dd")
@@ -2452,6 +2534,7 @@ class ModernShippingMainWindow(QMainWindow):
         self.sills_delete_btn.clicked.connect(self.delete_sill)
         self.sills_refresh_btn.clicked.connect(self.load_sills)
         self.sills_print_btn.clicked.connect(self.print_sills_sheet_to_pdf)
+        self.sills_material_filter.currentIndexChanged.connect(self._on_sills_material_filter_changed)
         self.sills_logs_refresh_btn.clicked.connect(self.load_sills_logs)
         self.sills_table.itemDoubleClicked.connect(lambda _: self.open_edit_sill_dialog())
         self.sills_die_add_btn.clicked.connect(self.open_add_sill_die_dialog)
@@ -2494,8 +2577,45 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_error(response.get_error() or "Failed to load sills.")
             return
         self.sills = response.get_data() or []
+        self._refresh_sills_material_filter()
         self.populate_sills_table()
         self.refresh_sills_dashboard()
+
+    def _refresh_sills_material_filter(self):
+        combo = getattr(self, "sills_material_filter", None)
+        if not isinstance(combo, QComboBox):
+            return
+
+        current_value = combo.currentData()
+        materials = sorted({
+            str(sill.get("material") or "").strip()
+            for sill in (self.sills or [])
+            if str(sill.get("material") or "").strip()
+        }, key=str.lower)
+        has_blank = any(not str(sill.get("material") or "").strip() for sill in (self.sills or []))
+
+        blocker = QSignalBlocker(combo)
+        combo.clear()
+        combo.addItem("All Materials", "")
+        for material in materials:
+            combo.addItem(material, material)
+        if has_blank:
+            combo.addItem("(Blank)", "__blank__")
+
+        index = combo.findData(current_value)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        del blocker
+
+    def _on_sills_material_filter_changed(self, *_args):
+        self.populate_sills_table()
+        self.update_status()
+        self.update_filter_button_state()
+
+    def _current_sills_material_filter(self) -> str:
+        combo = getattr(self, "sills_material_filter", None)
+        if not isinstance(combo, QComboBox):
+            return ""
+        return str(combo.currentData() or "")
 
     def _parse_issue_decimal(self, value):
         cleaned = str(value or "").strip()
@@ -2507,19 +2627,29 @@ class ModernShippingMainWindow(QMainWindow):
             return Decimal("0")
 
     def _sill_issue_row_background(self, sill):
+        # A manual Hold overrides the automatic issue-status colour.
+        if str(sill.get("hold_status") or "").strip().lower() == "hold":
+            return COLOR_SILL_HOLD_BG
+
         issue_status = str(sill.get("issue_status") or "pending").strip().lower()
         issued = self._parse_issue_decimal(sill.get("issue_quantity"))
         required_text = str(sill.get("issue_quantity_required") or "").strip()
         required = self._parse_issue_decimal(required_text)
 
         if issue_status in {"complete", "completed"} or (required_text and issued >= required):
-            return QBrush(QColor(COLOR_SILL_ISSUE_COMPLETE_BG))
+            return COLOR_SILL_ISSUE_COMPLETE_BG
         if issue_status == "partial" or (required_text and issued > 0 and issued < required):
-            return QBrush(QColor(COLOR_SILL_ISSUE_PARTIAL_BG))
+            return COLOR_SILL_ISSUE_PARTIAL_BG
         return None
 
     def populate_sills_table(self):
-        rows = self.sills or []
+        search_text = self.search_edit.text() if hasattr(self, "search_edit") else ""
+        rows = [
+            sill for sill in (self.sills or [])
+            if self.sill_matches_search(sill, search_text)
+            and self.sill_matches_material_filter(sill)
+            and self.sill_matches_date_filters(sill)
+        ]
         self.sills_table.setRowCount(len(rows))
         field_order = [
             "material", "dimension", "location", "die_number", "type", "speed", "width",
@@ -2535,11 +2665,12 @@ class ModernShippingMainWindow(QMainWindow):
             for col_index, field in enumerate(field_order):
                 value = "" if row_values.get(field) is None else str(row_values.get(field))
                 item = QTableWidgetItem(value)
+                if col_index == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, sill)
                 if field == "issue_progress":
                     item.setToolTip("Issued Quantity / Quantity Required")
                 if row_background is not None:
-                    item.setBackground(row_background)
-                    item.setData(Qt.ItemDataRole.BackgroundRole, row_background)
+                    item.setData(SILL_ISSUE_BG_ROLE, row_background)
                 self.sills_table.setItem(row_index, col_index, item)
         # Solo auto-ajustar si el usuario no tiene anchos guardados
         stored = self.settings_mgr.load_column_widths("sills", self.sills_table.columnCount())
@@ -2551,9 +2682,99 @@ class ModernShippingMainWindow(QMainWindow):
             self.sills_table.resizeColumnsToContents()
         self.sills_table.resizeRowsToContents()
 
-        # Re-apply any active date filters after the table is repopulated
-        if self.date_filters.get("sills"):
-            self.apply_date_filters_to_table(self.sills_table, "sills")
+    def _sill_from_row(self, row: int) -> Optional[dict]:
+        item0 = self.sills_table.item(row, 0)
+        sill = item0.data(Qt.ItemDataRole.UserRole) if item0 else None
+        return sill if isinstance(sill, dict) else None
+
+    def _can_set_sill_hold(self) -> bool:
+        return self.is_admin or self.user_info.get("role") in {"write", "admin"}
+
+    def _show_sills_context_menu(self, pos):
+        index = self.sills_table.indexAt(pos)
+        if not index.isValid():
+            return
+        row = index.row()
+        self.sills_table.selectRow(row)
+        sill = self._sill_from_row(row)
+        if sill is None or sill.get("id") is None:
+            return
+
+        is_hold = str(sill.get("hold_status") or "").strip().lower() == "hold"
+        menu = QMenu(self.sills_table)
+        status_menu = menu.addMenu("Status")
+        hold_action = status_menu.addAction("Hold")
+        hold_action.setCheckable(True)
+        hold_action.setChecked(is_hold)
+        hold_action.setEnabled(self._can_set_sill_hold())
+
+        chosen = menu.exec(self.sills_table.viewport().mapToGlobal(pos))
+        if chosen is hold_action:
+            self._set_sill_hold(sill.get("id"), not is_hold)
+
+    def _set_sill_hold(self, sill_id, hold: bool):
+        response = self.api_client.set_sill_hold(sill_id, hold)
+        if not response.is_success():
+            show_error(self, "Hold", response.get_error() or "Could not update hold status.")
+            return
+        for sill in (self.sills or []):
+            if sill.get("id") == sill_id:
+                sill["hold_status"] = "hold" if hold else ""
+                break
+        self.populate_sills_table()
+
+    def sill_matches_search(self, sill: dict, search_text: str) -> bool:
+        search = (search_text or "").strip().lower()
+        if not search:
+            return True
+        issue_quantity = str(sill.get("issue_quantity") or "0").strip() or "0"
+        issue_required = str(sill.get("issue_quantity_required") or "").strip()
+        issue_progress = f"{issue_quantity}/{issue_required}" if issue_required else issue_quantity
+        values = list(sill.values()) + [issue_progress]
+        return any(search in str(value or "").lower() for value in values)
+
+    def sill_matches_material_filter(self, sill: dict) -> bool:
+        selected = self._current_sills_material_filter()
+        if not selected:
+            return True
+        material = str(sill.get("material") or "").strip()
+        if selected == "__blank__":
+            return not material
+        return material.lower() == selected.lower()
+
+    def sill_matches_date_filters(self, sill: dict) -> bool:
+        filters = self.date_filters.get("sills", {})
+        if not filters:
+            return True
+
+        field_by_column = {
+            15: "week_to_print",
+        }
+        for column, filter_data in filters.items():
+            field = field_by_column.get(column)
+            if field is None:
+                continue
+
+            raw_value = str(sill.get(field) or "").strip()
+            parsed = self.parse_table_date_value(raw_value)
+            include_blank = filter_data.get("include_blank", True)
+            allowed_dates = filter_data.get("dates")
+
+            if allowed_dates is None:
+                if parsed is None and not include_blank:
+                    return False
+                continue
+            if len(allowed_dates) == 0:
+                if parsed is not None or not include_blank:
+                    return False
+                continue
+            if parsed is None:
+                if not include_blank:
+                    return False
+                continue
+            if parsed not in allowed_dates:
+                return False
+        return True
 
     def load_sills_logs(self):
         start_value = self.sills_logs_start_date.date().toString("yyyy-MM-dd")
@@ -2563,6 +2784,7 @@ class ModernShippingMainWindow(QMainWindow):
             self.show_error(response.get_error() or "Failed to load sills logs.")
             return
         self.sills_logs = response.get_data() or []
+        print(f"[SILLS_LOGS] loaded={len(self.sills_logs)} start={start_value} end={end_value}")
         self.populate_sills_logs_table()
         self.refresh_sills_dashboard()
 
@@ -2618,49 +2840,108 @@ class ModernShippingMainWindow(QMainWindow):
         self.refresh_sills_dashboard()
 
     def populate_sill_dies_table(self):
-        rows = self.sill_dies or []
+        search_text = self.sills_die_search_edit.text() if hasattr(self, "sills_die_search_edit") else ""
+        rows = [
+            item for item in (self.sill_dies or [])
+            if self.sill_die_matches_search(item, search_text)
+        ]
         self.sills_die_table.setRowCount(len(rows))
         fields = ["die_number", "type", "speed", "width", "supplier", "notes", "vendor_drawing"]
         for row_index, item in enumerate(rows):
             for col_index, field in enumerate(fields):
                 value = "" if item.get(field) is None else str(item.get(field))
-                self.sills_die_table.setItem(row_index, col_index, QTableWidgetItem(value))
+                table_item = QTableWidgetItem(value)
+                if col_index == 0:
+                    table_item.setData(Qt.ItemDataRole.UserRole, item)
+                self.sills_die_table.setItem(row_index, col_index, table_item)
         self.sills_die_table.resizeColumnsToContents()
         self.sills_die_table.resizeRowsToContents()
-        # Re-apply any active local search after repopulating
-        if hasattr(self, "sills_die_search_edit"):
-            self._filter_die_table(self.sills_die_search_edit.text())
 
     def _filter_die_table(self, text: str):
-        """Filter the Die # Database table rows based on the local search input."""
-        search = text.lower().strip()
-        table = self.sills_die_table
+        """Rebuild the Die # Database table from source rows."""
+        _ = text
+        self.populate_sill_dies_table()
+
+    def sill_die_matches_search(self, item: dict, search_text: str) -> bool:
+        search = (search_text or "").strip().lower()
+        if not search:
+            return True
+        return any(search in str(value or "").lower() for value in item.values())
+
+    def apply_simple_table_filter(self, table, name: str, search_text: str, *, include_date_filters: bool = True):
+        """Filter plain QTableWidget rows by visible cell text.
+
+        Shipping rows carry rich shipment dictionaries, but Sills and Die DB
+        are plain tables. Keeping them independent avoids stale search state
+        after a zero-result search.
+        """
+        search = (search_text or "").lower().strip()
+        active_filters = self.date_filters.get(name, {}) if include_date_filters else {}
         changed = False
+        visible_count = 0
+
+        if not search and not active_filters:
+            for row in range(table.rowCount()):
+                table.showRow(row)
+                table.verticalHeader().showSection(row)
+                table.setRowHeight(row, max(table.rowHeight(row), table.verticalHeader().defaultSectionSize()))
+            model = table.model()
+            if model is not None:
+                model.layoutChanged.emit()
+            table.resizeRowsToContents()
+            table.scrollToTop()
+            table.viewport().update()
+            table.repaint()
+            return table.rowCount()
+
         for row in range(table.rowCount()):
-            if not search:
-                if table.isRowHidden(row):
-                    table.setRowHidden(row, False)
-                    changed = True
-                continue
-            row_match = False
-            for col in range(table.columnCount()):
-                item = table.item(row, col)
-                if item and search in item.text().lower():
-                    row_match = True
-                    break
+            row_match = True
+            if search:
+                row_match = False
+                for col in range(table.columnCount()):
+                    item = table.item(row, col)
+                    if item and search in item.text().lower():
+                        row_match = True
+                        break
+            if row_match and active_filters:
+                for column, filter_data in active_filters.items():
+                    if not self.row_matches_date_filter(table, row, column, filter_data):
+                        row_match = False
+                        break
+
             should_hide = not row_match
-            if table.isRowHidden(row) != should_hide:
-                table.setRowHidden(row, should_hide)
-                changed = True
+            if should_hide:
+                if not table.isRowHidden(row):
+                    changed = True
+                table.hideRow(row)
+            else:
+                if table.isRowHidden(row):
+                    changed = True
+                table.showRow(row)
+                table.verticalHeader().showSection(row)
+                table.setRowHeight(row, max(table.rowHeight(row), table.verticalHeader().defaultSectionSize()))
+            if row_match:
+                visible_count += 1
+
         if changed:
             model = table.model()
             if model is not None:
                 model.layoutChanged.emit()
+            table.resizeRowsToContents()
+            table.scrollToTop()
+            table.viewport().update()
+            table.repaint()
+        return visible_count
 
     def _selected_sill(self) -> Optional[dict]:
         row = self.sills_table.currentRow()
         if row < 0:
             return None
+        item = self.sills_table.item(row, 0)
+        if item is not None:
+            sill = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(sill, dict):
+                return sill
         if row >= len(self.sills):
             return None
         return self.sills[row]
@@ -2669,6 +2950,11 @@ class ModernShippingMainWindow(QMainWindow):
         row = self.sills_die_table.currentRow()
         if row < 0:
             return None
+        item = self.sills_die_table.item(row, 0)
+        if item is not None:
+            sill_die = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(sill_die, dict):
+                return sill_die
         if row >= len(self.sill_dies):
             return None
         return self.sill_dies[row]
@@ -3707,6 +3993,8 @@ class ModernShippingMainWindow(QMainWindow):
     def clear_all_filters(self, name):
         """Limpiar filtros de fechas y actualizar la vista."""
         table = self.tab_tables.get(name)
+        if table is None and name == "sills":
+            table = getattr(self, "sills_table", None)
         if table is None:
             return
 
@@ -3720,7 +4008,10 @@ class ModernShippingMainWindow(QMainWindow):
             self.update_header_filter_state(table, name, column, False)
 
         self.persist_date_filters(name)
-        self.apply_row_filters(table, name)
+        if name == "sills":
+            self.populate_sills_table()
+        else:
+            self.apply_row_filters(table, name)
         self.update_status()
         self.update_filter_button_state()
 
@@ -4191,6 +4482,9 @@ class ModernShippingMainWindow(QMainWindow):
 
     def apply_date_filters_to_table(self, table, name):
         """Aplicar los filtros de fecha respetando la búsqueda actual."""
+        if name == "sills":
+            self.populate_sills_table()
+            return self.sills_table.rowCount()
         return self.apply_row_filters(table, name)
 
     def row_matches_date_filter(self, table, row, column, filter_data):
@@ -5406,7 +5700,14 @@ class ModernShippingMainWindow(QMainWindow):
 
     def on_search_text_changed(self, _text):
         """Debounce de búsqueda y actualización visual de filtros."""
-        if not self.search_edit.text().strip():
+        search_text = self.search_edit.text()
+        name, table = self.get_active_search_table()
+        if name == "sills" and table is not None:
+            self.populate_sills_table()
+            self.update_status()
+            self.update_filter_button_state()
+            return
+        if not search_text.strip():
             self.reset_search_visibility_for_all_tables()
         if hasattr(self, "search_timer"):
             self.search_timer.start()
@@ -5414,6 +5715,8 @@ class ModernShippingMainWindow(QMainWindow):
 
     def filters_active(self):
         if hasattr(self, "search_edit") and self.search_edit.text().strip():
+            return True
+        if self._current_sills_material_filter():
             return True
         for table_filters in self.date_filters.values():
             if table_filters:
@@ -5447,8 +5750,11 @@ class ModernShippingMainWindow(QMainWindow):
             self.update_filter_button_state()
             return
 
-        self.update_search_visibility(table, name)
-        self.apply_row_filters(table, name)
+        if name == "sills":
+            self.populate_sills_table()
+        else:
+            self.update_search_visibility(table, name)
+            self.apply_row_filters(table, name)
         self.update_status()
         self.update_filter_button_state()
 
@@ -5462,8 +5768,7 @@ class ModernShippingMainWindow(QMainWindow):
                 yield table_name, table
 
         for table_name, attr in (
-            ("sills_sheet", "sills_table"),
-            ("sills_logs", "sills_logs_table"),
+            ("sills", "sills_table"),
         ):
             table = getattr(self, attr, None)
             if table is not None:
@@ -5472,24 +5777,32 @@ class ModernShippingMainWindow(QMainWindow):
     def reset_search_visibility_for_all_tables(self):
         """Restore row visibility on all modules when search text is cleared."""
         for table_name, table in self.iter_searchable_tables():
-            self.update_search_visibility(table, table_name)
-            self.apply_row_filters(table, table_name)
+            if table_name == "sills":
+                self.populate_sills_table()
+            else:
+                self.update_search_visibility(table, table_name)
+                self.apply_row_filters(table, table_name)
 
     def get_active_search_table(self) -> tuple[str, Optional[QTableWidget]]:
         """Return the currently visible table that should be filtered by search."""
-        if hasattr(self, "main_tab_widget") and self.main_tab_widget.currentIndex() == 1:
+        is_sills_page = (
+            hasattr(self, "main_tab_widget")
+            and hasattr(self, "sills_page")
+            and self.main_tab_widget.currentWidget() == self.sills_page
+        )
+        if is_sills_page:
             if not hasattr(self, "sills_tab_widget"):
-                return "sills_sheet", None
+                return "sills", None
             index = self.sills_tab_widget.currentIndex()
             if index == 1:
-                return "sills_logs", getattr(self, "sills_logs_table", None)
+                return "sills_logs", None
             if index == 2:
                 # Die # Database has its own dedicated search bar; the global
                 # search must not touch it (return None so perform_filter skips it).
                 return "sills_die", None
             if index == 3:
                 return "sills_dashboard", None
-            return "sills_sheet", getattr(self, "sills_table", None)
+            return "sills", getattr(self, "sills_table", None)
 
         current_tab_id = self.get_current_tab_id()
         return current_tab_id, self.tab_tables.get(current_tab_id)
@@ -5836,6 +6149,14 @@ class ModernShippingMainWindow(QMainWindow):
                 "Ship Plan",
             ],
             column_map=[0, 1, 2, 3, 5, 6],
+            min_column_weights=[
+                None,  # Job Number
+                None,  # Job Name
+                None,  # Description
+                None,  # QC Release
+                11,    # Crated
+                11,    # Ship Plan
+            ],
         )
 
     def print_sills_sheet_to_pdf(self):
@@ -5867,19 +6188,37 @@ class ModernShippingMainWindow(QMainWindow):
                 3,   # Mat (narrow)
                 3,   # Dim (narrow)
                 3,   # Loc (narrow)
-                5,   # Die #
-                4,   # Type
+                6,   # Die #
+                4.5, # Type
                 3,   # SPD (narrow)
                 4,   # Width
                 6,   # Job
                 5,   # WO
                 18,  # Assembly
                 5,   # Issue
-                14,  # Description
+                13,  # Description
                 3,   # Qty
                 3,   # Dim (narrow)
-                24,  # Notes (widest)
-                6,   # Week
+                23,  # Notes (widest)
+                8,   # Week
+            ],
+            min_column_weights=[
+                None,  # Mat
+                None,  # Dim
+                None,  # Loc
+                6,     # Die #
+                6.5,   # Type
+                None,  # SPD
+                None,  # Width
+                None,  # Job
+                None,  # WO
+                None,  # Assembly
+                None,  # Issue
+                None,  # Description
+                None,  # Qty
+                None,  # Dim
+                None,  # Notes
+                8,     # Week
             ],
             wrap_columns=[11, 14],  # Solo Description y Notes
             page_size=(17, 11),
@@ -5903,6 +6242,7 @@ class ModernShippingMainWindow(QMainWindow):
         headers: list[str],
         column_map: list[int],
         column_weights: list[float] | None = None,
+        min_column_weights: list[float | None] | None = None,
         wrap_columns: list[int] | None = None,
         barcode_columns: list[int] | None = None,
         page_size: tuple[float, float] = (8.5, 14),
@@ -6003,6 +6343,8 @@ class ModernShippingMainWindow(QMainWindow):
                 for col_index in column_map:
                     item = table.item(row, col_index)
                     text = item.text() if item else ""
+                    if tab_name == "Sills_Sheet" and col_index == 4 and text.strip().lower() == "extension":
+                        text = "EXT"
                     row_data.append(text)
                 raw_data.append(row_data)
 
@@ -6049,6 +6391,10 @@ class ModernShippingMainWindow(QMainWindow):
                 base_weight = max(6, min(max_len, 40))
                 if column_weights and idx < len(column_weights):
                     base_weight = max(3, float(column_weights[idx]))
+                if min_column_weights and idx < len(min_column_weights):
+                    min_weight = min_column_weights[idx]
+                    if min_weight is not None:
+                        base_weight = max(base_weight, float(min_weight))
                 col_weights.append(base_weight)
 
             total_weight = sum(col_weights) or total_cols
