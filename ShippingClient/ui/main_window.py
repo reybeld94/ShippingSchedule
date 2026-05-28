@@ -2638,8 +2638,8 @@ class ModernShippingMainWindow(QMainWindow):
 
         if issue_status in {"complete", "completed"} or (required_text and issued >= required):
             return COLOR_SILL_ISSUE_COMPLETE_BG
-        if issue_status == "partial" or (required_text and issued > 0 and issued < required):
-            return COLOR_SILL_ISSUE_PARTIAL_BG
+        # Partial issue is intentionally left uncoloured so it can't be confused
+        # with the manual Hold (amber) status.
         return None
 
     def populate_sills_table(self):
