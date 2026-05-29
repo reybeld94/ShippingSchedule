@@ -2516,17 +2516,18 @@ class ModernShippingMainWindow(QMainWindow):
         die_layout.addLayout(die_actions_layout)
         die_layout.addWidget(self.sills_die_table)
 
-        from .sills_dashboard import SillsDashboardWidget
-        self.sills_dashboard_widget = SillsDashboardWidget(
-            server_provider=self.settings_mgr.get_mie_trak_server,
-            database_provider=self.settings_mgr.get_mie_trak_database,
-        )
-        dashboard_page = self.sills_dashboard_widget
-
         tabs.addTab(sheet_page, "Sills Sheet")
         tabs.addTab(logs_page, "Activity Log")
         tabs.addTab(die_page, "Die # Database")
-        tabs.addTab(dashboard_page, "Sills Dashboard")
+
+        # The Sills Dashboard tab is gated behind a dedicated view permission.
+        if self._module_can_view("sills_dashboard"):
+            from .sills_dashboard import SillsDashboardWidget
+            self.sills_dashboard_widget = SillsDashboardWidget(
+                server_provider=self.settings_mgr.get_mie_trak_server,
+                database_provider=self.settings_mgr.get_mie_trak_database,
+            )
+            tabs.addTab(self.sills_dashboard_widget, "Sills Dashboard")
         page_layout.addWidget(tabs)
 
         self.sills_add_btn.clicked.connect(self.open_add_sill_dialog)
@@ -6159,12 +6160,119 @@ class ModernShippingMainWindow(QMainWindow):
             ],
         )
 
+    def _sill_print_row_label(self, row: int) -> str:
+        """Build a human-readable label for one Sills row in the print picker."""
+        def cell(col: int) -> str:
+            item = self.sills_table.item(row, col)
+            return item.text().strip() if item and item.text() else ""
+
+        work_order = cell(8)
+        job = cell(7)
+        assembly = cell(9)
+        description = cell(11)
+
+        primary = f"WO {work_order}" if work_order else "(no WO)"
+        extras = [part for part in (
+            f"Job {job}" if job else "",
+            assembly,
+            description,
+        ) if part]
+        detail = "   ·   ".join(extras)
+        return f"{primary}   ·   {detail}" if detail else primary
+
+    def _choose_sill_rows_to_print(self, visible_rows: list[int]) -> Optional[set[int]]:
+        """Show a checklist of the rows about to be printed.
+
+        Returns the set of selected row indices, or ``None`` if the user
+        cancelled. Every row is checked by default.
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Work Orders to Print")
+        dialog.setMinimumWidth(520)
+        dialog.setMinimumHeight(440)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(SPACE_16, SPACE_16, SPACE_16, SPACE_16)
+        layout.setSpacing(SPACE_12)
+
+        info = QLabel(
+            f"{len(visible_rows)} work order(s) will be printed. "
+            "Uncheck any you don't want to include."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # Select all / none controls
+        toggle_row = QHBoxLayout()
+        toggle_row.setSpacing(SPACE_8)
+        select_all_btn = ModernButton("Select all", "outline", min_height=28, min_width=90, padding=(4, 10))
+        clear_all_btn = ModernButton("Clear all", "outline", min_height=28, min_width=90, padding=(4, 10))
+        toggle_row.addWidget(select_all_btn)
+        toggle_row.addWidget(clear_all_btn)
+        toggle_row.addStretch(1)
+        layout.addLayout(toggle_row)
+
+        # Scrollable list of checkboxes
+        scroll = QScrollArea(dialog)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(SPACE_8)
+
+        checkboxes: list[tuple[QCheckBox, int]] = []
+        for row in visible_rows:
+            checkbox = QCheckBox(self._sill_print_row_label(row))
+            checkbox.setChecked(True)
+            container_layout.addWidget(checkbox)
+            checkboxes.append((checkbox, row))
+        container_layout.addStretch(1)
+        scroll.setWidget(container)
+        layout.addWidget(scroll, 1)
+
+        select_all_btn.clicked.connect(
+            lambda: [cb.setChecked(True) for cb, _ in checkboxes]
+        )
+        clear_all_btn.clicked.connect(
+            lambda: [cb.setChecked(False) for cb, _ in checkboxes]
+        )
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Print")
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+
+        return {row for checkbox, row in checkboxes if checkbox.isChecked()}
+
     def print_sills_sheet_to_pdf(self):
         """Export Sills Sheet in horizontal 11x17 format."""
+        visible_rows = [
+            r for r in range(self.sills_table.rowCount())
+            if not self.sills_table.isRowHidden(r)
+        ]
+        if not visible_rows:
+            self.show_error("No results to export (all rows hidden by filters).")
+            return
+
+        allowed_rows = self._choose_sill_rows_to_print(visible_rows)
+        if allowed_rows is None:
+            return  # User cancelled
+        if not allowed_rows:
+            self.show_error("No work orders selected to print.")
+            return
+
         self._print_table_to_pdf(
             table=self.sills_table,
             tab_name="Sills_Sheet",
             title="Sills Sheet",
+            allowed_rows=allowed_rows,
             headers=[
                 "Mat",
                 "Dim",
@@ -6255,8 +6363,13 @@ class ModernShippingMainWindow(QMainWindow):
         cell_padding_vertical: float = 5,
         cell_padding_horizontal: float = 4.5,
         target_fill_ratio: float = 0.82,
+        allowed_rows: set[int] | None = None,
     ):
-        """Generic PDF exporter used by Active Shipments and Sills Sheet."""
+        """Generic PDF exporter used by Active Shipments and Sills Sheet.
+
+        ``allowed_rows`` optionally restricts the export to a subset of the
+        currently-visible row indices (used by the Sills print picker).
+        """
         # Verificar dependencias antes de continuar
         missing_deps = []
 
@@ -6331,9 +6444,13 @@ class ModernShippingMainWindow(QMainWindow):
                 self.show_error("No data to export")
                 return
 
-            visible_row_indices = [r for r in range(rows) if not table.isRowHidden(r)]
+            visible_row_indices = [
+                r for r in range(rows)
+                if not table.isRowHidden(r)
+                and (allowed_rows is None or r in allowed_rows)
+            ]
             if not visible_row_indices:
-                self.show_error("No results to export (all rows hidden by filters).")
+                self.show_error("No results to export (all rows hidden or unselected).")
                 return
 
             # Preparar datos con solo las columnas seleccionadas

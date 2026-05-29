@@ -61,6 +61,8 @@ PERMISSION_MODULES = {
     "shipping_schedule": set(SHIPPING_PERMISSION_COLUMNS),
     "sills": set(SILLS_PERMISSION_COLUMNS) | {SILLS_DELETE_PERMISSION_KEY},
     "sills_database": {SILLS_DIE_PERMISSION_KEY},
+    # View-only module that gates visibility of the Sills Dashboard sub-tab.
+    "sills_dashboard": set(),
 }
 PERMISSION_COLUMN_ALIASES = {
     module: {column.replace("_", "").lower(): column for column in columns}
@@ -437,6 +439,10 @@ def _admin_permissions_payload() -> dict:
                 "can_view": True,
                 "columns": {SILLS_DIE_PERMISSION_KEY: True},
             },
+            "sills_dashboard": {
+                "can_view": True,
+                "columns": {},
+            },
         }
     }
 
@@ -461,6 +467,10 @@ def _get_user_permissions_payload(db: Session, user: User) -> dict:
             "sills_database": {
                 "can_view": True,
                 "columns": {SILLS_DIE_PERMISSION_KEY: user.role == "write"},
+            },
+            "sills_dashboard": {
+                "can_view": True,
+                "columns": {},
             },
         }
     }

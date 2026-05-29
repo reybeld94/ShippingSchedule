@@ -387,12 +387,13 @@ class SettingsDialog(QDialog):
                 ("sills_delete", "Delete Sills"),
             ],
             extra_rows=[("sills_database", "Sills DB (all fields)")],
+            view_subtabs=[("sills_dashboard", "Sills Dashboard")],
         )
         content_layout.addStretch()
         scroll.setWidget(content)
         layout.addWidget(scroll, 1)
 
-    def _add_permission_section(self, parent_layout, module_key: str, title: str, rows, extra_rows=None):
+    def _add_permission_section(self, parent_layout, module_key: str, title: str, rows, extra_rows=None, view_subtabs=None):
         section, content_layout = self._create_connection_section(title)
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
@@ -422,16 +423,28 @@ class SettingsDialog(QDialog):
         self._size_permission_table_to_contents(table)
         content_layout.addWidget(table)
 
-        if extra_rows:
+        if extra_rows or view_subtabs:
             extra_label = QLabel("Sub tabs")
             apply_scaled_font(extra_label, offset=1, weight=QFont.Weight.Medium)
             content_layout.addWidget(extra_label)
-            for key, label in extra_rows:
+            for key, label in (extra_rows or []):
                 row = QHBoxLayout()
                 row.setContentsMargins(0, 0, 0, 0)
                 checkbox = QCheckBox("Write")
                 checkbox.setEnabled(self.is_admin)
                 self.permission_checkboxes[key] = {key: checkbox}
+                row.addWidget(QLabel(label))
+                row.addStretch()
+                row.addWidget(checkbox)
+                content_layout.addLayout(row)
+            for key, label in (view_subtabs or []):
+                row = QHBoxLayout()
+                row.setContentsMargins(0, 0, 0, 0)
+                checkbox = QCheckBox("Visible")
+                checkbox.setEnabled(self.is_admin)
+                # Registered as a module checkbox so the generic apply/collect
+                # logic handles its can_view flag (the module has no columns).
+                self.permission_module_checkboxes[key] = checkbox
                 row.addWidget(QLabel(label))
                 row.addStretch()
                 row.addWidget(checkbox)
