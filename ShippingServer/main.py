@@ -63,6 +63,8 @@ PERMISSION_MODULES = {
     "sills_database": {SILLS_DIE_PERMISSION_KEY},
     # View-only module that gates visibility of the Sills Dashboard sub-tab.
     "sills_dashboard": set(),
+    # View-only module that gates visibility of the BOM Importer top-level tab.
+    "bom_importer": set(),
 }
 PERMISSION_COLUMN_ALIASES = {
     module: {column.replace("_", "").lower(): column for column in columns}
@@ -443,6 +445,10 @@ def _admin_permissions_payload() -> dict:
                 "can_view": True,
                 "columns": {},
             },
+            "bom_importer": {
+                "can_view": True,
+                "columns": {},
+            },
         }
     }
 
@@ -469,6 +475,10 @@ def _get_user_permissions_payload(db: Session, user: User) -> dict:
                 "columns": {SILLS_DIE_PERMISSION_KEY: user.role == "write"},
             },
             "sills_dashboard": {
+                "can_view": True,
+                "columns": {},
+            },
+            "bom_importer": {
                 "can_view": True,
                 "columns": {},
             },

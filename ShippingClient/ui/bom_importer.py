@@ -4,9 +4,8 @@ Top-level module with two sub-tabs:
   - Packing List   (placeholder, ready for implementation)
   - Solid Works    (SolidWorks BOM → Mie Trak SANDBOX importer)
 
-The Solid Works sub-tab is hardwired to the ``GunderlinSandbox`` database;
-the sandbox banner is always visible so the operator can confirm we never
-target production.
+The Solid Works sub-tab is hardwired to the ``GunderlinSandbox`` database
+so we never target production.
 """
 
 from __future__ import annotations
@@ -45,7 +44,6 @@ from core.mie_trak_bom_client import (
     BomImportResult,
     ItemMatch,
     extract_bom_from_slddrw,
-    get_sandbox_connection_info,
     get_sandbox_work_orders_by_sales_order,
     import_bom_to_work_order,
     match_items_in_sandbox,
@@ -177,7 +175,7 @@ class _SwExtractWorker(QObject):
                 _, rows, _ = extract_bom_from_slddrw(path, visible=True)
             else:
                 raise RuntimeError(
-                    f"Extensión no soportada: {ext}. Usa .slddrw o .csv (BOM exportado)."
+                    f"Unsupported extension: {ext}. Use .slddrw or .csv (exported BOM)."
                 )
             self.finished.emit(rows, path)
         except Exception as exc:  # noqa: BLE001 - surface error to UI
@@ -252,18 +250,6 @@ class _ImportWorker(QObject):
             self.failed.emit(str(exc))
 
 
-class _SandboxInfoWorker(QObject):
-    finished = pyqtSignal(dict)
-    failed = pyqtSignal(str)
-
-    def run(self):
-        try:
-            info = get_sandbox_connection_info()
-            self.finished.emit(info)
-        except Exception as exc:  # noqa: BLE001
-            self.failed.emit(str(exc))
-
-
 # ════════════════════════════════════════════════════════════════════════════
 # Solid Works → Mie Trak Sandbox importer tab
 # ════════════════════════════════════════════════════════════════════════════
@@ -285,9 +271,7 @@ class SolidWorksTab(QWidget):
          ``usp_CalculateWorkOrder``).
 
     Sandbox guarantee: ``core.mie_trak_bom_client`` is hardcoded to
-    ``GunderlinSandbox`` and refuses to connect to any other DB. The banner
-    at the top of this tab shows the live ``DB_NAME()`` returned by the
-    server so the operator can visually confirm.
+    ``GunderlinSandbox`` and refuses to connect to any other DB.
     """
 
     BOM_COLUMNS = ["Item", "Part Number", "Qty", "Description", "Match", "Item PK", "Mie Trak Description"]
@@ -301,9 +285,7 @@ class SolidWorksTab(QWidget):
         self._work_orders: List[dict] = []
         self._selected_work_order_pk: Optional[int] = None
         self._threads: List[QThread] = []
-        self._sandbox_info: Dict[str, str] = {}
         self._build_ui()
-        self._refresh_sandbox_info()
 
     # ────────────────────────────────────────────────────────────────────────
     # UI
@@ -313,7 +295,6 @@ class SolidWorksTab(QWidget):
         outer.setContentsMargins(SPACE_12, SPACE_12, SPACE_12, SPACE_12)
         outer.setSpacing(SPACE_12)
 
-        outer.addWidget(self._build_sandbox_banner())
         outer.addWidget(self._build_toolbar())
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -327,74 +308,19 @@ class SolidWorksTab(QWidget):
 
         outer.addWidget(self._build_log_panel())
 
-    def _build_sandbox_banner(self) -> QWidget:
-        banner = QFrame()
-        banner.setObjectName("sandboxBanner")
-        banner.setStyleSheet(
-            f"""
-            QFrame#sandboxBanner {{
-                background: {COLOR_SANDBOX_BG};
-                border: 2px solid {COLOR_SANDBOX_BORDER};
-                border-radius: {RADIUS_MD}px;
-            }}
-            QFrame#sandboxBanner QLabel {{
-                color: {COLOR_SANDBOX_TEXT};
-            }}
-            """
-        )
-        row = QHBoxLayout(banner)
-        row.setContentsMargins(SPACE_12, SPACE_8, SPACE_12, SPACE_8)
-        row.setSpacing(SPACE_12)
-
-        icon = QLabel("🛡️")
-        apply_scaled_font(icon, offset=6)
-        row.addWidget(icon)
-
-        title = QLabel("SANDBOX MODE")
-        apply_scaled_font(title, offset=2, weight=QFont.Weight.Bold)
-        row.addWidget(title)
-
-        self._sandbox_db_label = QLabel(f"Database: {SANDBOX_DATABASE}")
-        apply_scaled_font(self._sandbox_db_label, offset=0, weight=QFont.Weight.DemiBold)
-        row.addWidget(self._sandbox_db_label)
-
-        self._sandbox_diag_label = QLabel("Verificando conexión sandbox…")
-        apply_scaled_font(self._sandbox_diag_label, offset=-1)
-        row.addWidget(self._sandbox_diag_label)
-        row.addStretch(1)
-
-        verify_btn = QPushButton("Verificar DB")
-        verify_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        verify_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                background: white;
-                color: {COLOR_SANDBOX_TEXT};
-                border: 1px solid {COLOR_SANDBOX_BORDER};
-                border-radius: 4px;
-                padding: 4px 12px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{ background: #FEF3C7; }}
-            """
-        )
-        verify_btn.clicked.connect(self._refresh_sandbox_info)
-        row.addWidget(verify_btn)
-        return banner
-
     def _build_toolbar(self) -> QWidget:
         toolbar = QFrame()
         row = QHBoxLayout(toolbar)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(SPACE_8)
 
-        self._select_btn = QPushButton("Cargar archivo (.SLDDRW / .CSV)")
+        self._select_btn = QPushButton("Load file (.SLDDRW / .CSV)")
         self._select_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._select_btn.setStyleSheet(self._primary_button_style())
         self._select_btn.clicked.connect(self._on_select_file)
         row.addWidget(self._select_btn)
 
-        self._match_btn = QPushButton("Match con Mie Trak Sandbox")
+        self._match_btn = QPushButton("Match against Mie Trak Sandbox")
         self._match_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._match_btn.setStyleSheet(self._secondary_button_style())
         self._match_btn.clicked.connect(self._on_match)
@@ -403,7 +329,7 @@ class SolidWorksTab(QWidget):
 
         row.addStretch(1)
 
-        self._file_label = QLabel("Sin archivo cargado")
+        self._file_label = QLabel("No file loaded")
         apply_scaled_font(self._file_label, offset=-1)
         self._file_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
         row.addWidget(self._file_label)
@@ -423,7 +349,7 @@ class SolidWorksTab(QWidget):
         title = QLabel("SolidWorks BOM ↔ Mie Trak Match")
         apply_scaled_font(title, offset=2, weight=QFont.Weight.DemiBold)
         header.addWidget(title)
-        self._bom_summary_label = QLabel("0 líneas")
+        self._bom_summary_label = QLabel("0 lines")
         apply_scaled_font(self._bom_summary_label, offset=-1)
         self._bom_summary_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
         header.addStretch(1)
@@ -453,7 +379,7 @@ class SolidWorksTab(QWidget):
         layout.setContentsMargins(SPACE_12, SPACE_12, SPACE_12, SPACE_12)
         layout.setSpacing(SPACE_8)
 
-        title = QLabel("Sales Order / Work Order destino")
+        title = QLabel("Target Sales Order / Work Order")
         apply_scaled_font(title, offset=2, weight=QFont.Weight.DemiBold)
         layout.addWidget(title)
 
@@ -462,10 +388,10 @@ class SolidWorksTab(QWidget):
         apply_scaled_font(search_label, offset=-1)
         search_row.addWidget(search_label)
         self._so_search = QLineEdit()
-        self._so_search.setPlaceholderText("Buscar sales order (ID o número)…")
+        self._so_search.setPlaceholderText("Search sales order (ID or number)…")
         self._so_search.returnPressed.connect(self._on_search_sales_orders)
         search_row.addWidget(self._so_search, 1)
-        self._so_search_btn = QPushButton("Buscar")
+        self._so_search_btn = QPushButton("Search")
         self._so_search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._so_search_btn.setStyleSheet(self._secondary_button_style())
         self._so_search_btn.clicked.connect(self._on_search_sales_orders)
@@ -473,7 +399,7 @@ class SolidWorksTab(QWidget):
         layout.addLayout(search_row)
 
         self._so_combo = QComboBox()
-        self._so_combo.setPlaceholderText("Selecciona un Sales Order")
+        self._so_combo.setPlaceholderText("Select a Sales Order")
         self._so_combo.currentIndexChanged.connect(self._on_so_changed)
         layout.addWidget(self._so_combo)
 
@@ -482,11 +408,11 @@ class SolidWorksTab(QWidget):
         layout.addWidget(wo_label)
 
         self._wo_combo = QComboBox()
-        self._wo_combo.setPlaceholderText("Selecciona un Work Order del SO")
+        self._wo_combo.setPlaceholderText("Select a Work Order from the SO")
         self._wo_combo.currentIndexChanged.connect(self._on_wo_changed)
         layout.addWidget(self._wo_combo)
 
-        self._wo_detail_label = QLabel("Sin Work Order seleccionado.")
+        self._wo_detail_label = QLabel("No Work Order selected.")
         apply_scaled_font(self._wo_detail_label, offset=-1)
         self._wo_detail_label.setWordWrap(True)
         self._wo_detail_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
@@ -494,20 +420,20 @@ class SolidWorksTab(QWidget):
 
         layout.addStretch(1)
 
-        self._readiness_label = QLabel("Estado: carga un archivo para empezar.")
+        self._readiness_label = QLabel("Status: load a file to begin.")
         apply_scaled_font(self._readiness_label, offset=-1, weight=QFont.Weight.DemiBold)
         self._readiness_label.setWordWrap(True)
         layout.addWidget(self._readiness_label)
 
         btn_row = QHBoxLayout()
-        self._dry_run_btn = QPushButton("Dry-run (sin commit)")
+        self._dry_run_btn = QPushButton("Dry-run (no commit)")
         self._dry_run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._dry_run_btn.setStyleSheet(self._secondary_button_style())
         self._dry_run_btn.clicked.connect(lambda: self._on_import(dry_run=True))
         self._dry_run_btn.setEnabled(False)
         btn_row.addWidget(self._dry_run_btn)
 
-        self._import_btn = QPushButton("Importar a Sandbox WO")
+        self._import_btn = QPushButton("Import to Sandbox WO")
         self._import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._import_btn.setStyleSheet(self._danger_button_style())
         self._import_btn.clicked.connect(lambda: self._on_import(dry_run=False))
@@ -528,17 +454,10 @@ class SolidWorksTab(QWidget):
         layout.setSpacing(SPACE_4)
 
         title_row = QHBoxLayout()
-        title = QLabel("Log de operaciones")
+        title = QLabel("Operations log")
         apply_scaled_font(title, offset=0, weight=QFont.Weight.DemiBold)
         title_row.addWidget(title)
         title_row.addStretch(1)
-        self._log_db_chip = QLabel(f"DB: {SANDBOX_DATABASE}")
-        apply_scaled_font(self._log_db_chip, offset=-2, weight=QFont.Weight.DemiBold)
-        self._log_db_chip.setStyleSheet(
-            f"color: {COLOR_SANDBOX_TEXT}; background: {COLOR_SANDBOX_BG}; "
-            f"border: 1px solid {COLOR_SANDBOX_BORDER}; padding: 2px 8px; border-radius: 4px;"
-        )
-        title_row.addWidget(self._log_db_chip)
         layout.addLayout(title_row)
 
         self._log = QPlainTextEdit()
@@ -611,53 +530,18 @@ class SolidWorksTab(QWidget):
         """
 
     # ────────────────────────────────────────────────────────────────────────
-    # Sandbox info (banner diagnostic)
-    # ────────────────────────────────────────────────────────────────────────
-    def _refresh_sandbox_info(self):
-        self._sandbox_diag_label.setText("Verificando conexión sandbox…")
-        worker = _SandboxInfoWorker()
-        self._start_worker(
-            worker,
-            on_finished=self._on_sandbox_info_loaded,
-            on_failed=self._on_sandbox_info_failed,
-        )
-
-    def _on_sandbox_info_loaded(self, info: dict):
-        self._sandbox_info = dict(info or {})
-        db = info.get("database", "")
-        srv = info.get("server", "")
-        login = info.get("login", "")
-        when = info.get("server_time", "")
-        is_sandbox = (db == SANDBOX_DATABASE)
-        self._sandbox_diag_label.setText(
-            f"  ·  server={srv}  ·  DB_NAME()={db}  ·  login={login}  ·  {when}"
-        )
-        if is_sandbox:
-            self._sandbox_db_label.setStyleSheet(f"color: {COLOR_SUCCESS}; font-weight: 700;")
-            self._sandbox_db_label.setText(f"✅ Database: {db}")
-            self._log_line(f"Sandbox connection verified · server={srv} · DB_NAME()={db} · login={login}")
-        else:
-            self._sandbox_db_label.setStyleSheet(f"color: {COLOR_DANGER}; font-weight: 700;")
-            self._sandbox_db_label.setText(f"❌ Database: {db} (NOT SANDBOX!)")
-            self._log_line(f"WARN: DB_NAME() returned {db!r}, expected {SANDBOX_DATABASE!r}")
-
-    def _on_sandbox_info_failed(self, message: str):
-        self._sandbox_diag_label.setText(f"  ·  Error verificando sandbox: {message}")
-        self._log_line(f"ERROR verificando conexión sandbox: {message}")
-
-    # ────────────────────────────────────────────────────────────────────────
     # Action: load file (SLDDRW or CSV)
     # ────────────────────────────────────────────────────────────────────────
     def _on_select_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Selecciona archivo de SolidWorks o CSV BOM",
+            "Select SolidWorks or CSV BOM file",
             "",
             "SolidWorks Drawing (*.slddrw);;CSV BOM (*.csv);;All files (*.*)",
         )
         if not path:
             return
-        self._file_label.setText(f"Cargando: {os.path.basename(path)}…")
+        self._file_label.setText(f"Loading: {os.path.basename(path)}…")
         self._select_btn.setEnabled(False)
         self._log_line(f"Loading file: {path}")
         worker = _SwExtractWorker(path)
@@ -671,17 +555,17 @@ class SolidWorksTab(QWidget):
         self._select_btn.setEnabled(True)
         self._bom_rows = list(rows or [])
         self._matches = {}
-        self._file_label.setText(f"Cargado: {os.path.basename(path)} · {len(self._bom_rows)} líneas")
-        self._log_line(f"BOM extraído ({len(self._bom_rows)} líneas) desde {path}")
+        self._file_label.setText(f"Loaded: {os.path.basename(path)} · {len(self._bom_rows)} lines")
+        self._log_line(f"BOM extracted ({len(self._bom_rows)} lines) from {path}")
         self._populate_bom_table()
         self._match_btn.setEnabled(len(self._bom_rows) > 0)
         self._refresh_readiness()
 
     def _on_bom_load_failed(self, message: str):
         self._select_btn.setEnabled(True)
-        self._file_label.setText("Error cargando archivo")
-        self._log_line(f"ERROR cargando archivo: {message}")
-        QMessageBox.critical(self, "Error de extracción", message)
+        self._file_label.setText("Error loading file")
+        self._log_line(f"ERROR loading file: {message}")
+        QMessageBox.critical(self, "Extraction error", message)
 
     # ────────────────────────────────────────────────────────────────────────
     # Action: match against Mie Trak sandbox
@@ -693,7 +577,7 @@ class SolidWorksTab(QWidget):
             return
         self._match_btn.setEnabled(False)
         self._log_line(
-            f"Buscando {len(set(part_numbers))} part numbers únicos en {SANDBOX_DATABASE}.Item…"
+            f"Searching {len(set(part_numbers))} unique part numbers in {SANDBOX_DATABASE}.Item…"
         )
         worker = _MatchWorker(part_numbers)
         self._start_worker(worker, self._on_match_finished, self._on_match_failed)
@@ -703,14 +587,14 @@ class SolidWorksTab(QWidget):
         self._matches = dict(matches or {})
         found = sum(1 for m in self._matches.values() if m.found)
         total = len(self._matches)
-        self._log_line(f"Match completado: {found}/{total} items encontrados en {SANDBOX_DATABASE}.")
+        self._log_line(f"Match complete: {found}/{total} items found in {SANDBOX_DATABASE}.")
         self._populate_bom_table()
         self._refresh_readiness()
 
     def _on_match_failed(self, message: str):
         self._match_btn.setEnabled(True)
-        self._log_line(f"ERROR durante match: {message}")
-        QMessageBox.critical(self, "Error de match", message)
+        self._log_line(f"ERROR during match: {message}")
+        QMessageBox.critical(self, "Match error", message)
 
     # ────────────────────────────────────────────────────────────────────────
     # Action: sales order / work order pickers
@@ -720,7 +604,7 @@ class SolidWorksTab(QWidget):
         if not term:
             return
         self._so_search_btn.setEnabled(False)
-        self._log_line(f"Buscando sales orders por '{term}' en {SANDBOX_DATABASE}…")
+        self._log_line(f"Searching sales orders for '{term}' in {SANDBOX_DATABASE}…")
         worker = _SalesOrderSearchWorker(term)
         self._start_worker(worker, self._on_so_search_finished, self._on_so_search_failed)
 
@@ -735,7 +619,7 @@ class SolidWorksTab(QWidget):
                 self._so_combo.addItem(label, so.get("sales_order_pk"))
         finally:
             self._so_combo.blockSignals(False)
-        self._log_line(f"Encontrados {len(self._sales_orders)} sales orders.")
+        self._log_line(f"Found {len(self._sales_orders)} sales orders.")
         if self._sales_orders:
             self._so_combo.setCurrentIndex(0)
             self._on_so_changed(0)
@@ -747,8 +631,8 @@ class SolidWorksTab(QWidget):
 
     def _on_so_search_failed(self, message: str):
         self._so_search_btn.setEnabled(True)
-        self._log_line(f"ERROR buscando sales orders: {message}")
-        QMessageBox.critical(self, "Error buscando Sales Orders", message)
+        self._log_line(f"ERROR searching sales orders: {message}")
+        QMessageBox.critical(self, "Error searching Sales Orders", message)
 
     def _on_so_changed(self, index: int):
         if index < 0 or index >= len(self._sales_orders):
@@ -756,7 +640,7 @@ class SolidWorksTab(QWidget):
             return
         so_pk = self._sales_orders[index].get("sales_order_pk")
         self._selected_sales_order_pk = so_pk
-        self._log_line(f"Sales Order seleccionado: {so_pk}. Buscando work orders…")
+        self._log_line(f"Sales Order selected: {so_pk}. Loading work orders…")
         worker = _WorkOrderLoadWorker(so_pk)
         self._start_worker(worker, self._on_wo_load_finished, self._on_wo_load_failed)
 
@@ -770,23 +654,23 @@ class SolidWorksTab(QWidget):
                 self._wo_combo.addItem(label, wo.get("work_order_pk"))
         finally:
             self._wo_combo.blockSignals(False)
-        self._log_line(f"Encontrados {len(self._work_orders)} work orders para el SO.")
+        self._log_line(f"Found {len(self._work_orders)} work orders for the SO.")
         if self._work_orders:
             self._wo_combo.setCurrentIndex(0)
             self._on_wo_changed(0)
         else:
             self._selected_work_order_pk = None
-            self._wo_detail_label.setText("No hay work orders en ese Sales Order.")
+            self._wo_detail_label.setText("No work orders for that Sales Order.")
             self._refresh_readiness()
 
     def _on_wo_load_failed(self, message: str):
-        self._log_line(f"ERROR cargando work orders: {message}")
-        QMessageBox.critical(self, "Error cargando Work Orders", message)
+        self._log_line(f"ERROR loading work orders: {message}")
+        QMessageBox.critical(self, "Error loading Work Orders", message)
 
     def _on_wo_changed(self, index: int):
         if index < 0 or index >= len(self._work_orders):
             self._selected_work_order_pk = None
-            self._wo_detail_label.setText("Sin Work Order seleccionado.")
+            self._wo_detail_label.setText("No Work Order selected.")
             self._refresh_readiness()
             return
         wo = self._work_orders[index]
@@ -831,25 +715,25 @@ class SolidWorksTab(QWidget):
 
     def _on_import(self, *, dry_run: bool):
         if self._selected_work_order_pk is None:
-            QMessageBox.warning(self, "Falta destino", "Selecciona un Work Order primero.")
+            QMessageBox.warning(self, "Missing target", "Select a Work Order first.")
             return
         items = self._build_import_items()
         if not items:
             QMessageBox.warning(
                 self,
-                "BOM incompleto",
-                "Todos los items deben tener un match verde en Mie Trak antes de importar.",
+                "Incomplete BOM",
+                "All items must have a green Mie Trak match before importing.",
             )
             return
 
-        mode_label = "DRY-RUN (sin commit)" if dry_run else "IMPORT REAL (con commit)"
+        mode_label = "DRY-RUN (no commit)" if dry_run else "REAL IMPORT (commit)"
         confirm = QMessageBox.question(
             self,
-            f"Confirmar {mode_label}",
+            f"Confirm {mode_label}",
             (
-                f"Vas a {mode_label} de {len(items)} líneas BOM al Work Order PK "
-                f"{self._selected_work_order_pk}, en la base de datos {SANDBOX_DATABASE}.\n\n"
-                f"¿Confirmar?"
+                f"About to {mode_label} {len(items)} BOM lines to Work Order PK "
+                f"{self._selected_work_order_pk}, in database {SANDBOX_DATABASE}.\n\n"
+                f"Confirm?"
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -860,7 +744,7 @@ class SolidWorksTab(QWidget):
         self._import_btn.setEnabled(False)
         self._dry_run_btn.setEnabled(False)
         self._log_line(
-            f"Iniciando {mode_label} de {len(items)} items a WO PK {self._selected_work_order_pk}…"
+            f"Starting {mode_label} of {len(items)} items to WO PK {self._selected_work_order_pk}…"
         )
         worker = _ImportWorker(self._selected_work_order_pk, items, dry_run=dry_run)
         self._start_worker(worker, self._on_import_finished, self._on_import_failed)
@@ -869,7 +753,7 @@ class SolidWorksTab(QWidget):
         self._refresh_readiness()
         if result.error:
             self._log_line(f"ERROR: {result.error}")
-            QMessageBox.critical(self, "Error de importación", result.error)
+            QMessageBox.critical(self, "Import error", result.error)
             return
 
         verb = "COMMIT" if result.committed else "ROLLBACK (dry-run)"
@@ -882,18 +766,18 @@ class SolidWorksTab(QWidget):
                 f"  · {line.action} ItemFK={line.item_pk} ({line.part_number}) "
                 f"qty={line.quantity_required} {line.detail}"
             )
-        self._log_line("Sandbox housekeeping ejecutado: usp_AssignWorkOrderAssembly + usp_CalculateWorkOrder.")
+        self._log_line("Sandbox housekeeping executed: usp_AssignWorkOrderAssembly + usp_CalculateWorkOrder.")
 
         QMessageBox.information(
             self,
-            "Importación terminada",
-            f"{verb}.\n\n{len(result.lines)} líneas procesadas en {result.database}.",
+            "Import finished",
+            f"{verb}.\n\n{len(result.lines)} lines processed in {result.database}.",
         )
 
     def _on_import_failed(self, message: str):
         self._refresh_readiness()
-        self._log_line(f"ERROR thread import: {message}")
-        QMessageBox.critical(self, "Error de importación", message)
+        self._log_line(f"ERROR import thread: {message}")
+        QMessageBox.critical(self, "Import error", message)
 
     # ────────────────────────────────────────────────────────────────────────
     # Populating BOM table
@@ -934,7 +818,7 @@ class SolidWorksTab(QWidget):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._bom_table.setItem(r, c, item)
 
-        summary = f"{len(self._bom_rows)} líneas"
+        summary = f"{len(self._bom_rows)} lines"
         if self._matches:
             summary += f"  ·  ✅ {green}  ·  ❌ {red}"
         self._bom_summary_label.setText(summary)
@@ -942,14 +826,14 @@ class SolidWorksTab(QWidget):
     def _refresh_readiness(self):
         rows = len(self._bom_rows)
         if rows == 0:
-            self._readiness_label.setText("Estado: carga un archivo para empezar.")
+            self._readiness_label.setText("Status: load a file to begin.")
             self._readiness_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
             self._dry_run_btn.setEnabled(False)
             self._import_btn.setEnabled(False)
             return
 
         if not self._matches:
-            self._readiness_label.setText("Estado: corre 'Match con Mie Trak Sandbox'.")
+            self._readiness_label.setText("Status: run 'Match against Mie Trak Sandbox'.")
             self._readiness_label.setStyleSheet(f"color: {COLOR_WARNING};")
             self._dry_run_btn.setEnabled(False)
             self._import_btn.setEnabled(False)
@@ -958,7 +842,7 @@ class SolidWorksTab(QWidget):
         red = sum(1 for r in self._bom_rows if not (self._matches.get(str(r.get("part_number") or "").strip()) and self._matches[str(r.get("part_number") or "").strip()].found))
         if red > 0:
             self._readiness_label.setText(
-                f"Estado: {red} línea(s) sin match en Mie Trak — no se puede importar."
+                f"Status: {red} line(s) without a Mie Trak match — cannot import."
             )
             self._readiness_label.setStyleSheet(f"color: {COLOR_DANGER};")
             self._dry_run_btn.setEnabled(False)
@@ -967,7 +851,7 @@ class SolidWorksTab(QWidget):
 
         if self._selected_work_order_pk is None:
             self._readiness_label.setText(
-                "Estado: todos los items matchean ✅. Falta seleccionar un Work Order."
+                "Status: all items match ✅. Select a Work Order to continue."
             )
             self._readiness_label.setStyleSheet(f"color: {COLOR_WARNING};")
             self._dry_run_btn.setEnabled(False)
@@ -975,7 +859,7 @@ class SolidWorksTab(QWidget):
             return
 
         self._readiness_label.setText(
-            f"Estado: listo para importar {rows} líneas → WO PK {self._selected_work_order_pk} en {SANDBOX_DATABASE}."
+            f"Status: ready to import {rows} lines → WO PK {self._selected_work_order_pk} in {SANDBOX_DATABASE}."
         )
         self._readiness_label.setStyleSheet(f"color: {COLOR_SUCCESS};")
         self._dry_run_btn.setEnabled(True)
@@ -986,7 +870,7 @@ class SolidWorksTab(QWidget):
     # ────────────────────────────────────────────────────────────────────────
     def _log_line(self, message: str):
         ts = datetime.now().strftime("%H:%M:%S")
-        self._log.appendPlainText(f"[{ts}] [{SANDBOX_DATABASE}] {message}")
+        self._log.appendPlainText(f"[{ts}] {message}")
 
     def _start_worker(
         self,

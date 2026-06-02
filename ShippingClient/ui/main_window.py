@@ -1448,6 +1448,10 @@ class ModernShippingMainWindow(QMainWindow):
                     "can_view": True,
                     "columns": {"sills_database": can_write},
                 },
+                "bom_importer": {
+                    "can_view": True,
+                    "columns": {},
+                },
             }
         }
 

@@ -389,6 +389,11 @@ class SettingsDialog(QDialog):
             extra_rows=[("sills_database", "Sills DB (all fields)")],
             view_subtabs=[("sills_dashboard", "Sills Dashboard")],
         )
+        self._add_view_only_module_section(
+            content_layout,
+            module_key="bom_importer",
+            title="BOM Importer",
+        )
         content_layout.addStretch()
         scroll.setWidget(content)
         layout.addWidget(scroll, 1)
@@ -450,6 +455,21 @@ class SettingsDialog(QDialog):
                 row.addWidget(checkbox)
                 content_layout.addLayout(row)
 
+        parent_layout.addWidget(section)
+
+    def _add_view_only_module_section(self, parent_layout, module_key: str, title: str):
+        """Add a permission section for a module that only has a Visible toggle (no columns)."""
+        section, content_layout = self._create_connection_section(title)
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        module_checkbox = QCheckBox("Visible")
+        module_checkbox.setEnabled(self.is_admin)
+        self.permission_module_checkboxes[module_key] = module_checkbox
+        self.permission_checkboxes[module_key] = {}
+        header.addWidget(QLabel("Module access"))
+        header.addStretch()
+        header.addWidget(module_checkbox)
+        content_layout.addLayout(header)
         parent_layout.addWidget(section)
 
     def _size_permission_table_to_contents(self, table: QTableWidget):
